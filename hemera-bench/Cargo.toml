@@ -1,0 +1,24 @@
+[package]
+name = "hemera-bench"
+version = "0.2.0"
+edition = "2024"
+publish = false
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+cyber-hemera = { path = "../hemera-rs" }
+criterion = "0.5"
+
+[[bench]]
+name = "permutation"
+harness = false
+
+[[bench]]
+name = "hash"
+harness = false
+
+[[bench]]
+name = "tree"
+harness = false
