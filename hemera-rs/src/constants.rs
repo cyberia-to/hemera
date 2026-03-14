@@ -12,10 +12,10 @@ use crate::field::Goldilocks;
 use crate::params::{ROUNDS_F, ROUNDS_P, WIDTH};
 
 /// Total number of round constants.
-pub(crate) const NUM_CONSTANTS: usize = ROUNDS_F * WIDTH + ROUNDS_P; // 192
+pub const NUM_CONSTANTS: usize = ROUNDS_F * WIDTH + ROUNDS_P; // 192
 
 /// Round constants as raw u64 values (used by bootstrap verification and GPU).
-pub(crate) const ROUND_CONSTANTS_U64: [u64; NUM_CONSTANTS] = [
+pub const ROUND_CONSTANTS_U64: [u64; NUM_CONSTANTS] = [
     // ── External round 0 (16 elements) ────────────────────────────
     0xD5CCEAC23026433F, 0xE3578901A12C12D8, 0xF69C218E10D83177, 0x580252688A8C5A9D,
     0x8999AFADA4E74D8D, 0x3A2986E4C8DF69F6, 0x0EBFA3B512BC1EC0, 0xAF162E8CDB5C5623,
@@ -76,7 +76,7 @@ pub(crate) const ROUND_CONSTANTS_U64: [u64; NUM_CONSTANTS] = [
 ];
 
 /// Round constants as Goldilocks field elements (used by the permutation).
-pub(crate) const ROUND_CONSTANTS: [Goldilocks; NUM_CONSTANTS] = {
+pub const ROUND_CONSTANTS: [Goldilocks; NUM_CONSTANTS] = {
     let mut out = [Goldilocks::ZERO; NUM_CONSTANTS];
     let mut i = 0;
     while i < NUM_CONSTANTS {

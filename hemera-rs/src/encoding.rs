@@ -8,7 +8,7 @@ use crate::params::{
 ///
 /// Each element holds 7 bytes (little-endian). The last element may hold fewer bytes,
 /// zero-padded in the high positions.
-#[allow(dead_code)] // Used in tests; will be used by future BAO streaming code.
+#[allow(dead_code)] // Used in tests; will be used by future streaming tree code.
 pub(crate) fn bytes_to_elements(bytes: &[u8]) -> Vec<Goldilocks> {
     bytes
         .chunks(INPUT_BYTES_PER_ELEMENT)
@@ -55,7 +55,7 @@ pub(crate) fn hash_to_bytes(elements: &[Goldilocks; OUTPUT_ELEMENTS]) -> [u8; OU
 
 /// Convert a hash byte array back into Goldilocks elements.
 ///
-/// Inverse of `hash_to_bytes`. Used by `parent_cv` in the tree module.
+/// Inverse of `hash_to_bytes`. Used by `hash_node` in the tree module.
 pub(crate) fn bytes_to_cv(bytes: &[u8; OUTPUT_BYTES]) -> [Goldilocks; OUTPUT_ELEMENTS] {
     let mut out = [Goldilocks::new(0); OUTPUT_ELEMENTS];
     for (i, elem) in out.iter_mut().enumerate() {

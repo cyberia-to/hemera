@@ -84,7 +84,7 @@ pub const OUTPUT_BYTES: usize = OUTPUT_ELEMENTS * OUTPUT_BYTES_PER_ELEMENT; // 6
 /// Canonical chunk size for content tree construction (4 KB).
 ///
 /// Content is split into fixed 4 KB chunks. Each chunk is hashed via
-/// `chunk_cv`. The last chunk may be shorter. See spec §4.6.1.
+/// `hash_leaf`. The last chunk may be shorter. See spec §4.6.1.
 pub const CHUNK_SIZE: usize = 4096;
 
 // ── Security properties (informational) ─────────────────────────────

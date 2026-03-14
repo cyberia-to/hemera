@@ -43,16 +43,13 @@
 
 #[cfg(test)]
 mod bootstrap;
-mod constants;
+pub mod constants;
 mod encoding;
-pub(crate) mod field;
+pub mod field;
 mod params;
-mod permutation;
+pub mod permutation;
 mod sponge;
 pub mod tree;
-
-#[cfg(feature = "gpu")]
-pub mod gpu;
 
 // Re-export all Hemera parameters so downstream crates never hardcode them.
 pub use params::{

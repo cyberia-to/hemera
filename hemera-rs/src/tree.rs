@@ -1,14 +1,14 @@
-//! BAO-style Merkle tree construction.
+//! Hash tree construction.
 //!
-//! `chunk_cv` hashes leaf data into a chaining value.
-//! `parent_cv` combines two child chaining values into a parent node.
+//! `hash_leaf` hashes leaf data into a chaining value.
+//! `hash_node` combines two child chaining values into a parent node.
 
 use crate::encoding::{bytes_to_cv, hash_to_bytes};
 use crate::field::Goldilocks;
 use crate::params::{self, CHUNK_SIZE, OUTPUT_ELEMENTS, RATE, WIDTH};
 use crate::sponge::Hash;
 
-/// Flags encoded in the capacity for BAO operations.
+/// Flags encoded in the capacity for tree operations.
 const FLAG_ROOT: u64 = 1 << 0;
 const FLAG_PARENT: u64 = 1 << 1;
 const FLAG_CHUNK: u64 = 1 << 2;
@@ -16,7 +16,7 @@ const FLAG_CHUNK: u64 = 1 << 2;
 /// Capacity index for chunk counter (position in the file).
 const CAPACITY_COUNTER_IDX: usize = RATE; // state[8]
 
-/// Capacity index for BAO flags.
+/// Capacity index for tree flags.
 const CAPACITY_FLAGS_IDX: usize = RATE + 1; // state[9]
 
 /// Capacity index for namespace lower bound (NMT only).
@@ -28,10 +28,10 @@ const CAPACITY_NS_MAX_IDX: usize = RATE + 5; // state[13]
 /// Compute the chaining value for a leaf chunk.
 ///
 /// The `counter` is the chunk's position index within the file (0-based),
-/// used for ordering in BAO tree construction. The `is_root` flag
+/// used for ordering in tree construction. The `is_root` flag
 /// domain-separates root finalization (single-chunk inputs) from interior
 /// finalization.
-pub fn chunk_cv(chunk: &[u8], counter: u64, is_root: bool) -> Hash {
+pub fn hash_leaf(chunk: &[u8], counter: u64, is_root: bool) -> Hash {
     let mut hasher = crate::sponge::Hasher::new();
     hasher.update(chunk);
     let base_hash = hasher.finalize();
@@ -61,7 +61,7 @@ pub fn chunk_cv(chunk: &[u8], counter: u64, is_root: bool) -> Hash {
 /// with flags set in the capacity before the first permutation.
 ///
 /// The `is_root` flag domain-separates the tree root from interior nodes.
-pub fn parent_cv(left: &Hash, right: &Hash, is_root: bool) -> Hash {
+pub fn hash_node(left: &Hash, right: &Hash, is_root: bool) -> Hash {
     let left_elems = bytes_to_cv(left.as_bytes());
     let right_elems = bytes_to_cv(right.as_bytes());
 
@@ -92,10 +92,10 @@ pub fn parent_cv(left: &Hash, right: &Hash, is_root: bool) -> Hash {
 
 /// Combine two child chaining values into a namespace-aware parent.
 ///
-/// Extends `parent_cv` with namespace bounds committed in capacity:
+/// Extends `hash_node` with namespace bounds committed in capacity:
 /// `state[12] = ns_min`, `state[13] = ns_max`. When both are zero this
-/// reduces to `parent_cv`. See spec §4.6.4.
-pub fn nmt_parent_cv(
+/// reduces to `hash_node`. See spec §4.6.4.
+pub fn hash_node_nmt(
     left: &Hash,
     right: &Hash,
     ns_min: u64,
@@ -134,18 +134,18 @@ pub fn nmt_parent_cv(
 /// Splits `data` into `CHUNK_SIZE`-byte chunks and builds a left-balanced
 /// binary Merkle tree. See spec §4.6.1–§4.6.5.
 ///
-/// - Single chunk (≤ 4096 bytes): `chunk_cv(data, 0, is_root=true)`
-/// - Multiple chunks: left-balanced tree via `chunk_cv` + `parent_cv`
-pub fn tree_hash(data: &[u8]) -> Hash {
+/// - Single chunk (≤ 4096 bytes): `hash_leaf(data, 0, is_root=true)`
+/// - Multiple chunks: left-balanced tree via `hash_leaf` + `hash_node`
+pub fn root_hash(data: &[u8]) -> Hash {
     if data.is_empty() {
-        return chunk_cv(data, 0, true);
+        return hash_leaf(data, 0, true);
     }
 
     let chunks: Vec<&[u8]> = data.chunks(CHUNK_SIZE).collect();
     let cvs: Vec<Hash> = chunks
         .iter()
         .enumerate()
-        .map(|(i, chunk)| chunk_cv(chunk, i as u64, chunks.len() == 1))
+        .map(|(i, chunk)| hash_leaf(chunk, i as u64, chunks.len() == 1))
         .collect();
 
     if cvs.len() == 1 {
@@ -166,7 +166,7 @@ fn merge_subtree(cvs: &[Hash], is_root: bool) -> Hash {
     let split = 1 << (usize::BITS - (cvs.len() - 1).leading_zeros() - 1);
     let left = merge_subtree(&cvs[..split], false);
     let right = merge_subtree(&cvs[split..], false);
-    parent_cv(&left, &right, is_root)
+    hash_node(&left, &right, is_root)
 }
 
 #[cfg(test)]
@@ -175,68 +175,68 @@ mod tests {
     use crate::params::OUTPUT_BYTES;
 
     #[test]
-    fn parent_cv_non_commutative() {
+    fn hash_node_non_commutative() {
         let left = Hash::from_bytes([1u8; OUTPUT_BYTES]);
         let right = Hash::from_bytes([2u8; OUTPUT_BYTES]);
-        let lr = parent_cv(&left, &right, false);
-        let rl = parent_cv(&right, &left, false);
+        let lr = hash_node(&left, &right, false);
+        let rl = hash_node(&right, &left, false);
         assert_ne!(lr, rl);
     }
 
     #[test]
-    fn parent_cv_root_differs() {
+    fn hash_node_root_differs() {
         let left = Hash::from_bytes([1u8; OUTPUT_BYTES]);
         let right = Hash::from_bytes([2u8; OUTPUT_BYTES]);
-        let non_root = parent_cv(&left, &right, false);
-        let root = parent_cv(&left, &right, true);
+        let non_root = hash_node(&left, &right, false);
+        let root = hash_node(&left, &right, true);
         assert_ne!(non_root, root);
     }
 
     #[test]
-    fn chunk_cv_root_differs() {
+    fn hash_leaf_root_differs() {
         let data = b"chunk data";
-        let non_root = chunk_cv(data, 0, false);
-        let root = chunk_cv(data, 0, true);
+        let non_root = hash_leaf(data, 0, false);
+        let root = hash_leaf(data, 0, true);
         assert_ne!(non_root, root);
     }
 
     #[test]
-    fn chunk_cv_counter_differs() {
+    fn hash_leaf_counter_differs() {
         let data = b"chunk data";
-        let c0 = chunk_cv(data, 0, false);
-        let c1 = chunk_cv(data, 1, false);
+        let c0 = hash_leaf(data, 0, false);
+        let c1 = hash_leaf(data, 1, false);
         assert_ne!(c0, c1);
     }
 
     #[test]
-    fn parent_cv_deterministic() {
+    fn hash_node_deterministic() {
         let left = Hash::from_bytes([0xAA; OUTPUT_BYTES]);
         let right = Hash::from_bytes([0xBB; OUTPUT_BYTES]);
-        let h1 = parent_cv(&left, &right, false);
-        let h2 = parent_cv(&left, &right, false);
+        let h1 = hash_node(&left, &right, false);
+        let h2 = hash_node(&left, &right, false);
         assert_eq!(h1, h2);
     }
 
     #[test]
-    fn chunk_cv_different_data() {
-        let h1 = chunk_cv(b"data1", 0, false);
-        let h2 = chunk_cv(b"data2", 0, false);
+    fn hash_leaf_different_data() {
+        let h1 = hash_leaf(b"data1", 0, false);
+        let h2 = hash_leaf(b"data2", 0, false);
         assert_ne!(h1, h2);
     }
 
     #[test]
-    fn chunk_cv_empty() {
-        let h = chunk_cv(b"", 0, false);
+    fn hash_leaf_empty() {
+        let h = hash_leaf(b"", 0, false);
         assert_ne!(h.as_bytes(), &[0u8; OUTPUT_BYTES]);
     }
 
     #[test]
-    fn chunk_cv_vs_plain_hash() {
-        // chunk_cv should differ from a plain hash of the same data
+    fn hash_leaf_vs_plain_hash() {
+        // hash_leaf should differ from a plain hash of the same data
         // because of the CHUNK flag domain separation.
         let data = b"test data";
         let plain = crate::sponge::Hasher::new().update(data).finalize();
-        let cv = chunk_cv(data, 0, false);
+        let cv = hash_leaf(data, 0, false);
         assert_ne!(plain, cv);
     }
 
@@ -245,13 +245,13 @@ mod tests {
     #[test]
     fn two_chunk_tree() {
         // Simulate a 2-chunk file: left + right → root parent
-        let left_cv = chunk_cv(b"chunk 0 data", 0, false);
-        let right_cv = chunk_cv(b"chunk 1 data", 1, false);
-        let root = parent_cv(&left_cv, &right_cv, true);
+        let left_cv = hash_leaf(b"chunk 0 data", 0, false);
+        let right_cv = hash_leaf(b"chunk 1 data", 1, false);
+        let root = hash_node(&left_cv, &right_cv, true);
         assert_ne!(root.as_bytes(), &[0u8; OUTPUT_BYTES]);
 
         // Deterministic
-        let root2 = parent_cv(&left_cv, &right_cv, true);
+        let root2 = hash_node(&left_cv, &right_cv, true);
         assert_eq!(root, root2);
     }
 
@@ -263,22 +263,22 @@ mod tests {
         //     p01    p23
         //    / \    / \
         //  c0  c1 c2  c3
-        let c0 = chunk_cv(b"chunk0", 0, false);
-        let c1 = chunk_cv(b"chunk1", 1, false);
-        let c2 = chunk_cv(b"chunk2", 2, false);
-        let c3 = chunk_cv(b"chunk3", 3, false);
+        let c0 = hash_leaf(b"chunk0", 0, false);
+        let c1 = hash_leaf(b"chunk1", 1, false);
+        let c2 = hash_leaf(b"chunk2", 2, false);
+        let c3 = hash_leaf(b"chunk3", 3, false);
 
-        let p01 = parent_cv(&c0, &c1, false);
-        let p23 = parent_cv(&c2, &c3, false);
-        let root = parent_cv(&p01, &p23, true);
+        let p01 = hash_node(&c0, &c1, false);
+        let p23 = hash_node(&c2, &c3, false);
+        let root = hash_node(&p01, &p23, true);
 
         assert_ne!(root.as_bytes(), &[0u8; OUTPUT_BYTES]);
 
         // Permuting children changes the root
-        let p01_swapped = parent_cv(&c1, &c0, false);
+        let p01_swapped = hash_node(&c1, &c0, false);
         assert_ne!(p01, p01_swapped);
 
-        let root_swapped = parent_cv(&p01_swapped, &p23, true);
+        let root_swapped = hash_node(&p01_swapped, &p23, true);
         assert_ne!(root, root_swapped);
     }
 
@@ -287,46 +287,46 @@ mod tests {
         // A single-chunk file has is_root=true
         // A multi-chunk file's first chunk has is_root=false
         let data = b"single chunk";
-        let single_root = chunk_cv(data, 0, true);
-        let multi_first = chunk_cv(data, 0, false);
+        let single_root = hash_leaf(data, 0, true);
+        let multi_first = hash_leaf(data, 0, false);
         assert_ne!(single_root, multi_first);
     }
 
     #[test]
-    fn parent_cv_identical_children() {
-        // Even with identical children, parent_cv should produce a non-trivial hash
-        let cv = chunk_cv(b"duplicate", 0, false);
-        let parent = parent_cv(&cv, &cv, false);
+    fn hash_node_identical_children() {
+        // Even with identical children, hash_node should produce a non-trivial hash
+        let cv = hash_leaf(b"duplicate", 0, false);
+        let parent = hash_node(&cv, &cv, false);
         assert_ne!(parent.as_bytes(), &[0u8; OUTPUT_BYTES]);
         // Parent should differ from either child
         assert_ne!(parent, cv);
     }
 
     #[test]
-    fn chunk_cv_large_counter() {
+    fn hash_leaf_large_counter() {
         // Large counter values should work and produce different results
-        let cv_max = chunk_cv(b"data", u64::MAX, false);
-        let cv_zero = chunk_cv(b"data", 0, false);
+        let cv_max = hash_leaf(b"data", u64::MAX, false);
+        let cv_zero = hash_leaf(b"data", 0, false);
         assert_ne!(cv_max, cv_zero);
     }
 
     #[test]
-    fn chunk_cv_large_data() {
+    fn hash_leaf_large_data() {
         // Chunk with > 1 rate block of data
         let data = vec![0xAB; 1000];
-        let cv = chunk_cv(&data, 0, false);
+        let cv = hash_leaf(&data, 0, false);
         assert_ne!(cv.as_bytes(), &[0u8; OUTPUT_BYTES]);
 
         // Deterministic
-        let cv2 = chunk_cv(&data, 0, false);
+        let cv2 = hash_leaf(&data, 0, false);
         assert_eq!(cv, cv2);
     }
 
     #[test]
-    fn parent_cv_non_root_vs_root_with_identical_children() {
+    fn hash_node_non_root_vs_root_with_identical_children() {
         let cv = Hash::from_bytes([0x42; OUTPUT_BYTES]);
-        let non_root = parent_cv(&cv, &cv, false);
-        let root = parent_cv(&cv, &cv, true);
+        let non_root = hash_node(&cv, &cv, false);
+        let root = hash_node(&cv, &cv, true);
         assert_ne!(non_root, root);
     }
 
@@ -352,47 +352,47 @@ mod tests {
     // ── NMT parent tests ─────────────────────────────────────────
 
     #[test]
-    fn nmt_parent_cv_zero_ns_matches_parent_cv() {
+    fn hash_node_nmt_zero_ns_matches_hash_node() {
         let left = Hash::from_bytes([1u8; OUTPUT_BYTES]);
         let right = Hash::from_bytes([2u8; OUTPUT_BYTES]);
-        let standard = parent_cv(&left, &right, false);
-        let nmt_zero = nmt_parent_cv(&left, &right, 0, 0, false);
+        let standard = hash_node(&left, &right, false);
+        let nmt_zero = hash_node_nmt(&left, &right, 0, 0, false);
         assert_eq!(standard, nmt_zero);
     }
 
     #[test]
-    fn nmt_parent_cv_ns_differs_from_plain() {
+    fn hash_node_nmt_ns_differs_from_plain() {
         let left = Hash::from_bytes([1u8; OUTPUT_BYTES]);
         let right = Hash::from_bytes([2u8; OUTPUT_BYTES]);
-        let plain = parent_cv(&left, &right, false);
-        let with_ns = nmt_parent_cv(&left, &right, 10, 20, false);
+        let plain = hash_node(&left, &right, false);
+        let with_ns = hash_node_nmt(&left, &right, 10, 20, false);
         assert_ne!(plain, with_ns);
     }
 
     #[test]
-    fn nmt_parent_cv_different_ns_ranges() {
+    fn hash_node_nmt_different_ns_ranges() {
         let left = Hash::from_bytes([1u8; OUTPUT_BYTES]);
         let right = Hash::from_bytes([2u8; OUTPUT_BYTES]);
-        let h1 = nmt_parent_cv(&left, &right, 10, 20, false);
-        let h2 = nmt_parent_cv(&left, &right, 10, 30, false);
+        let h1 = hash_node_nmt(&left, &right, 10, 20, false);
+        let h2 = hash_node_nmt(&left, &right, 10, 30, false);
         assert_ne!(h1, h2);
     }
 
     #[test]
-    fn nmt_parent_cv_root_differs() {
+    fn hash_node_nmt_root_differs() {
         let left = Hash::from_bytes([1u8; OUTPUT_BYTES]);
         let right = Hash::from_bytes([2u8; OUTPUT_BYTES]);
-        let non_root = nmt_parent_cv(&left, &right, 5, 15, false);
-        let root = nmt_parent_cv(&left, &right, 5, 15, true);
+        let non_root = hash_node_nmt(&left, &right, 5, 15, false);
+        let root = hash_node_nmt(&left, &right, 5, 15, true);
         assert_ne!(non_root, root);
     }
 
     #[test]
-    fn nmt_parent_cv_non_commutative() {
+    fn hash_node_nmt_non_commutative() {
         let left = Hash::from_bytes([1u8; OUTPUT_BYTES]);
         let right = Hash::from_bytes([2u8; OUTPUT_BYTES]);
-        let lr = nmt_parent_cv(&left, &right, 5, 15, false);
-        let rl = nmt_parent_cv(&right, &left, 5, 15, false);
+        let lr = hash_node_nmt(&left, &right, 5, 15, false);
+        let rl = hash_node_nmt(&right, &left, 5, 15, false);
         assert_ne!(lr, rl);
     }
 
@@ -404,77 +404,77 @@ mod tests {
         assert!(CAPACITY_NS_MIN_IDX > 11);
     }
 
-    // ── tree_hash tests ──────────────────────────────────────────
+    // ── root_hash tests ──────────────────────────────────────────
 
     #[test]
-    fn tree_hash_empty() {
-        let h = tree_hash(b"");
-        assert_eq!(h, chunk_cv(b"", 0, true));
+    fn root_hash_empty() {
+        let h = root_hash(b"");
+        assert_eq!(h, hash_leaf(b"", 0, true));
     }
 
     #[test]
-    fn tree_hash_single_chunk() {
+    fn root_hash_single_chunk() {
         let data = vec![0x42u8; 100];
-        let h = tree_hash(&data);
-        assert_eq!(h, chunk_cv(&data, 0, true));
+        let h = root_hash(&data);
+        assert_eq!(h, hash_leaf(&data, 0, true));
     }
 
     #[test]
-    fn tree_hash_exact_chunk() {
+    fn root_hash_exact_chunk() {
         let data = vec![0x42u8; CHUNK_SIZE];
-        let h = tree_hash(&data);
-        assert_eq!(h, chunk_cv(&data, 0, true));
+        let h = root_hash(&data);
+        assert_eq!(h, hash_leaf(&data, 0, true));
     }
 
     #[test]
-    fn tree_hash_two_chunks() {
+    fn root_hash_two_chunks() {
         let data = vec![0x42u8; CHUNK_SIZE + 1];
-        let h = tree_hash(&data);
-        let c0 = chunk_cv(&data[..CHUNK_SIZE], 0, false);
-        let c1 = chunk_cv(&data[CHUNK_SIZE..], 1, false);
-        assert_eq!(h, parent_cv(&c0, &c1, true));
+        let h = root_hash(&data);
+        let c0 = hash_leaf(&data[..CHUNK_SIZE], 0, false);
+        let c1 = hash_leaf(&data[CHUNK_SIZE..], 1, false);
+        assert_eq!(h, hash_node(&c0, &c1, true));
     }
 
     #[test]
-    fn tree_hash_three_chunks() {
+    fn root_hash_three_chunks() {
         // 3 chunks → left-balanced: left subtree has 2 leaves, right has 1
         let data = vec![0xAB; CHUNK_SIZE * 3];
-        let h = tree_hash(&data);
+        let h = root_hash(&data);
 
-        let c0 = chunk_cv(&data[..CHUNK_SIZE], 0, false);
-        let c1 = chunk_cv(&data[CHUNK_SIZE..CHUNK_SIZE * 2], 1, false);
-        let c2 = chunk_cv(&data[CHUNK_SIZE * 2..], 2, false);
-        let left = parent_cv(&c0, &c1, false);
-        let expected = parent_cv(&left, &c2, true);
+        let c0 = hash_leaf(&data[..CHUNK_SIZE], 0, false);
+        let c1 = hash_leaf(&data[CHUNK_SIZE..CHUNK_SIZE * 2], 1, false);
+        let c2 = hash_leaf(&data[CHUNK_SIZE * 2..], 2, false);
+        let left = hash_node(&c0, &c1, false);
+        let expected = hash_node(&left, &c2, true);
         assert_eq!(h, expected);
     }
 
     #[test]
-    fn tree_hash_four_chunks() {
+    fn root_hash_four_chunks() {
         let data = vec![0xCD; CHUNK_SIZE * 4];
-        let h = tree_hash(&data);
+        let h = root_hash(&data);
 
-        let c0 = chunk_cv(&data[..CHUNK_SIZE], 0, false);
-        let c1 = chunk_cv(&data[CHUNK_SIZE..CHUNK_SIZE * 2], 1, false);
-        let c2 = chunk_cv(&data[CHUNK_SIZE * 2..CHUNK_SIZE * 3], 2, false);
-        let c3 = chunk_cv(&data[CHUNK_SIZE * 3..], 3, false);
-        let p01 = parent_cv(&c0, &c1, false);
-        let p23 = parent_cv(&c2, &c3, false);
-        let expected = parent_cv(&p01, &p23, true);
+        let c0 = hash_leaf(&data[..CHUNK_SIZE], 0, false);
+        let c1 = hash_leaf(&data[CHUNK_SIZE..CHUNK_SIZE * 2], 1, false);
+        let c2 = hash_leaf(&data[CHUNK_SIZE * 2..CHUNK_SIZE * 3], 2, false);
+        let c3 = hash_leaf(&data[CHUNK_SIZE * 3..], 3, false);
+        let p01 = hash_node(&c0, &c1, false);
+        let p23 = hash_node(&c2, &c3, false);
+        let expected = hash_node(&p01, &p23, true);
         assert_eq!(h, expected);
     }
 
     #[test]
-    fn tree_hash_deterministic() {
+    fn root_hash_deterministic() {
         let data = vec![0xEF; CHUNK_SIZE * 5];
-        assert_eq!(tree_hash(&data), tree_hash(&data));
+        assert_eq!(root_hash(&data), root_hash(&data));
     }
 
     #[test]
-    fn tree_hash_differs_from_plain_hash() {
-        // tree_hash uses chunk_cv with flags; plain hash does not
+    fn root_hash_differs_from_plain_hash() {
+        // root_hash uses hash_leaf with flags; plain hash does not
         let data = b"small input";
-        let th = tree_hash(data);
+        let th = root_hash(data);
         let ph = crate::hash(data);
         assert_ne!(th, ph);
     }
