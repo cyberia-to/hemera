@@ -314,6 +314,74 @@ pub fn tree_depth(n: u64) -> u32 {
     }
 }
 
+/// A node in the hash tree with its position and children.
+#[derive(Clone, Debug)]
+pub struct TreeNode {
+    pub hash: Hash,
+    pub depth: u32,
+    pub left: Option<Box<TreeNode>>,
+    pub right: Option<Box<TreeNode>>,
+    /// For leaves: the chunk index.
+    pub chunk_index: Option<u64>,
+}
+
+/// Build the full hash tree and return the root node.
+///
+/// Each node contains its hash, depth, and references to children.
+/// Leaves have `chunk_index` set and no children.
+pub fn build_tree(data: &[u8]) -> TreeNode {
+    let chunks: Vec<&[u8]> = if data.is_empty() {
+        vec![data]
+    } else {
+        data.chunks(CHUNK_SIZE).collect()
+    };
+
+    let leaves: Vec<TreeNode> = chunks
+        .iter()
+        .enumerate()
+        .map(|(i, chunk)| TreeNode {
+            hash: hash_leaf(chunk, i as u64, chunks.len() == 1),
+            depth: 0,
+            left: None,
+            right: None,
+            chunk_index: Some(i as u64),
+        })
+        .collect();
+
+    if leaves.len() == 1 {
+        return leaves.into_iter().next().unwrap();
+    }
+
+    build_subtree(leaves, true)
+}
+
+fn build_subtree(nodes: Vec<TreeNode>, is_root: bool) -> TreeNode {
+    if nodes.len() == 1 {
+        return nodes.into_iter().next().unwrap();
+    }
+
+    let split = 1 << (usize::BITS - (nodes.len() - 1).leading_zeros() - 1);
+    let (left_nodes, right_nodes): (Vec<_>, Vec<_>) = {
+        let mut iter = nodes.into_iter();
+        let left: Vec<_> = iter.by_ref().take(split).collect();
+        let right: Vec<_> = iter.collect();
+        (left, right)
+    };
+
+    let left = build_subtree(left_nodes, false);
+    let right = build_subtree(right_nodes, false);
+    let hash = hash_node(&left.hash, &right.hash, is_root);
+    let depth = left.depth.max(right.depth) + 1;
+
+    TreeNode {
+        hash,
+        depth,
+        left: Some(Box::new(left)),
+        right: Some(Box::new(right)),
+        chunk_index: None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -12,6 +12,15 @@ fn main() {
     }
 
     match args.first().map(|s| s.as_str()) {
+        // hemera tree <file>  — display full tree structure
+        Some("tree") => {
+            let rest: Vec<&str> = args[1..].iter().map(|s| s.as_str()).collect();
+            if rest.len() != 1 {
+                eprintln!("hemera: tree requires <file>");
+                process::exit(1);
+            }
+            process::exit(show_tree(rest[0]));
+        }
         // hemera prove <file> [chunk_index]  — generate inclusion proof
         Some("prove") => {
             let rest: Vec<&str> = args[1..].iter().map(|s| s.as_str()).collect();
@@ -108,6 +117,42 @@ fn hash_file(path: &Path) -> io::Result<String> {
     let mut data = Vec::new();
     file.read_to_end(&mut data)?;
     Ok(cyber_hemera::tree::root_hash(&data).to_string())
+}
+
+fn show_tree(path: &str) -> i32 {
+    let data = match fs::read(path) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("hemera: {path}: {e}");
+            return 1;
+        }
+    };
+
+    let n = cyber_hemera::tree::num_chunks(data.len());
+    let tree = cyber_hemera::tree::build_tree(&data);
+
+    println!("file: {path}");
+    println!("size: {} bytes", data.len());
+    println!("chunks: {n}");
+    println!("depth: {}", tree.depth);
+    println!("root: {}", tree.hash);
+    println!();
+    print_tree_node(&tree, "", "");
+    0
+}
+
+fn print_tree_node(node: &cyber_hemera::tree::TreeNode, connector: &str, prefix: &str) {
+    let short_hash = &node.hash.to_string()[..16];
+    if let Some(idx) = node.chunk_index {
+        println!("{connector}chunk[{idx}] {short_hash}…");
+    } else {
+        println!("{connector}node {short_hash}…");
+    }
+
+    if let (Some(left), Some(right)) = (&node.left, &node.right) {
+        print_tree_node(left, &format!("{prefix}├── "), &format!("{prefix}│   "));
+        print_tree_node(right, &format!("{prefix}└── "), &format!("{prefix}    "));
+    }
 }
 
 fn prove_chunk(path: &str, chunk_index: u64) -> i32 {
@@ -226,6 +271,7 @@ fn print_usage() {
   hemera file1.txt file2.txt       Hash files
   hemera src/                      Hash directory (recursive)
   echo hello | hemera              Hash stdin
+  hemera tree file.txt             Show tree structure
   hemera prove file.txt [chunk]    Merkle inclusion proof
   hemera verify file.txt <hash>    Verify file against hash
   hemera verify sums.txt           Verify checksums from file
