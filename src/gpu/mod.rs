@@ -257,10 +257,10 @@ impl GpuContext {
 
 /// Generate round constants as u32 pairs matching the CPU backend's constants.
 ///
-/// Uses the same self-bootstrapping sponge as the CPU permutation, ensuring
+/// Uses the same static round constants as the CPU permutation, ensuring
 /// GPU and CPU round constants are identical.
 fn generate_round_constants_u32() -> Vec<u32> {
-    let values = crate::params::bootstrap_constants_u64();
+    let values = crate::constants::ROUND_CONSTANTS;
     let mut constants = Vec::with_capacity(values.len() * 2);
     for val in values {
         constants.push(val as u32);

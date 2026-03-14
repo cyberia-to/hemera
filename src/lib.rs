@@ -29,7 +29,7 @@
 //! # Examples
 //!
 //! ```
-//! use hemera::{hash, derive_key};
+//! use cyber_hemera::{hash, derive_key};
 //!
 //! let digest = hash(b"hello world");
 //! println!("{digest}");
@@ -37,6 +37,9 @@
 //! let key = derive_key("my app v1", b"key material");
 //! ```
 
+#[cfg(test)]
+mod bootstrap;
+mod constants;
 mod encoding;
 pub mod hazmat;
 mod params;
@@ -181,5 +184,112 @@ mod tests {
             hasher.update(chunk);
         }
         assert_eq!(h, hasher.finalize());
+    }
+
+    #[test]
+    fn hash_empty() {
+        let h = hash(b"");
+        assert_ne!(h.as_bytes(), &[0u8; OUTPUT_BYTES]);
+    }
+
+    #[test]
+    fn hash_single_byte_avalanche() {
+        // Each single-byte input should produce a wildly different hash
+        let hashes: Vec<_> = (0..=255u8).map(|b| hash(&[b])).collect();
+        for i in 0..256 {
+            for j in (i + 1)..256 {
+                assert_ne!(hashes[i], hashes[j], "collision at bytes {i} and {j}");
+            }
+        }
+    }
+
+    #[test]
+    fn keyed_hash_empty_input() {
+        let h = keyed_hash(&[0u8; OUTPUT_BYTES], b"");
+        assert_ne!(h.as_bytes(), &[0u8; OUTPUT_BYTES]);
+    }
+
+    #[test]
+    fn derive_key_long_context() {
+        // Context longer than one rate block
+        let long_ctx = "a]".repeat(100);
+        let k = derive_key(&long_ctx, b"material");
+        assert_ne!(k, [0u8; OUTPUT_BYTES]);
+    }
+
+    #[test]
+    fn derive_key_long_material() {
+        // Material longer than one rate block
+        let material = vec![0x42u8; 1000];
+        let k = derive_key("ctx", &material);
+        assert_ne!(k, [0u8; OUTPUT_BYTES]);
+    }
+}
+
+/// Property-based tests using proptest.
+#[cfg(test)]
+mod proptests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn hash_is_deterministic(data in proptest::collection::vec(any::<u8>(), 0..500)) {
+            prop_assert_eq!(hash(&data), hash(&data));
+        }
+
+        #[test]
+        fn streaming_matches_oneshot(data in proptest::collection::vec(any::<u8>(), 0..500)) {
+            let oneshot = hash(&data);
+            let mut hasher = Hasher::new();
+            // Feed in random-ish chunk sizes
+            let mut pos = 0;
+            let mut chunk_size = 1;
+            while pos < data.len() {
+                let end = (pos + chunk_size).min(data.len());
+                hasher.update(&data[pos..end]);
+                pos = end;
+                chunk_size = (chunk_size * 3 + 1) % 71; // pseudo-random sizes
+                if chunk_size == 0 { chunk_size = 1; }
+            }
+            prop_assert_eq!(oneshot, hasher.finalize());
+        }
+
+        #[test]
+        fn xof_prefix_matches_finalize(data in proptest::collection::vec(any::<u8>(), 0..200)) {
+            let hash_result = hash(&data);
+            let mut xof = {
+                let mut h = Hasher::new();
+                h.update(&data);
+                h.finalize_xof()
+            };
+            let mut xof_bytes = [0u8; OUTPUT_BYTES];
+            xof.fill(&mut xof_bytes);
+            prop_assert_eq!(hash_result.as_bytes(), &xof_bytes);
+        }
+
+        #[test]
+        fn keyed_hash_differs_from_plain(
+            data in proptest::collection::vec(any::<u8>(), 1..200),
+            key in proptest::collection::vec(any::<u8>(), OUTPUT_BYTES..=OUTPUT_BYTES),
+        ) {
+            let key_arr: [u8; OUTPUT_BYTES] = key.try_into().unwrap();
+            let plain = hash(&data);
+            let keyed = keyed_hash(&key_arr, &data);
+            prop_assert_ne!(plain, keyed);
+        }
+
+        #[test]
+        fn clone_consistency(
+            prefix in proptest::collection::vec(any::<u8>(), 0..100),
+            suffix in proptest::collection::vec(any::<u8>(), 0..100),
+        ) {
+            let mut h1 = Hasher::new();
+            h1.update(&prefix);
+            let mut h2 = h1.clone();
+            h1.update(&suffix);
+            h2.update(&suffix);
+            prop_assert_eq!(h1.finalize(), h2.finalize());
+        }
     }
 }
