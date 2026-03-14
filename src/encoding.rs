@@ -56,7 +56,7 @@ pub(crate) fn hash_to_bytes(elements: &[Goldilocks; OUTPUT_ELEMENTS]) -> [u8; OU
 
 /// Convert a hash byte array back into Goldilocks elements.
 ///
-/// Inverse of `hash_to_bytes`. Used by `parent_cv` in the hazmat module.
+/// Inverse of `hash_to_bytes`. Used by `parent_cv` in the tree module.
 pub(crate) fn bytes_to_cv(bytes: &[u8; OUTPUT_BYTES]) -> [Goldilocks; OUTPUT_ELEMENTS] {
     let mut out = [Goldilocks::new(0); OUTPUT_ELEMENTS];
     for (i, elem) in out.iter_mut().enumerate() {

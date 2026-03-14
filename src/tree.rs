@@ -251,7 +251,7 @@ mod tests {
 
     #[test]
     fn flags_use_correct_capacity_indices() {
-        // Verify that hazmat uses state[8] and state[9] (no overlap with sponge's state[10], state[11])
+        // Verify that tree uses state[8] and state[9] (no overlap with sponge's state[10], state[11])
         assert_eq!(CAPACITY_COUNTER_IDX, 8);
         assert_eq!(CAPACITY_FLAGS_IDX, 9);
         // Sponge uses CAPACITY_START + 2 = 10 and CAPACITY_START + 3 = 11

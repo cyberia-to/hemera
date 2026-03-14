@@ -41,7 +41,7 @@
 mod bootstrap;
 mod constants;
 mod encoding;
-pub mod hazmat;
+pub mod tree;
 mod params;
 mod sponge;
 

@@ -250,7 +250,7 @@ impl GpuContext {
         // TODO: implement GPU sponge for full chunk hashing
         data.chunks(chunk_size)
             .enumerate()
-            .map(|(i, chunk)| crate::hazmat::chunk_cv(chunk, i as u64, false))
+            .map(|(i, chunk)| crate::tree::chunk_cv(chunk, i as u64, false))
             .collect()
     }
 }
