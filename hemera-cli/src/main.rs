@@ -11,18 +11,39 @@ fn main() {
         return;
     }
 
-    // hemera verify <file> <hash>  — verify single file against hash
-    // hemera verify <checksums>    — verify batch from checksum file
-    if args.first().map(|s| s.as_str()) == Some("verify") {
-        let rest: Vec<&str> = args[1..].iter().map(|s| s.as_str()).collect();
-        match rest.len() {
-            2 => process::exit(verify_single(rest[0], rest[1])),
-            1 => process::exit(verify_checksums(rest[0])),
-            _ => {
-                eprintln!("hemera: verify requires <file> <hash> or <checksums-file>");
-                process::exit(1);
+    match args.first().map(|s| s.as_str()) {
+        // hemera prove <file> [chunk_index]  — generate inclusion proof
+        Some("prove") => {
+            let rest: Vec<&str> = args[1..].iter().map(|s| s.as_str()).collect();
+            match rest.len() {
+                1 => process::exit(prove_chunk(rest[0], 0)),
+                2 => {
+                    let idx: u64 = rest[1].parse().unwrap_or_else(|_| {
+                        eprintln!("hemera: invalid chunk index: {}", rest[1]);
+                        process::exit(1);
+                    });
+                    process::exit(prove_chunk(rest[0], idx));
+                }
+                _ => {
+                    eprintln!("hemera: prove requires <file> [chunk_index]");
+                    process::exit(1);
+                }
             }
         }
+        // hemera verify <file> <hash>  — verify single file against hash
+        // hemera verify <checksums>    — verify batch from checksum file
+        Some("verify") => {
+            let rest: Vec<&str> = args[1..].iter().map(|s| s.as_str()).collect();
+            match rest.len() {
+                2 => process::exit(verify_single(rest[0], rest[1])),
+                1 => process::exit(verify_checksums(rest[0])),
+                _ => {
+                    eprintln!("hemera: verify requires <file> <hash> or <checksums-file>");
+                    process::exit(1);
+                }
+            }
+        }
+        _ => {}
     }
 
     let files: Vec<&str> = args
@@ -87,6 +108,36 @@ fn hash_file(path: &Path) -> io::Result<String> {
     let mut data = Vec::new();
     file.read_to_end(&mut data)?;
     Ok(cyber_hemera::tree::root_hash(&data).to_string())
+}
+
+fn prove_chunk(path: &str, chunk_index: u64) -> i32 {
+    let data = match fs::read(path) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("hemera: {path}: {e}");
+            return 1;
+        }
+    };
+
+    let n = cyber_hemera::tree::num_chunks(data.len());
+    if chunk_index >= n {
+        eprintln!("hemera: chunk index {chunk_index} out of range (file has {n} chunks)");
+        return 1;
+    }
+
+    let (root, proof) = cyber_hemera::tree::prove(&data, chunk_index);
+
+    println!("root: {root}");
+    println!("chunk: {}/{n}", chunk_index);
+    println!("depth: {}", proof.siblings.len());
+    for (i, sibling) in proof.siblings.iter().enumerate() {
+        let (dir, hash) = match sibling {
+            cyber_hemera::tree::Sibling::Left(h) => ("L", h),
+            cyber_hemera::tree::Sibling::Right(h) => ("R", h),
+        };
+        println!("  [{i}] {dir} {hash}");
+    }
+    0
 }
 
 fn verify_single(path: &str, expected: &str) -> i32 {
@@ -175,6 +226,7 @@ fn print_usage() {
   hemera file1.txt file2.txt       Hash files
   hemera src/                      Hash directory (recursive)
   echo hello | hemera              Hash stdin
+  hemera prove file.txt [chunk]    Merkle inclusion proof
   hemera verify file.txt <hash>    Verify file against hash
   hemera verify sums.txt           Verify checksums from file
 
