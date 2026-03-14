@@ -1,0 +1,43 @@
+[package]
+name = "hemera"
+version = "0.1.0"
+edition = "2024"
+description = "Hemera — Poseidon2 hash over Goldilocks field"
+license = "MIT OR Apache-2.0"
+rust-version = "1.89"
+repository = "https://github.com/cyberia-to/hemera"
+homepage = "https://github.com/cyberia-to/hemera"
+documentation = "https://docs.rs/hemera"
+keywords = ["poseidon2", "goldilocks", "hash", "zk", "crypto"]
+categories = ["cryptography", "no-std"]
+readme = "README.md"
+
+[lints.rust]
+missing_debug_implementations = "warn"
+
+[lints.clippy]
+unused-async = "warn"
+
+[dependencies]
+p3-poseidon2 = "0.4"
+p3-goldilocks = "0.4"
+p3-field = "0.4"
+p3-symmetric = "0.4"
+rand = "0.9"
+serde = { version = "1", features = ["derive"], optional = true }
+
+# GPU backend (optional)
+wgpu = { version = "28", optional = true }
+bytemuck = { version = "1", features = ["derive"], optional = true }
+pollster = { version = "0.4", optional = true }
+
+[dev-dependencies]
+proptest = "1"
+wgpu = "28"
+bytemuck = { version = "1", features = ["derive"] }
+pollster = "0.4"
+
+[features]
+default = []
+gpu = ["dep:wgpu", "dep:bytemuck", "dep:pollster"]
+serde = ["dep:serde"]
