@@ -21,6 +21,10 @@ Collision:       256 bits classical, 170 bits quantum
 
 Every parameter is a power of two.
 
+## Rationale
+
+Full specification and design rationale for the Hemera parameter set: [hemera-spec](http://cyber.page/hemera-spec). For broader context on why Hemera exists and how it fits into the Cyber network: [hemera](http://cyber.page/hemera).
+
 ## Usage
 
 ```rust
