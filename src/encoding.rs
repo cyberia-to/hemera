@@ -142,4 +142,92 @@ mod tests {
         let p: u64 = 0xFFFF_FFFF_0000_0001;
         assert!(max_7byte < p, "7-byte max must be less than Goldilocks prime");
     }
+
+    #[test]
+    fn bytes_to_elements_exact_rate_block() {
+        // 56 bytes = 8 elements of 7 bytes each
+        let input = vec![0x42u8; RATE_BYTES];
+        let result = bytes_to_elements(&input);
+        assert_eq!(result.len(), RATE);
+    }
+
+    #[test]
+    fn bytes_to_elements_one_extra() {
+        // 57 bytes = 8 full elements + 1 element with 1 byte
+        let input = vec![0x42u8; RATE_BYTES + 1];
+        let result = bytes_to_elements(&input);
+        assert_eq!(result.len(), RATE + 1);
+    }
+
+    #[test]
+    fn rate_block_partial_fill() {
+        // Fewer than RATE_BYTES: remaining elements should be zero
+        let input = vec![0xAB; 10]; // 10 bytes = 2 elements (7+3)
+        let mut block = [Goldilocks::new(99); RATE]; // pre-fill with non-zero
+        let consumed = bytes_to_rate_block(&input, &mut block);
+        assert_eq!(consumed, 10);
+        // First two elements non-zero, rest zero
+        assert_ne!(block[0].as_canonical_u64(), 0);
+        assert_ne!(block[1].as_canonical_u64(), 0);
+        for elem in &block[2..] {
+            assert_eq!(elem.as_canonical_u64(), 0);
+        }
+    }
+
+    #[test]
+    fn rate_block_empty() {
+        let mut block = [Goldilocks::new(99); RATE];
+        let consumed = bytes_to_rate_block(&[], &mut block);
+        assert_eq!(consumed, 0);
+        for elem in &block {
+            assert_eq!(elem.as_canonical_u64(), 0);
+        }
+    }
+
+    #[test]
+    fn roundtrip_hash_bytes_max_canonical() {
+        // Use values near the Goldilocks prime to test canonicity
+        let p: u64 = 0xFFFF_FFFF_0000_0001;
+        let elements = [
+            Goldilocks::new(p - 1), // max canonical value
+            Goldilocks::new(0),
+            Goldilocks::new(1),
+            Goldilocks::new(p - 2),
+            Goldilocks::new(0xDEAD_BEEF),
+            Goldilocks::new((1u64 << 56) - 1), // max 7-byte value
+            Goldilocks::new(p / 2),
+            Goldilocks::new(42),
+        ];
+        let bytes = hash_to_bytes(&elements);
+        let recovered = bytes_to_cv(&bytes);
+        for (i, (orig, rec)) in elements.iter().zip(recovered.iter()).enumerate() {
+            assert_eq!(
+                orig.as_canonical_u64(),
+                rec.as_canonical_u64(),
+                "mismatch at element {i}"
+            );
+        }
+    }
+
+    #[test]
+    fn bytes_to_cv_with_above_prime_value() {
+        // If bytes encode a value >= p, Goldilocks::new reduces it.
+        // This is expected behavior for internal use (hash outputs are always canonical).
+        let p: u64 = 0xFFFF_FFFF_0000_0001;
+        let above_prime = p + 1; // should reduce to 1
+        let mut bytes = [0u8; OUTPUT_BYTES];
+        bytes[..8].copy_from_slice(&above_prime.to_le_bytes());
+        let recovered = bytes_to_cv(&bytes);
+        // p+1 mod p = 1 (Goldilocks wraps, not panics)
+        assert_eq!(recovered[0].as_canonical_u64(), above_prime % p);
+    }
+
+    #[test]
+    fn bytes_to_elements_max_7byte_boundary() {
+        // Exactly 7 bytes of 0xFF should encode to (2^56 - 1), which is < p
+        let input = [0xFF; 7];
+        let result = bytes_to_elements(&input);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].as_canonical_u64(), (1u64 << 56) - 1);
+    }
 }

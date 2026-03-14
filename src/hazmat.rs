@@ -156,4 +156,113 @@ mod tests {
         let cv = chunk_cv(data, 0, false);
         assert_ne!(plain, cv);
     }
+
+    // ── Multi-level tree tests ─────────────────────────────────────
+
+    #[test]
+    fn two_chunk_tree() {
+        // Simulate a 2-chunk file: left + right → root parent
+        let left_cv = chunk_cv(b"chunk 0 data", 0, false);
+        let right_cv = chunk_cv(b"chunk 1 data", 1, false);
+        let root = parent_cv(&left_cv, &right_cv, true);
+        assert_ne!(root.as_bytes(), &[0u8; OUTPUT_BYTES]);
+
+        // Deterministic
+        let root2 = parent_cv(&left_cv, &right_cv, true);
+        assert_eq!(root, root2);
+    }
+
+    #[test]
+    fn four_chunk_tree() {
+        // 4-chunk balanced tree:
+        //        root
+        //       /    \
+        //     p01    p23
+        //    / \    / \
+        //  c0  c1 c2  c3
+        let c0 = chunk_cv(b"chunk0", 0, false);
+        let c1 = chunk_cv(b"chunk1", 1, false);
+        let c2 = chunk_cv(b"chunk2", 2, false);
+        let c3 = chunk_cv(b"chunk3", 3, false);
+
+        let p01 = parent_cv(&c0, &c1, false);
+        let p23 = parent_cv(&c2, &c3, false);
+        let root = parent_cv(&p01, &p23, true);
+
+        assert_ne!(root.as_bytes(), &[0u8; OUTPUT_BYTES]);
+
+        // Permuting children changes the root
+        let p01_swapped = parent_cv(&c1, &c0, false);
+        assert_ne!(p01, p01_swapped);
+
+        let root_swapped = parent_cv(&p01_swapped, &p23, true);
+        assert_ne!(root, root_swapped);
+    }
+
+    #[test]
+    fn single_chunk_root_vs_multi_chunk() {
+        // A single-chunk file has is_root=true
+        // A multi-chunk file's first chunk has is_root=false
+        let data = b"single chunk";
+        let single_root = chunk_cv(data, 0, true);
+        let multi_first = chunk_cv(data, 0, false);
+        assert_ne!(single_root, multi_first);
+    }
+
+    #[test]
+    fn parent_cv_identical_children() {
+        // Even with identical children, parent_cv should produce a non-trivial hash
+        let cv = chunk_cv(b"duplicate", 0, false);
+        let parent = parent_cv(&cv, &cv, false);
+        assert_ne!(parent.as_bytes(), &[0u8; OUTPUT_BYTES]);
+        // Parent should differ from either child
+        assert_ne!(parent, cv);
+    }
+
+    #[test]
+    fn chunk_cv_large_counter() {
+        // Large counter values should work and produce different results
+        let cv_max = chunk_cv(b"data", u64::MAX, false);
+        let cv_zero = chunk_cv(b"data", 0, false);
+        assert_ne!(cv_max, cv_zero);
+    }
+
+    #[test]
+    fn chunk_cv_large_data() {
+        // Chunk with > 1 rate block of data
+        let data = vec![0xAB; 1000];
+        let cv = chunk_cv(&data, 0, false);
+        assert_ne!(cv.as_bytes(), &[0u8; OUTPUT_BYTES]);
+
+        // Deterministic
+        let cv2 = chunk_cv(&data, 0, false);
+        assert_eq!(cv, cv2);
+    }
+
+    #[test]
+    fn parent_cv_non_root_vs_root_with_identical_children() {
+        let cv = Hash::from_bytes([0x42; OUTPUT_BYTES]);
+        let non_root = parent_cv(&cv, &cv, false);
+        let root = parent_cv(&cv, &cv, true);
+        assert_ne!(non_root, root);
+    }
+
+    // ── Flag isolation tests ───────────────────────────────────────
+
+    #[test]
+    fn flags_use_correct_capacity_indices() {
+        // Verify that hazmat uses state[8] and state[9] (no overlap with sponge's state[10], state[11])
+        assert_eq!(CAPACITY_COUNTER_IDX, 8);
+        assert_eq!(CAPACITY_FLAGS_IDX, 9);
+        // Sponge uses CAPACITY_START + 2 = 10 and CAPACITY_START + 3 = 11
+        assert!(CAPACITY_COUNTER_IDX < 10);
+        assert!(CAPACITY_FLAGS_IDX < 10);
+    }
+
+    #[test]
+    fn flag_bits_are_distinct() {
+        assert_eq!(FLAG_ROOT & FLAG_PARENT, 0);
+        assert_eq!(FLAG_ROOT & FLAG_CHUNK, 0);
+        assert_eq!(FLAG_PARENT & FLAG_CHUNK, 0);
+    }
 }
