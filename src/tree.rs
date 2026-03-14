@@ -1,8 +1,7 @@
-//! Low-level primitives for BAO-style Merkle tree construction.
+//! BAO-style Merkle tree construction.
 //!
-//! Low-level BAO-tree primitives: `chunk_cv` for hashing
-//! leaf data into a chaining value, and `parent_cv` for combining two
-//! child chaining values into a parent node.
+//! `chunk_cv` hashes leaf data into a chaining value.
+//! `parent_cv` combines two child chaining values into a parent node.
 
 use p3_goldilocks::Goldilocks;
 
