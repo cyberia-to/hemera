@@ -155,10 +155,11 @@ fn show_tree(path: &str) -> i32 {
 
 fn print_tree_node(node: &cyber_hemera::tree::TreeNode, connector: &str, prefix: &str) {
     let short_hash = &node.hash.to_string()[..16];
-    if let Some(idx) = node.chunk_index {
-        println!("{connector}chunk[{idx}] {short_hash}…");
+    let idx = node.index;
+    if let Some(chunk) = node.chunk_index {
+        println!("{connector}[{idx}] chunk({chunk}) {short_hash}…");
     } else {
-        println!("{connector}node {short_hash}…");
+        println!("{connector}[{idx}] node {short_hash}…");
     }
 
     if let (Some(left), Some(right)) = (&node.left, &node.right) {

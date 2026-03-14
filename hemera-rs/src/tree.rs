@@ -352,6 +352,111 @@ fn walk_proof(current: &mut Hash, siblings: &[Sibling]) -> Hash {
     *current
 }
 
+// ── In-order tree indexing ───────────────────────────────────────
+
+/// In-order index for addressing any node in the tree.
+///
+/// Leaves are at even indices (0, 2, 4, ...), parents at odd indices.
+/// The level of a node is `trailing_ones()` of its index:
+/// - Level 0 (leaves): indices 0, 2, 4, 6, ...
+/// - Level 1: indices 1, 5, 9, 13, ...
+/// - Level 2: indices 3, 11, 19, ...
+/// - Level k: index has k trailing 1-bits
+///
+/// Navigation is pure arithmetic on the index.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct NodeIndex(pub u64);
+
+impl NodeIndex {
+    /// The level of this node (0 = leaf).
+    pub fn level(self) -> u32 {
+        self.0.trailing_ones()
+    }
+
+    /// Whether this is a leaf node.
+    pub fn is_leaf(self) -> bool {
+        (self.0 & 1) == 0
+    }
+
+    /// The left child of this node, if it's not a leaf.
+    pub fn left_child(self) -> Option<Self> {
+        let level = self.level();
+        if level == 0 {
+            return None;
+        }
+        Some(Self(self.0 - (1 << (level - 1))))
+    }
+
+    /// The right child of this node, if it's not a leaf.
+    pub fn right_child(self) -> Option<Self> {
+        let level = self.level();
+        if level == 0 {
+            return None;
+        }
+        Some(Self(self.0 + (1 << (level - 1))))
+    }
+
+    /// The parent of this node.
+    pub fn parent(self) -> Self {
+        let level = self.level();
+        let span = 1u64 << level;
+        if (self.0 >> (level + 1)) & 1 == 0 {
+            // We are a left child; parent is to the right.
+            Self(self.0 + span)
+        } else {
+            // We are a right child; parent is to the left.
+            Self(self.0 - span)
+        }
+    }
+
+    /// The sibling of this node (the other child of our parent).
+    pub fn sibling(self) -> Self {
+        let level = self.level();
+        let span = 1u64 << (level + 1);
+        if (self.0 >> (level + 1)) & 1 == 0 {
+            // We are a left child; sibling is to our right.
+            Self(self.0 + span)
+        } else {
+            // We are a right child; sibling is to our left.
+            Self(self.0 - span)
+        }
+    }
+
+    /// Convert a chunk (leaf) index to an in-order index.
+    pub fn from_chunk(chunk_index: u64) -> Self {
+        Self(chunk_index * 2)
+    }
+
+    /// Convert an in-order leaf index back to a chunk index.
+    /// Returns `None` if this is not a leaf.
+    pub fn to_chunk(self) -> Option<u64> {
+        if self.is_leaf() {
+            Some(self.0 / 2)
+        } else {
+            None
+        }
+    }
+
+    /// The root index for a tree with `n` leaves.
+    ///
+    /// In a left-balanced tree, the left subtree always has
+    /// `split = 2^(ceil(log2(n)) - 1)` leaves, so the root's
+    /// in-order index is always `split * 2 - 1`.
+    pub fn root(n: u64) -> Self {
+        if n <= 1 {
+            return Self(0);
+        }
+        let split = 1u64 << (u64::BITS - (n - 1).leading_zeros() - 1);
+        Self(split * 2 - 1)
+    }
+}
+
+impl std::fmt::Display for NodeIndex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// Return the number of chunks for a given data length.
 pub fn num_chunks(data_len: usize) -> u64 {
     if data_len == 0 {
@@ -375,6 +480,7 @@ pub fn tree_depth(n: u64) -> u32 {
 pub struct TreeNode {
     pub hash: Hash,
     pub depth: u32,
+    pub index: NodeIndex,
     pub left: Option<Box<TreeNode>>,
     pub right: Option<Box<TreeNode>>,
     /// For leaves: the chunk index.
@@ -383,8 +489,8 @@ pub struct TreeNode {
 
 /// Build the full hash tree and return the root node.
 ///
-/// Each node contains its hash, depth, and references to children.
-/// Leaves have `chunk_index` set and no children.
+/// Each node contains its hash, depth, in-order index, and references
+/// to children. Leaves have `chunk_index` set and no children.
 pub fn build_tree(data: &[u8]) -> TreeNode {
     let chunks: Vec<&[u8]> = if data.is_empty() {
         vec![data]
@@ -398,6 +504,7 @@ pub fn build_tree(data: &[u8]) -> TreeNode {
         .map(|(i, chunk)| TreeNode {
             hash: hash_leaf(chunk, i as u64, chunks.len() == 1),
             depth: 0,
+            index: NodeIndex::from_chunk(i as u64),
             left: None,
             right: None,
             chunk_index: Some(i as u64),
@@ -408,15 +515,17 @@ pub fn build_tree(data: &[u8]) -> TreeNode {
         return leaves.into_iter().next().unwrap();
     }
 
-    build_subtree(leaves, true)
+    build_subtree(leaves, 0, true)
 }
 
-fn build_subtree(nodes: Vec<TreeNode>, is_root: bool) -> TreeNode {
+/// `base_offset` is the in-order index offset for the first leaf in this subtree.
+fn build_subtree(nodes: Vec<TreeNode>, base_offset: u64, is_root: bool) -> TreeNode {
     if nodes.len() == 1 {
         return nodes.into_iter().next().unwrap();
     }
 
-    let split = 1 << (usize::BITS - (nodes.len() - 1).leading_zeros() - 1);
+    let n = nodes.len();
+    let split = 1 << (usize::BITS - (n - 1).leading_zeros() - 1);
     let (left_nodes, right_nodes): (Vec<_>, Vec<_>) = {
         let mut iter = nodes.into_iter();
         let left: Vec<_> = iter.by_ref().take(split).collect();
@@ -424,14 +533,20 @@ fn build_subtree(nodes: Vec<TreeNode>, is_root: bool) -> TreeNode {
         (left, right)
     };
 
-    let left = build_subtree(left_nodes, false);
-    let right = build_subtree(right_nodes, false);
+    let left = build_subtree(left_nodes, base_offset, false);
+    // Right subtree starts after left subtree + root node in in-order layout.
+    let right_offset = base_offset + (split as u64) * 2;
+    let right = build_subtree(right_nodes, right_offset, false);
     let hash = hash_node(&left.hash, &right.hash, is_root);
     let depth = left.depth.max(right.depth) + 1;
+
+    // Root of this subtree: in-order index is between left and right subtrees.
+    let root_index = base_offset + (split as u64) * 2 - 1;
 
     TreeNode {
         hash,
         depth,
+        index: NodeIndex(root_index),
         left: Some(Box::new(left)),
         right: Some(Box::new(right)),
         chunk_index: None,
@@ -983,5 +1098,111 @@ mod tests {
         let (_, proof) = prove_range(&data, 0, 2);
         let wrong = Hash::from_bytes([0xFF; OUTPUT_BYTES]);
         assert!(!verify_node_proof(&wrong, &proof, &root));
+    }
+
+    // ── NodeIndex tests ──────────────────────────────────────────
+
+    #[test]
+    fn node_index_leaf() {
+        assert!(NodeIndex(0).is_leaf());
+        assert!(NodeIndex(2).is_leaf());
+        assert!(!NodeIndex(1).is_leaf());
+        assert!(!NodeIndex(3).is_leaf());
+    }
+
+    #[test]
+    fn node_index_level() {
+        assert_eq!(NodeIndex(0).level(), 0); // leaf
+        assert_eq!(NodeIndex(2).level(), 0); // leaf
+        assert_eq!(NodeIndex(1).level(), 1); // parent of 0,2
+        assert_eq!(NodeIndex(3).level(), 2); // parent of 1,5
+        assert_eq!(NodeIndex(7).level(), 3); // root of 8-leaf tree
+    }
+
+    #[test]
+    fn node_index_children() {
+        // Node 1 (level 1): children are 0 and 2
+        assert_eq!(NodeIndex(1).left_child(), Some(NodeIndex(0)));
+        assert_eq!(NodeIndex(1).right_child(), Some(NodeIndex(2)));
+
+        // Node 3 (level 2): children are 1 and 5
+        assert_eq!(NodeIndex(3).left_child(), Some(NodeIndex(1)));
+        assert_eq!(NodeIndex(3).right_child(), Some(NodeIndex(5)));
+
+        // Node 7 (level 3): children are 3 and 11
+        assert_eq!(NodeIndex(7).left_child(), Some(NodeIndex(3)));
+        assert_eq!(NodeIndex(7).right_child(), Some(NodeIndex(11)));
+
+        // Leaf has no children
+        assert_eq!(NodeIndex(0).left_child(), None);
+        assert_eq!(NodeIndex(0).right_child(), None);
+    }
+
+    #[test]
+    fn node_index_parent() {
+        assert_eq!(NodeIndex(0).parent(), NodeIndex(1));
+        assert_eq!(NodeIndex(2).parent(), NodeIndex(1));
+        assert_eq!(NodeIndex(1).parent(), NodeIndex(3));
+        assert_eq!(NodeIndex(5).parent(), NodeIndex(3));
+        assert_eq!(NodeIndex(3).parent(), NodeIndex(7));
+        assert_eq!(NodeIndex(11).parent(), NodeIndex(7));
+    }
+
+    #[test]
+    fn node_index_sibling() {
+        assert_eq!(NodeIndex(0).sibling(), NodeIndex(2));
+        assert_eq!(NodeIndex(2).sibling(), NodeIndex(0));
+        assert_eq!(NodeIndex(1).sibling(), NodeIndex(5));
+        assert_eq!(NodeIndex(5).sibling(), NodeIndex(1));
+    }
+
+    #[test]
+    fn node_index_from_chunk() {
+        assert_eq!(NodeIndex::from_chunk(0), NodeIndex(0));
+        assert_eq!(NodeIndex::from_chunk(1), NodeIndex(2));
+        assert_eq!(NodeIndex::from_chunk(3), NodeIndex(6));
+    }
+
+    #[test]
+    fn node_index_to_chunk() {
+        assert_eq!(NodeIndex(0).to_chunk(), Some(0));
+        assert_eq!(NodeIndex(2).to_chunk(), Some(1));
+        assert_eq!(NodeIndex(1).to_chunk(), None); // parent, not leaf
+    }
+
+    #[test]
+    fn node_index_root() {
+        assert_eq!(NodeIndex::root(1), NodeIndex(0));
+        assert_eq!(NodeIndex::root(2), NodeIndex(1));
+        assert_eq!(NodeIndex::root(3), NodeIndex(3));
+        assert_eq!(NodeIndex::root(4), NodeIndex(3));
+        assert_eq!(NodeIndex::root(5), NodeIndex(7));
+        assert_eq!(NodeIndex::root(8), NodeIndex(7));
+        assert_eq!(NodeIndex::root(9), NodeIndex(15));
+    }
+
+    #[test]
+    fn build_tree_indices_match() {
+        // Verify that build_tree assigns correct in-order indices
+        let data = vec![0x42u8; CHUNK_SIZE * 4];
+        let tree = build_tree(&data);
+
+        // Root of 4-leaf tree should be at index 3
+        assert_eq!(tree.index, NodeIndex(3));
+
+        let left = tree.left.as_ref().unwrap();
+        let right = tree.right.as_ref().unwrap();
+        assert_eq!(left.index, NodeIndex(1));
+        assert_eq!(right.index, NodeIndex(5));
+
+        // Leaves
+        let ll = left.left.as_ref().unwrap();
+        let lr = left.right.as_ref().unwrap();
+        let rl = right.left.as_ref().unwrap();
+        let rr = right.right.as_ref().unwrap();
+        assert_eq!(ll.index, NodeIndex(0));
+        assert_eq!(lr.index, NodeIndex(2));
+        assert_eq!(rl.index, NodeIndex(4));
+        assert_eq!(rr.index, NodeIndex(6));
     }
 }
