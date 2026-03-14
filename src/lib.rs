@@ -7,6 +7,10 @@
 //! been reviewed by third-party cryptographers. Do not use in production
 //! systems where cryptographic guarantees are required. Use at your own risk.
 //!
+//! **The Hemera hash is not finalized and may change.** Hash outputs, round
+//! constants, and the sponge construction are subject to breaking changes
+//! until a stable release.
+//!
 //! ---
 //!
 //! This crate provides a streaming hash API backed by the Poseidon2

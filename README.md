@@ -4,6 +4,10 @@
 > construction, and self-bootstrapping round constant generation have not been
 > reviewed by third-party cryptographers. Do not use in production systems
 > where cryptographic guarantees are required. Use at your own risk.**
+>
+> **The Hemera hash is not finalized and may change. Hash outputs, round
+> constants, and the sponge construction are subject to breaking changes
+> until a stable release.**
 
 Poseidon2 hash over the Goldilocks field.
 
@@ -72,4 +76,4 @@ hemera = { version = "0.1", features = ["gpu"] }
 
 ## License
 
-MIT OR Apache-2.0
+cyber
