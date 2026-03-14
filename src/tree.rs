@@ -14,11 +14,17 @@ const FLAG_ROOT: u64 = 1 << 0;
 const FLAG_PARENT: u64 = 1 << 1;
 const FLAG_CHUNK: u64 = 1 << 2;
 
+/// Capacity index for chunk counter (position in the file).
+const CAPACITY_COUNTER_IDX: usize = RATE; // state[8]
+
 /// Capacity index for BAO flags.
 const CAPACITY_FLAGS_IDX: usize = RATE + 1; // state[9]
 
-/// Capacity index for chunk counter (position in the file).
-const CAPACITY_COUNTER_IDX: usize = RATE; // state[8]
+/// Capacity index for namespace lower bound (NMT only).
+const CAPACITY_NS_MIN_IDX: usize = RATE + 4; // state[12]
+
+/// Capacity index for namespace upper bound (NMT only).
+const CAPACITY_NS_MAX_IDX: usize = RATE + 5; // state[13]
 
 /// Compute the chaining value for a leaf chunk.
 ///
@@ -76,6 +82,45 @@ pub fn parent_cv(left: &Hash, right: &Hash, is_root: bool) -> Hash {
     params::permute(&mut state);
 
     // Absorb right child (8 elements = full rate block, Goldilocks field addition).
+    for i in 0..RATE {
+        state[i] = state[i] + right_elems[i];
+    }
+    params::permute(&mut state);
+
+    let output: [Goldilocks; OUTPUT_ELEMENTS] = state[..OUTPUT_ELEMENTS].try_into().unwrap();
+    Hash::from_bytes(hash_to_bytes(&output))
+}
+
+/// Combine two child chaining values into a namespace-aware parent.
+///
+/// Extends `parent_cv` with namespace bounds committed in capacity:
+/// `state[12] = ns_min`, `state[13] = ns_max`. When both are zero this
+/// reduces to `parent_cv`. See spec §4.6.4.
+pub fn nmt_parent_cv(
+    left: &Hash,
+    right: &Hash,
+    ns_min: u64,
+    ns_max: u64,
+    is_root: bool,
+) -> Hash {
+    let left_elems = bytes_to_cv(left.as_bytes());
+    let right_elems = bytes_to_cv(right.as_bytes());
+
+    let mut state = [Goldilocks::new(0); WIDTH];
+
+    let mut flags = FLAG_PARENT;
+    if is_root {
+        flags |= FLAG_ROOT;
+    }
+    state[CAPACITY_FLAGS_IDX] = Goldilocks::new(flags);
+    state[CAPACITY_NS_MIN_IDX] = Goldilocks::new(ns_min);
+    state[CAPACITY_NS_MAX_IDX] = Goldilocks::new(ns_max);
+
+    for i in 0..RATE {
+        state[i] = state[i] + left_elems[i];
+    }
+    params::permute(&mut state);
+
     for i in 0..RATE {
         state[i] = state[i] + right_elems[i];
     }
@@ -263,5 +308,60 @@ mod tests {
         assert_eq!(FLAG_ROOT & FLAG_PARENT, 0);
         assert_eq!(FLAG_ROOT & FLAG_CHUNK, 0);
         assert_eq!(FLAG_PARENT & FLAG_CHUNK, 0);
+    }
+
+    // ── NMT parent tests ─────────────────────────────────────────
+
+    #[test]
+    fn nmt_parent_cv_zero_ns_matches_parent_cv() {
+        let left = Hash::from_bytes([1u8; OUTPUT_BYTES]);
+        let right = Hash::from_bytes([2u8; OUTPUT_BYTES]);
+        let standard = parent_cv(&left, &right, false);
+        let nmt_zero = nmt_parent_cv(&left, &right, 0, 0, false);
+        assert_eq!(standard, nmt_zero);
+    }
+
+    #[test]
+    fn nmt_parent_cv_ns_differs_from_plain() {
+        let left = Hash::from_bytes([1u8; OUTPUT_BYTES]);
+        let right = Hash::from_bytes([2u8; OUTPUT_BYTES]);
+        let plain = parent_cv(&left, &right, false);
+        let with_ns = nmt_parent_cv(&left, &right, 10, 20, false);
+        assert_ne!(plain, with_ns);
+    }
+
+    #[test]
+    fn nmt_parent_cv_different_ns_ranges() {
+        let left = Hash::from_bytes([1u8; OUTPUT_BYTES]);
+        let right = Hash::from_bytes([2u8; OUTPUT_BYTES]);
+        let h1 = nmt_parent_cv(&left, &right, 10, 20, false);
+        let h2 = nmt_parent_cv(&left, &right, 10, 30, false);
+        assert_ne!(h1, h2);
+    }
+
+    #[test]
+    fn nmt_parent_cv_root_differs() {
+        let left = Hash::from_bytes([1u8; OUTPUT_BYTES]);
+        let right = Hash::from_bytes([2u8; OUTPUT_BYTES]);
+        let non_root = nmt_parent_cv(&left, &right, 5, 15, false);
+        let root = nmt_parent_cv(&left, &right, 5, 15, true);
+        assert_ne!(non_root, root);
+    }
+
+    #[test]
+    fn nmt_parent_cv_non_commutative() {
+        let left = Hash::from_bytes([1u8; OUTPUT_BYTES]);
+        let right = Hash::from_bytes([2u8; OUTPUT_BYTES]);
+        let lr = nmt_parent_cv(&left, &right, 5, 15, false);
+        let rl = nmt_parent_cv(&right, &left, 5, 15, false);
+        assert_ne!(lr, rl);
+    }
+
+    #[test]
+    fn nmt_capacity_indices_no_overlap() {
+        assert_eq!(CAPACITY_NS_MIN_IDX, 12);
+        assert_eq!(CAPACITY_NS_MAX_IDX, 13);
+        // No overlap with counter (8), flags (9), msg_length (10), domain (11)
+        assert!(CAPACITY_NS_MIN_IDX > 11);
     }
 }
