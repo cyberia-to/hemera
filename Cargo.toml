@@ -1,10 +1,10 @@
 [workspace]
 resolver = "3"
 members = [
-    "hemera-rs",
-    "hemera-wgsl",
-    "hemera-cli",
-    "hemera-bench",
+    "rs",
+    "wgsl",
+    "cli",
+    "bench",
 ]
 
 [workspace.lints.rust]

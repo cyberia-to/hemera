@@ -11,7 +11,7 @@ repository = "https://github.com/cyberia-to/hemera"
 workspace = true
 
 [dependencies]
-cyber-hemera = { path = "../hemera-rs" }
+cyber-hemera = { path = "../rs" }
 wgpu = "28"
 bytemuck = { version = "1", features = ["derive"] }
 

@@ -29,10 +29,10 @@ Every parameter is a power of two.
 
 | Crate | Description |
 |-------|-------------|
-| `hemera-rs` | Core Rust implementation (`cyber-hemera` on crates.io) |
-| `hemera-wgsl` | GPU backend — WGSL shader + wgpu dispatch |
-| `hemera-cli` | CLI binary (`hemera`) |
-| `hemera-bench` | Benchmarks (criterion) |
+| `rs` | Core Rust implementation (`cyber-hemera` on crates.io) |
+| `wgsl` | GPU backend — WGSL shader + wgpu dispatch |
+| `cli` | CLI binary (`hemera`) |
+| `bench` | Benchmarks (criterion) |
 
 Three implementations cross-verify against shared test vectors in `vectors/`.
 
@@ -68,7 +68,7 @@ echo hello | hemera           # hash stdin
 hemera --check sums.txt       # verify checksums
 ```
 
-Install: `cargo install --path hemera-cli`
+Install: `cargo install --path cli`
 
 ## Self-bootstrapping round constants
 
