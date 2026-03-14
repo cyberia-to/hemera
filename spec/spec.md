@@ -1,10 +1,3 @@
----
-tags: cyber, cip
-crystal-type: entity
-crystal-domain: cyber
-alias: Hemera specification, Hemera spec, Hemera_Hash_Primitive_Specification
-stake: 43936669831471920
----
 # Hemera: A Permanent Hash Primitive for Planetary-Scale Collective Intelligence
 
 Version: 1.0
