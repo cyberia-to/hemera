@@ -1,39 +1,14 @@
-[package]
-name = "cyber-hemera"
-version = "0.2.0"
-edition = "2024"
-description = "Hemera — Poseidon2 hash over Goldilocks field"
-license-file = "LICENSE"
-rust-version = "1.89"
-repository = "https://github.com/cyberia-to/hemera"
-homepage = "https://github.com/cyberia-to/hemera"
-documentation = "https://docs.rs/cyber-hemera"
-keywords = ["poseidon2", "goldilocks", "hash", "zk", "crypto"]
-categories = ["cryptography", "no-std"]
-readme = "README.md"
+[workspace]
+resolver = "3"
+members = [
+    "hemera-rs",
+    "hemera-wgsl",
+    "hemera-cli",
+    "hemera-bench",
+]
 
-[lints.rust]
+[workspace.lints.rust]
 missing_debug_implementations = "warn"
 
-[lints.clippy]
+[workspace.lints.clippy]
 unused-async = "warn"
-
-[dependencies]
-serde = { version = "1", features = ["derive"], optional = true }
-
-# GPU backend (optional)
-wgpu = { version = "28", optional = true }
-bytemuck = { version = "1", features = ["derive"], optional = true }
-pollster = { version = "0.4", optional = true }
-
-[dev-dependencies]
-proptest = "1"
-serde_json = "1"
-wgpu = "28"
-bytemuck = { version = "1", features = ["derive"] }
-pollster = "0.4"
-
-[features]
-default = []
-gpu = ["dep:wgpu", "dep:bytemuck", "dep:pollster"]
-serde = ["dep:serde"]

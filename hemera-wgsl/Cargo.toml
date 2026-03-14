@@ -1,0 +1,19 @@
+[package]
+name = "cyber-hemera-wgsl"
+version = "0.2.0"
+edition = "2024"
+description = "GPU backend for Hemera — Poseidon2 via wgpu compute shaders"
+license-file = "../LICENSE"
+rust-version = "1.89"
+repository = "https://github.com/cyberia-to/hemera"
+
+[lints]
+workspace = true
+
+[dependencies]
+cyber-hemera = { path = "../hemera-rs" }
+wgpu = "28"
+bytemuck = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+pollster = "0.4"

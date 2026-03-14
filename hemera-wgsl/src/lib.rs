@@ -1,17 +1,16 @@
 //! GPU backend for Poseidon2 permutation via wgpu compute shaders.
 //!
-//! This module provides GPU-accelerated batch Poseidon2 permutations
-//! for bulk content hashing and BAO tree construction.
+//! This crate provides GPU-accelerated batch Poseidon2 permutations
+//! for bulk content hashing and tree construction.
 //!
-//! The GPU path is optional — the CPU backend is always available as fallback.
+//! The GPU path is optional — the CPU backend (`cyber-hemera`) is always
+//! available as fallback.
 
 use std::num::NonZeroU64;
 
-use crate::field::Goldilocks;
+use cyber_hemera::field::Goldilocks;
+use cyber_hemera::{Hash, WIDTH};
 use wgpu::util::DeviceExt;
-
-use crate::params::{ROUNDS_F, ROUNDS_P, WIDTH};
-use crate::sponge::Hash;
 
 /// Pre-compiled GPU compute pipelines and device handles.
 #[derive(Debug)]
@@ -243,13 +242,13 @@ impl GpuContext {
 
     /// Hash multiple chunks in parallel on GPU, returning their chaining values.
     #[allow(clippy::unused_async)] // Will use await when GPU sponge is implemented
-    pub async fn batch_chunk_cvs(&self, data: &[u8], chunk_size: usize) -> Vec<Hash> {
+    pub async fn batch_hash_leaves(&self, data: &[u8], chunk_size: usize) -> Vec<Hash> {
         // For now, fall back to CPU. Full GPU chunk hashing requires
         // implementing the sponge absorb loop in WGSL.
         // TODO: implement GPU sponge for full chunk hashing
         data.chunks(chunk_size)
             .enumerate()
-            .map(|(i, chunk)| crate::tree::chunk_cv(chunk, i as u64, false))
+            .map(|(i, chunk)| cyber_hemera::tree::hash_leaf(chunk, i as u64, false))
             .collect()
     }
 }
@@ -259,7 +258,7 @@ impl GpuContext {
 /// Uses the same static round constants as the CPU permutation, ensuring
 /// GPU and CPU round constants are identical.
 fn generate_round_constants_u32() -> Vec<u32> {
-    let values = crate::constants::ROUND_CONSTANTS_U64;
+    let values = cyber_hemera::constants::ROUND_CONSTANTS_U64;
     let mut constants = Vec::with_capacity(values.len() * 2);
     for val in values {
         constants.push(val as u32);
