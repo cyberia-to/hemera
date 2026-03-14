@@ -1,13 +1,6 @@
 # Hemera
 
-> **WARNING: This is novel, unaudited cryptography. The parameter set, sponge
-> construction, and self-bootstrapping round constant generation have not been
-> reviewed by third-party cryptographers. Do not use in production systems
-> where cryptographic guarantees are required. Use at your own risk.**
->
-> **The Hemera hash is not finalized and may change. Hash outputs, round
-> constants, and the sponge construction are subject to breaking changes
-> until a stable release.**
+> Unaudited cryptography. Not finalized — hash outputs may change before stable release.
 
 Hemera (Ἡμέρα, "Day") is the cryptographic hash primitive of cyber. A single function, a single mode (sponge), a single output: 64 raw bytes over the Goldilocks field. Every particle, every cyberlink, every neuron identity, every Merkle root in the cybergraph is a Hemera output.
 
