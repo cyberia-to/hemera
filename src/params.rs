@@ -84,6 +84,14 @@ pub const OUTPUT_ELEMENTS: usize = RATE; // 8
 /// Number of output bytes per squeeze (8 elements × 8 bytes).
 pub const OUTPUT_BYTES: usize = OUTPUT_ELEMENTS * OUTPUT_BYTES_PER_ELEMENT; // 64
 
+// ── Tree parameters ─────────────────────────────────────────────────
+
+/// Canonical chunk size for content tree construction (4 KB).
+///
+/// Content is split into fixed 4 KB chunks. Each chunk is hashed via
+/// `chunk_cv`. The last chunk may be shorter. See spec §4.6.1.
+pub const CHUNK_SIZE: usize = 4096;
+
 // ── Security properties (informational) ─────────────────────────────
 
 /// Classical collision resistance in bits.

@@ -50,8 +50,8 @@ pub mod gpu;
 
 // Re-export all Hemera parameters so downstream crates never hardcode them.
 pub use params::{
-    CAPACITY, COLLISION_BITS, OUTPUT_BYTES, OUTPUT_ELEMENTS, RATE, RATE_BYTES, ROUNDS_F, ROUNDS_P,
-    SBOX_DEGREE, WIDTH,
+    CAPACITY, CHUNK_SIZE, COLLISION_BITS, OUTPUT_BYTES, OUTPUT_ELEMENTS, RATE, RATE_BYTES,
+    ROUNDS_F, ROUNDS_P, SBOX_DEGREE, WIDTH,
 };
 pub use sponge::{Hash, Hasher, OutputReader};
 
