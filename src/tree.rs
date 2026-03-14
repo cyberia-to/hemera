@@ -3,9 +3,8 @@
 //! `chunk_cv` hashes leaf data into a chaining value.
 //! `parent_cv` combines two child chaining values into a parent node.
 
-use p3_goldilocks::Goldilocks;
-
 use crate::encoding::{bytes_to_cv, hash_to_bytes};
+use crate::field::Goldilocks;
 use crate::params::{self, CHUNK_SIZE, OUTPUT_ELEMENTS, RATE, WIDTH};
 use crate::sponge::Hash;
 

@@ -19,11 +19,6 @@ missing_debug_implementations = "warn"
 unused-async = "warn"
 
 [dependencies]
-p3-poseidon2 = "0.4"
-p3-goldilocks = "0.4"
-p3-field = "0.4"
-p3-symmetric = "0.4"
-rand = "0.9"
 serde = { version = "1", features = ["derive"], optional = true }
 
 # GPU backend (optional)

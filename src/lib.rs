@@ -41,9 +41,11 @@
 mod bootstrap;
 mod constants;
 mod encoding;
-pub mod tree;
+pub(crate) mod field;
 mod params;
+mod permutation;
 mod sponge;
+pub mod tree;
 
 #[cfg(feature = "gpu")]
 pub mod gpu;

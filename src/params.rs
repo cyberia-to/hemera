@@ -30,12 +30,7 @@
 //! └──────────────────────────────────────────────────────────┘
 //! ```
 
-use std::sync::LazyLock;
-
-use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
-use p3_symmetric::Permutation;
-
-use crate::constants::ROUND_CONSTANTS;
+use crate::field::Goldilocks;
 
 // ── Permutation parameters ──────────────────────────────────────────
 
@@ -97,61 +92,22 @@ pub const CHUNK_SIZE: usize = 4096;
 /// Classical collision resistance in bits.
 pub const COLLISION_BITS: usize = 256;
 
-// ── Permutation singleton ───────────────────────────────────────────
-
-/// Global singleton Poseidon2 permutation instance.
-///
-/// Round constants are loaded from the pre-computed static array in
-/// `constants.rs` (originally derived via self-bootstrapping from the
-/// genesis seed "cyber").
-static POSEIDON2: LazyLock<Poseidon2Goldilocks<WIDTH>> = LazyLock::new(|| {
-    let mut rng = ConstantRng { pos: 0 };
-    Poseidon2Goldilocks::new_from_rng(ROUNDS_F, ROUNDS_P, &mut rng)
-});
-
-/// RNG that replays the pre-computed round constants.
-struct ConstantRng {
-    pos: usize,
-}
-
-impl rand::RngCore for ConstantRng {
-    fn next_u32(&mut self) -> u32 {
-        self.next_u64() as u32
-    }
-
-    fn next_u64(&mut self) -> u64 {
-        let val = ROUND_CONSTANTS[self.pos];
-        self.pos += 1;
-        val
-    }
-
-    fn fill_bytes(&mut self, dest: &mut [u8]) {
-        let mut written = 0;
-        while written < dest.len() {
-            let val = self.next_u64();
-            let bytes = val.to_le_bytes();
-            let remaining = dest.len() - written;
-            let n = remaining.min(8);
-            dest[written..written + n].copy_from_slice(&bytes[..n]);
-            written += n;
-        }
-    }
-}
+// ── Permutation entry point ─────────────────────────────────────────
 
 /// Apply the Poseidon2 permutation in-place.
+#[inline]
 pub(crate) fn permute(state: &mut [Goldilocks; WIDTH]) {
-    POSEIDON2.permute_mut(state);
+    crate::permutation::permute(state);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use p3_goldilocks::Goldilocks;
 
     #[test]
     fn permutation_is_deterministic() {
-        let mut s1 = [Goldilocks::new(0); WIDTH];
-        let mut s2 = [Goldilocks::new(0); WIDTH];
+        let mut s1 = [Goldilocks::ZERO; WIDTH];
+        let mut s2 = [Goldilocks::ZERO; WIDTH];
         permute(&mut s1);
         permute(&mut s2);
         assert_eq!(s1, s2);
@@ -159,7 +115,7 @@ mod tests {
 
     #[test]
     fn permutation_changes_state() {
-        let mut state = [Goldilocks::new(0); WIDTH];
+        let mut state = [Goldilocks::ZERO; WIDTH];
         let original = state;
         permute(&mut state);
         assert_ne!(state, original);
@@ -167,8 +123,8 @@ mod tests {
 
     #[test]
     fn different_inputs_different_outputs() {
-        let mut s1 = [Goldilocks::new(0); WIDTH];
-        let mut s2 = [Goldilocks::new(0); WIDTH];
+        let mut s1 = [Goldilocks::ZERO; WIDTH];
+        let mut s2 = [Goldilocks::ZERO; WIDTH];
         s2[0] = Goldilocks::new(1);
         permute(&mut s1);
         permute(&mut s2);

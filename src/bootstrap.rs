@@ -11,12 +11,10 @@
 //! 2. Run Hemera₀ as a sponge: absorb GENESIS_SEED with 0x01 padding
 //! 3. Squeeze 192 field elements as round constants for the final Hemera
 
-use p3_field::PrimeField64;
-use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
-use p3_symmetric::Permutation;
-use rand::RngCore;
-
+use crate::constants::NUM_CONSTANTS;
+use crate::field::Goldilocks;
 use crate::params::{RATE, RATE_BYTES, ROUNDS_F, ROUNDS_P, WIDTH};
+use crate::permutation::permute_with_constants;
 
 /// Genesis seed: five bytes [0x63, 0x79, 0x62, 0x65, 0x72].
 ///
@@ -25,16 +23,16 @@ use crate::params::{RATE, RATE_BYTES, ROUNDS_F, ROUNDS_P, WIDTH};
 /// in ASCII is the human meaning; the specification is the hex literals.
 pub(crate) const GENESIS_SEED: &[u8] = &[0x63, 0x79, 0x62, 0x65, 0x72];
 
+/// All-zero round constants for Hemera₀.
+const ZERO_CONSTANTS: [Goldilocks; NUM_CONSTANTS] = [Goldilocks::ZERO; NUM_CONSTANTS];
+
 /// Create Hemera₀ and return the sponge state after absorbing the genesis seed.
 ///
 /// This is the shared bootstrap logic used by both the CPU verification
 /// and the GPU round constant export.
-pub(crate) fn bootstrap_sponge_state() -> (Poseidon2Goldilocks<WIDTH>, [Goldilocks; WIDTH]) {
-    // Hemera₀ — all-zero round constants.
-    let hemera0 = Poseidon2Goldilocks::new_from_rng(ROUNDS_F, ROUNDS_P, &mut ZeroRng);
-
+pub(crate) fn bootstrap_sponge_state() -> [Goldilocks; WIDTH] {
     // Absorb the genesis seed through Hemera₀ sponge.
-    let mut state = [Goldilocks::new(0); WIDTH];
+    let mut state = [Goldilocks::ZERO; WIDTH];
 
     // Pad: seed || 0x01 || 0x00* to RATE_BYTES (56 bytes).
     let mut padded = [0u8; RATE_BYTES];
@@ -42,7 +40,7 @@ pub(crate) fn bootstrap_sponge_state() -> (Poseidon2Goldilocks<WIDTH>, [Goldiloc
     padded[GENESIS_SEED.len()] = 0x01;
 
     // Encode padded bytes as rate elements (7 bytes per element).
-    let mut rate_block = [Goldilocks::new(0); RATE];
+    let mut rate_block = [Goldilocks::ZERO; RATE];
     crate::encoding::bytes_to_rate_block(&padded, &mut rate_block);
 
     // Absorb via Goldilocks field addition.
@@ -54,9 +52,9 @@ pub(crate) fn bootstrap_sponge_state() -> (Poseidon2Goldilocks<WIDTH>, [Goldiloc
     state[RATE + 2] = Goldilocks::new(GENESIS_SEED.len() as u64);
 
     // Permute with Hemera₀.
-    hemera0.permute_mut(&mut state);
+    permute_with_constants(&mut state, &ZERO_CONSTANTS);
 
-    (hemera0, state)
+    state
 }
 
 /// Squeeze the 192 round constants as raw u64 values from the bootstrap sponge.
@@ -64,85 +62,32 @@ pub(crate) fn bootstrap_sponge_state() -> (Poseidon2Goldilocks<WIDTH>, [Goldiloc
 /// Returns the canonical Goldilocks representations in the exact order consumed
 /// by `new_from_rng`: 128 external (8 rounds × 16 elements) then 64 internal.
 pub(crate) fn bootstrap_constants_u64() -> Vec<u64> {
-    let (hemera0, state) = bootstrap_sponge_state();
-    let mut rng = SqueezeRng {
-        hemera0,
-        state,
-        buffer: [0u64; RATE],
-        pos: RATE,
-    };
+    let mut state = bootstrap_sponge_state();
     let total = ROUNDS_F * WIDTH + ROUNDS_P; // 192
-    (0..total).map(|_| rng.next_u64()).collect()
-}
 
-/// RNG that produces zeros (used to create Hemera₀).
-struct ZeroRng;
+    let mut constants = Vec::with_capacity(total);
+    let mut pos = RATE; // force initial squeeze
 
-impl RngCore for ZeroRng {
-    fn next_u32(&mut self) -> u32 {
-        0
-    }
-    fn next_u64(&mut self) -> u64 {
-        0
-    }
-    fn fill_bytes(&mut self, dest: &mut [u8]) {
-        dest.fill(0);
-    }
-}
-
-/// RNG that squeezes Goldilocks elements from a Hemera₀ sponge state.
-///
-/// Each squeeze extracts RATE (8) elements from the rate portion, then
-/// permutes the state for the next block. This produces an unlimited
-/// stream of pseudorandom field elements.
-struct SqueezeRng {
-    hemera0: Poseidon2Goldilocks<WIDTH>,
-    state: [Goldilocks; WIDTH],
-    buffer: [u64; RATE],
-    pos: usize,
-}
-
-impl SqueezeRng {
-    fn squeeze_block(&mut self) {
-        for i in 0..RATE {
-            self.buffer[i] = self.state[i].as_canonical_u64();
+    for _ in 0..total {
+        if pos >= RATE {
+            // Squeeze: extract rate elements, then permute for next block.
+            // On first iteration the state is already permuted from bootstrap_sponge_state.
+            if !constants.is_empty() {
+                permute_with_constants(&mut state, &ZERO_CONSTANTS);
+            }
+            pos = 0;
         }
-        self.hemera0.permute_mut(&mut self.state);
-        self.pos = 0;
-    }
-}
-
-impl RngCore for SqueezeRng {
-    fn next_u32(&mut self) -> u32 {
-        self.next_u64() as u32
+        constants.push(state[pos].as_canonical_u64());
+        pos += 1;
     }
 
-    fn next_u64(&mut self) -> u64 {
-        if self.pos >= RATE {
-            self.squeeze_block();
-        }
-        let val = self.buffer[self.pos];
-        self.pos += 1;
-        val
-    }
-
-    fn fill_bytes(&mut self, dest: &mut [u8]) {
-        let mut written = 0;
-        while written < dest.len() {
-            let val = self.next_u64();
-            let bytes = val.to_le_bytes();
-            let remaining = dest.len() - written;
-            let n = remaining.min(8);
-            dest[written..written + n].copy_from_slice(&bytes[..n]);
-            written += n;
-        }
-    }
+    constants
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::constants::ROUND_CONSTANTS;
+    use crate::constants::ROUND_CONSTANTS_U64;
 
     /// Verify that the static constants match the bootstrap derivation.
     ///
@@ -154,10 +99,12 @@ mod tests {
         let derived = bootstrap_constants_u64();
         assert_eq!(
             derived.len(),
-            ROUND_CONSTANTS.len(),
+            ROUND_CONSTANTS_U64.len(),
             "constant count mismatch"
         );
-        for (i, (&derived, &static_val)) in derived.iter().zip(ROUND_CONSTANTS.iter()).enumerate() {
+        for (i, (&derived, &static_val)) in
+            derived.iter().zip(ROUND_CONSTANTS_U64.iter()).enumerate()
+        {
             assert_eq!(
                 derived, static_val,
                 "constant[{i}] mismatch: bootstrap=0x{derived:016X}, static=0x{static_val:016X}"
@@ -205,36 +152,6 @@ mod tests {
         assert_eq!(constants[1], 0xE3578901A12C12D8);
         assert_eq!(constants[2], 0xF69C218E10D83177);
         assert_eq!(constants[3], 0x580252688A8C5A9D);
-    }
-
-    #[test]
-    fn squeeze_rng_produces_field_elements() {
-        let (hemera0, state) = bootstrap_sponge_state();
-        let mut rng = SqueezeRng {
-            hemera0,
-            state,
-            buffer: [0u64; RATE],
-            pos: RATE,
-        };
-        let p: u64 = 0xFFFF_FFFF_0000_0001;
-        for _ in 0..100 {
-            let val = rng.next_u64();
-            assert!(val < p, "squeezed value {val} >= p");
-        }
-    }
-
-    #[test]
-    fn squeeze_rng_fill_bytes() {
-        let (hemera0, state) = bootstrap_sponge_state();
-        let mut rng = SqueezeRng {
-            hemera0,
-            state,
-            buffer: [0u64; RATE],
-            pos: RATE,
-        };
-        let mut buf = [0u8; 100];
-        rng.fill_bytes(&mut buf);
-        assert!(buf.iter().any(|&b| b != 0));
     }
 
     #[test]

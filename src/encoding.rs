@@ -1,5 +1,4 @@
-use p3_field::PrimeField64;
-use p3_goldilocks::Goldilocks;
+use crate::field::Goldilocks;
 
 use crate::params::{
     INPUT_BYTES_PER_ELEMENT, OUTPUT_BYTES, OUTPUT_BYTES_PER_ELEMENT, OUTPUT_ELEMENTS, RATE,

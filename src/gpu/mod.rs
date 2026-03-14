@@ -7,8 +7,7 @@
 
 use std::num::NonZeroU64;
 
-use p3_field::PrimeField64;
-use p3_goldilocks::Goldilocks;
+use crate::field::Goldilocks;
 use wgpu::util::DeviceExt;
 
 use crate::params::{ROUNDS_F, ROUNDS_P, WIDTH};
@@ -260,7 +259,7 @@ impl GpuContext {
 /// Uses the same static round constants as the CPU permutation, ensuring
 /// GPU and CPU round constants are identical.
 fn generate_round_constants_u32() -> Vec<u32> {
-    let values = crate::constants::ROUND_CONSTANTS;
+    let values = crate::constants::ROUND_CONSTANTS_U64;
     let mut constants = Vec::with_capacity(values.len() * 2);
     for val in values {
         constants.push(val as u32);

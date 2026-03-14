@@ -1,9 +1,8 @@
 use std::fmt;
 use std::io;
 
-use p3_goldilocks::Goldilocks;
-
 use crate::encoding::{bytes_to_rate_block, hash_to_bytes};
+use crate::field::Goldilocks;
 use crate::params::{self, OUTPUT_BYTES, OUTPUT_BYTES_PER_ELEMENT, OUTPUT_ELEMENTS, RATE, RATE_BYTES, WIDTH};
 
 /// Domain separation tags placed in `state[capacity_start + 3]` (i.e. `state[11]`).
