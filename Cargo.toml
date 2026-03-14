@@ -1,5 +1,5 @@
 [package]
-name = "hemera"
+name = "cyber-hemera"
 version = "0.1.0"
 edition = "2024"
 description = "Hemera — Poseidon2 hash over Goldilocks field"
@@ -7,7 +7,7 @@ license = "MIT OR Apache-2.0"
 rust-version = "1.89"
 repository = "https://github.com/cyberia-to/hemera"
 homepage = "https://github.com/cyberia-to/hemera"
-documentation = "https://docs.rs/hemera"
+documentation = "https://docs.rs/cyber-hemera"
 keywords = ["poseidon2", "goldilocks", "hash", "zk", "crypto"]
 categories = ["cryptography", "no-std"]
 readme = "README.md"
