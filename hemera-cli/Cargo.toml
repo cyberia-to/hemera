@@ -1,0 +1,18 @@
+[package]
+name = "hemera-cli"
+version = "0.2.0"
+edition = "2024"
+description = "CLI for Hemera — Poseidon2 hash over Goldilocks field"
+license-file = "../LICENSE"
+rust-version = "1.89"
+repository = "https://github.com/cyberia-to/hemera"
+
+[[bin]]
+name = "hemera"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+cyber-hemera = { path = "../hemera-rs" }
