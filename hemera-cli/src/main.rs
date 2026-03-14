@@ -21,20 +21,32 @@ fn main() {
             }
             process::exit(show_tree(rest[0]));
         }
-        // hemera prove <file> [chunk_index]  — generate inclusion proof
+        // hemera prove <file> [chunk | start:end]  — generate inclusion proof
         Some("prove") => {
             let rest: Vec<&str> = args[1..].iter().map(|s| s.as_str()).collect();
             match rest.len() {
-                1 => process::exit(prove_chunk(rest[0], 0)),
+                1 => process::exit(prove_node(rest[0], 0, 1)),
                 2 => {
-                    let idx: u64 = rest[1].parse().unwrap_or_else(|_| {
-                        eprintln!("hemera: invalid chunk index: {}", rest[1]);
-                        process::exit(1);
-                    });
-                    process::exit(prove_chunk(rest[0], idx));
+                    if let Some((s, e)) = rest[1].split_once(':') {
+                        let start: u64 = s.parse().unwrap_or_else(|_| {
+                            eprintln!("hemera: invalid range start: {s}");
+                            process::exit(1);
+                        });
+                        let end: u64 = e.parse().unwrap_or_else(|_| {
+                            eprintln!("hemera: invalid range end: {e}");
+                            process::exit(1);
+                        });
+                        process::exit(prove_node(rest[0], start, end));
+                    } else {
+                        let idx: u64 = rest[1].parse().unwrap_or_else(|_| {
+                            eprintln!("hemera: invalid chunk index: {}", rest[1]);
+                            process::exit(1);
+                        });
+                        process::exit(prove_node(rest[0], idx, idx + 1));
+                    }
                 }
                 _ => {
-                    eprintln!("hemera: prove requires <file> [chunk_index]");
+                    eprintln!("hemera: prove requires <file> [chunk | start:end]");
                     process::exit(1);
                 }
             }
@@ -155,7 +167,7 @@ fn print_tree_node(node: &cyber_hemera::tree::TreeNode, connector: &str, prefix:
     }
 }
 
-fn prove_chunk(path: &str, chunk_index: u64) -> i32 {
+fn prove_node(path: &str, start: u64, end: u64) -> i32 {
     let data = match fs::read(path) {
         Ok(d) => d,
         Err(e) => {
@@ -165,15 +177,19 @@ fn prove_chunk(path: &str, chunk_index: u64) -> i32 {
     };
 
     let n = cyber_hemera::tree::num_chunks(data.len());
-    if chunk_index >= n {
-        eprintln!("hemera: chunk index {chunk_index} out of range (file has {n} chunks)");
+    if start >= end || end > n {
+        eprintln!("hemera: invalid range [{start}..{end}) for {n} chunks");
         return 1;
     }
 
-    let (root, proof) = cyber_hemera::tree::prove(&data, chunk_index);
+    let (root, proof) = cyber_hemera::tree::prove_range(&data, start, end);
 
     println!("root: {root}");
-    println!("chunk: {}/{n}", chunk_index);
+    if end - start == 1 {
+        println!("chunk: {start}/{n}");
+    } else {
+        println!("range: [{start}..{end}) of {n} chunks");
+    }
     println!("depth: {}", proof.siblings.len());
     for (i, sibling) in proof.siblings.iter().enumerate() {
         let (dir, hash) = match sibling {
@@ -272,7 +288,8 @@ fn print_usage() {
   hemera src/                      Hash directory (recursive)
   echo hello | hemera              Hash stdin
   hemera tree file.txt             Show tree structure
-  hemera prove file.txt [chunk]    Merkle inclusion proof
+  hemera prove file.txt [chunk]    Leaf inclusion proof
+  hemera prove file.txt 0:4        Subtree inclusion proof
   hemera verify file.txt <hash>    Verify file against hash
   hemera verify sums.txt           Verify checksums from file
 
