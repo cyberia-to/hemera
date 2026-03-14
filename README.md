@@ -25,14 +25,21 @@ Collision:       256 bits classical, 170 bits quantum
 
 Every parameter is a power of two.
 
-## Rationale
+## Workspace
 
-Full specification and design rationale for the Hemera parameter set: [hemera-spec](http://cyber.page/hemera-spec). For broader context on why Hemera exists and how it fits into the Cyber network: [hemera](http://cyber.page/hemera).
+| Crate | Description |
+|-------|-------------|
+| `hemera-rs` | Core Rust implementation (`cyber-hemera` on crates.io) |
+| `hemera-wgsl` | GPU backend — WGSL shader + wgpu dispatch |
+| `hemera-cli` | CLI binary (`hemera`) |
+| `hemera-bench` | Benchmarks (criterion) |
+
+Three implementations cross-verify against shared test vectors in `vectors/`.
 
 ## Usage
 
 ```rust
-use hemera::{hash, keyed_hash, derive_key, Hasher};
+use cyber_hemera::{hash, keyed_hash, derive_key, Hasher};
 
 // One-shot
 let digest = hash(b"hello world");
@@ -49,30 +56,27 @@ let mac = keyed_hash(&[0u8; 64], b"message");
 // Key derivation
 let key = derive_key("my-app v1", b"key material");
 
-// XOF (extendable output)
-let mut xof = Hasher::new().update(b"seed").finalize_xof();
-let mut out = [0u8; 256];
-xof.fill(&mut out);
+// Content tree hash
+let root = cyber_hemera::tree::root_hash(b"file contents");
 ```
+
+## CLI
+
+```
+hemera file1.txt file2.txt    # hash files
+echo hello | hemera           # hash stdin
+hemera --check sums.txt       # verify checksums
+```
+
+Install: `cargo install --path hemera-cli`
 
 ## Self-bootstrapping round constants
 
 Hemera generates its own round constants from a genesis seed `[0x63, 0x79, 0x62, 0x65, 0x72]` ("cyber") through a zero-constant Poseidon2 sponge. No external PRNG, no nothing-up-my-sleeve numbers from other sources.
 
-## GPU backend
+## Rationale
 
-Optional GPU acceleration via wgpu compute shaders:
-
-```toml
-hemera = { version = "0.1", features = ["gpu"] }
-```
-
-## Features
-
-| Feature | Description |
-|---------|-------------|
-| `gpu`   | GPU-accelerated batch permutations via wgpu |
-| `serde` | Serialize/deserialize `Hash` type |
+Full specification and design rationale for the Hemera parameter set: [hemera-spec](http://cyber.page/hemera-spec). For broader context on why Hemera exists and how it fits into the Cyber network: [hemera](http://cyber.page/hemera).
 
 ## License
 
