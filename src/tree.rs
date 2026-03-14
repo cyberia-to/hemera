@@ -6,7 +6,7 @@
 use p3_goldilocks::Goldilocks;
 
 use crate::encoding::{bytes_to_cv, hash_to_bytes};
-use crate::params::{self, OUTPUT_ELEMENTS, RATE, WIDTH};
+use crate::params::{self, CHUNK_SIZE, OUTPUT_ELEMENTS, RATE, WIDTH};
 use crate::sponge::Hash;
 
 /// Flags encoded in the capacity for BAO operations.
@@ -128,6 +128,46 @@ pub fn nmt_parent_cv(
 
     let output: [Goldilocks; OUTPUT_ELEMENTS] = state[..OUTPUT_ELEMENTS].try_into().unwrap();
     Hash::from_bytes(hash_to_bytes(&output))
+}
+
+/// Hash arbitrary-length content into a single root hash.
+///
+/// Splits `data` into `CHUNK_SIZE`-byte chunks and builds a left-balanced
+/// binary Merkle tree. See spec §4.6.1–§4.6.5.
+///
+/// - Single chunk (≤ 4096 bytes): `chunk_cv(data, 0, is_root=true)`
+/// - Multiple chunks: left-balanced tree via `chunk_cv` + `parent_cv`
+pub fn tree_hash(data: &[u8]) -> Hash {
+    if data.is_empty() {
+        return chunk_cv(data, 0, true);
+    }
+
+    let chunks: Vec<&[u8]> = data.chunks(CHUNK_SIZE).collect();
+    let cvs: Vec<Hash> = chunks
+        .iter()
+        .enumerate()
+        .map(|(i, chunk)| chunk_cv(chunk, i as u64, chunks.len() == 1))
+        .collect();
+
+    if cvs.len() == 1 {
+        return cvs[0];
+    }
+
+    merge_subtree(&cvs, true)
+}
+
+/// Recursively merge chaining values into a left-balanced binary tree.
+fn merge_subtree(cvs: &[Hash], is_root: bool) -> Hash {
+    debug_assert!(!cvs.is_empty());
+    if cvs.len() == 1 {
+        return cvs[0];
+    }
+
+    // Left subtree is a complete binary tree: split = 2^(ceil(log2(N)) - 1)
+    let split = 1 << (usize::BITS - (cvs.len() - 1).leading_zeros() - 1);
+    let left = merge_subtree(&cvs[..split], false);
+    let right = merge_subtree(&cvs[split..], false);
+    parent_cv(&left, &right, is_root)
 }
 
 #[cfg(test)]
@@ -363,5 +403,80 @@ mod tests {
         assert_eq!(CAPACITY_NS_MAX_IDX, 13);
         // No overlap with counter (8), flags (9), msg_length (10), domain (11)
         assert!(CAPACITY_NS_MIN_IDX > 11);
+    }
+
+    // ── tree_hash tests ──────────────────────────────────────────
+
+    #[test]
+    fn tree_hash_empty() {
+        let h = tree_hash(b"");
+        assert_eq!(h, chunk_cv(b"", 0, true));
+    }
+
+    #[test]
+    fn tree_hash_single_chunk() {
+        let data = vec![0x42u8; 100];
+        let h = tree_hash(&data);
+        assert_eq!(h, chunk_cv(&data, 0, true));
+    }
+
+    #[test]
+    fn tree_hash_exact_chunk() {
+        let data = vec![0x42u8; CHUNK_SIZE];
+        let h = tree_hash(&data);
+        assert_eq!(h, chunk_cv(&data, 0, true));
+    }
+
+    #[test]
+    fn tree_hash_two_chunks() {
+        let data = vec![0x42u8; CHUNK_SIZE + 1];
+        let h = tree_hash(&data);
+        let c0 = chunk_cv(&data[..CHUNK_SIZE], 0, false);
+        let c1 = chunk_cv(&data[CHUNK_SIZE..], 1, false);
+        assert_eq!(h, parent_cv(&c0, &c1, true));
+    }
+
+    #[test]
+    fn tree_hash_three_chunks() {
+        // 3 chunks → left-balanced: left subtree has 2 leaves, right has 1
+        let data = vec![0xAB; CHUNK_SIZE * 3];
+        let h = tree_hash(&data);
+
+        let c0 = chunk_cv(&data[..CHUNK_SIZE], 0, false);
+        let c1 = chunk_cv(&data[CHUNK_SIZE..CHUNK_SIZE * 2], 1, false);
+        let c2 = chunk_cv(&data[CHUNK_SIZE * 2..], 2, false);
+        let left = parent_cv(&c0, &c1, false);
+        let expected = parent_cv(&left, &c2, true);
+        assert_eq!(h, expected);
+    }
+
+    #[test]
+    fn tree_hash_four_chunks() {
+        let data = vec![0xCD; CHUNK_SIZE * 4];
+        let h = tree_hash(&data);
+
+        let c0 = chunk_cv(&data[..CHUNK_SIZE], 0, false);
+        let c1 = chunk_cv(&data[CHUNK_SIZE..CHUNK_SIZE * 2], 1, false);
+        let c2 = chunk_cv(&data[CHUNK_SIZE * 2..CHUNK_SIZE * 3], 2, false);
+        let c3 = chunk_cv(&data[CHUNK_SIZE * 3..], 3, false);
+        let p01 = parent_cv(&c0, &c1, false);
+        let p23 = parent_cv(&c2, &c3, false);
+        let expected = parent_cv(&p01, &p23, true);
+        assert_eq!(h, expected);
+    }
+
+    #[test]
+    fn tree_hash_deterministic() {
+        let data = vec![0xEF; CHUNK_SIZE * 5];
+        assert_eq!(tree_hash(&data), tree_hash(&data));
+    }
+
+    #[test]
+    fn tree_hash_differs_from_plain_hash() {
+        // tree_hash uses chunk_cv with flags; plain hash does not
+        let data = b"small input";
+        let th = tree_hash(data);
+        let ph = crate::hash(data);
+        assert_ne!(th, ph);
     }
 }
