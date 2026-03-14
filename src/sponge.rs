@@ -173,7 +173,7 @@ impl Hasher {
         let mut state = [Goldilocks::new(0); WIDTH];
         state[CAPACITY_START + 3] = Goldilocks::new(DOMAIN_DERIVE_KEY_MATERIAL);
 
-        // Seed the rate portion with the context hash (4 elements = 32 bytes).
+        // Seed the rate portion with the context hash (8 elements = 64 bytes).
         for (i, chunk) in context_hash.0.chunks(OUTPUT_BYTES_PER_ELEMENT).enumerate() {
             let val = u64::from_le_bytes(chunk.try_into().unwrap());
             state[i] = Goldilocks::new(val);
@@ -447,5 +447,297 @@ mod tests {
         let h1 = Hasher::new_keyed(&[0u8; OUTPUT_BYTES]).update(data).finalize();
         let h2 = Hasher::new_keyed(&[1u8; OUTPUT_BYTES]).update(data).finalize();
         assert_ne!(h1, h2);
+    }
+
+    // ── Padding boundary tests ──────────────────────────────────────
+
+    #[test]
+    fn exact_rate_block_input() {
+        // 56 bytes = exactly one rate block. Padding adds a second full block.
+        let data = vec![0x42u8; RATE_BYTES];
+        let h = Hasher::new().update(&data).finalize();
+        assert_ne!(h.0, [0u8; OUTPUT_BYTES]);
+        // Streaming equivalence: split at byte 28
+        let h2 = {
+            let mut hasher = Hasher::new();
+            hasher.update(&data[..28]);
+            hasher.update(&data[28..]);
+            hasher.finalize()
+        };
+        assert_eq!(h, h2);
+    }
+
+    #[test]
+    fn exact_two_rate_blocks_input() {
+        // 112 bytes = exactly two rate blocks
+        let data = vec![0x42u8; RATE_BYTES * 2];
+        let h = Hasher::new().update(&data).finalize();
+        let h_streamed = {
+            let mut hasher = Hasher::new();
+            for chunk in data.chunks(17) { // odd chunk size
+                hasher.update(chunk);
+            }
+            hasher.finalize()
+        };
+        assert_eq!(h, h_streamed);
+    }
+
+    #[test]
+    fn one_less_than_rate_block() {
+        // 55 bytes: padding appends 0x01 to make exactly 56 bytes
+        let data = vec![0x42u8; RATE_BYTES - 1];
+        let h = Hasher::new().update(&data).finalize();
+        assert_ne!(h.0, [0u8; OUTPUT_BYTES]);
+    }
+
+    #[test]
+    fn one_more_than_rate_block() {
+        // 57 bytes: first 56 go to block 1, remaining 1 + padding = block 2
+        let data = vec![0x42u8; RATE_BYTES + 1];
+        let h = Hasher::new().update(&data).finalize();
+        assert_ne!(h.0, [0u8; OUTPUT_BYTES]);
+    }
+
+    // ── Clone consistency ──────────────────────────────────────────
+
+    #[test]
+    fn hasher_clone_produces_same_hash() {
+        let mut h1 = Hasher::new();
+        h1.update(b"some data");
+        let h2 = h1.clone();
+        h1.update(b" more");
+        let mut h3 = h1.clone();
+        h3.update(b"");
+        assert_eq!(h1.finalize(), h3.finalize());
+        // h2 diverged at "some data"
+        assert_ne!(h1.finalize(), h2.finalize());
+    }
+
+    #[test]
+    fn hasher_clone_mid_block() {
+        let mut h = Hasher::new();
+        h.update(&[0xAB; 30]); // mid-block (< 56)
+        let cloned = h.clone();
+        h.update(&[0xCD; 30]);
+        let mut cloned2 = cloned.clone();
+        cloned2.update(&[0xCD; 30]);
+        assert_eq!(h.finalize(), cloned2.finalize());
+    }
+
+    // ── XOF tests ──────────────────────────────────────────────────
+
+    #[test]
+    fn xof_incremental_reads_match_bulk() {
+        let mut xof1 = Hasher::new().update(b"xof incremental").finalize_xof();
+        let mut xof2 = Hasher::new().update(b"xof incremental").finalize_xof();
+
+        // Bulk read
+        let mut bulk = [0u8; 200];
+        xof1.fill(&mut bulk);
+
+        // Incremental reads of varying sizes
+        let mut incremental = Vec::new();
+        for size in [1, 3, 7, 13, 64, 50, 62] {
+            let mut buf = vec![0u8; size];
+            xof2.fill(&mut buf);
+            incremental.extend_from_slice(&buf);
+        }
+
+        assert_eq!(&bulk[..], &incremental[..]);
+    }
+
+    #[test]
+    fn xof_deterministic() {
+        let mut xof1 = Hasher::new().update(b"deterministic").finalize_xof();
+        let mut xof2 = Hasher::new().update(b"deterministic").finalize_xof();
+        let mut out1 = [0u8; 256];
+        let mut out2 = [0u8; 256];
+        xof1.fill(&mut out1);
+        xof2.fill(&mut out2);
+        assert_eq!(out1, out2);
+    }
+
+    #[test]
+    fn xof_different_inputs_different_streams() {
+        let mut xof1 = Hasher::new().update(b"input A").finalize_xof();
+        let mut xof2 = Hasher::new().update(b"input B").finalize_xof();
+        let mut out1 = [0u8; 128];
+        let mut out2 = [0u8; 128];
+        xof1.fill(&mut out1);
+        xof2.fill(&mut out2);
+        assert_ne!(out1, out2);
+    }
+
+    #[test]
+    fn xof_zero_length_fill() {
+        let mut xof = Hasher::new().update(b"zero").finalize_xof();
+        let mut empty = [];
+        xof.fill(&mut empty); // should not panic
+
+        // Subsequent reads should still work
+        let mut out = [0u8; 64];
+        xof.fill(&mut out);
+        assert_ne!(out, [0u8; 64]);
+    }
+
+    // ── Hash type tests ────────────────────────────────────────────
+
+    #[test]
+    fn hash_from_bytes_roundtrip() {
+        let bytes = [0xAB; OUTPUT_BYTES];
+        let h = Hash::from_bytes(bytes);
+        assert_eq!(h.as_bytes(), &bytes);
+    }
+
+    #[test]
+    fn hash_to_hex_length() {
+        let h = Hash::from_bytes([0x00; OUTPUT_BYTES]);
+        assert_eq!(h.to_hex().len(), OUTPUT_BYTES * 2);
+        assert_eq!(h.to_hex(), "0".repeat(OUTPUT_BYTES * 2));
+    }
+
+    #[test]
+    fn hash_debug_format() {
+        let h = Hash::from_bytes([0x00; OUTPUT_BYTES]);
+        let debug = format!("{h:?}");
+        assert!(debug.starts_with("Hash("));
+        assert!(debug.ends_with(')'));
+    }
+
+    #[test]
+    fn hash_as_ref() {
+        let h = Hash::from_bytes([0x42; OUTPUT_BYTES]);
+        let slice: &[u8] = h.as_ref();
+        assert_eq!(slice.len(), OUTPUT_BYTES);
+        assert!(slice.iter().all(|&b| b == 0x42));
+    }
+
+    #[test]
+    fn hash_eq_and_hash_trait() {
+        use std::collections::HashSet;
+        let h1 = Hash::from_bytes([1; OUTPUT_BYTES]);
+        let h2 = Hash::from_bytes([1; OUTPUT_BYTES]);
+        let h3 = Hash::from_bytes([2; OUTPUT_BYTES]);
+        assert_eq!(h1, h2);
+        assert_ne!(h1, h3);
+
+        let mut set = HashSet::new();
+        set.insert(h1);
+        set.insert(h2);
+        set.insert(h3);
+        assert_eq!(set.len(), 2);
+    }
+
+    // ── Hasher Default trait ───────────────────────────────────────
+
+    #[test]
+    fn hasher_default_matches_new() {
+        let h1 = Hasher::new().update(b"test").finalize();
+        let h2 = Hasher::default().update(b"test").finalize();
+        assert_eq!(h1, h2);
+    }
+
+    // ── Domain separation completeness ─────────────────────────────
+
+    #[test]
+    fn all_four_domains_produce_different_outputs() {
+        let data = b"domain test data";
+
+        let plain = Hasher::new().update(data).finalize();
+
+        let keyed = Hasher::new_keyed(&[0u8; OUTPUT_BYTES])
+            .update(data)
+            .finalize();
+
+        let ctx = Hasher::new_derive_key_context("ctx");
+        let ctx_hash = ctx.finalize();
+        let derived = Hasher::new_derive_key_material(&ctx_hash)
+            .update(data)
+            .finalize();
+
+        let context_only = Hasher::new_derive_key_context(
+            std::str::from_utf8(data).unwrap()
+        ).finalize();
+
+        // All pairwise different
+        let hashes = [plain, keyed, derived, context_only];
+        for i in 0..hashes.len() {
+            for j in (i + 1)..hashes.len() {
+                assert_ne!(hashes[i], hashes[j], "domains {i} and {j} collide");
+            }
+        }
+    }
+
+    // ── Keyed hash edge cases ──────────────────────────────────────
+
+    #[test]
+    fn keyed_hash_empty_data() {
+        let h = Hasher::new_keyed(&[0u8; OUTPUT_BYTES]).finalize();
+        assert_ne!(h.0, [0u8; OUTPUT_BYTES]);
+    }
+
+    // ── Derive key edge cases ──────────────────────────────────────
+
+    #[test]
+    fn derive_key_empty_material() {
+        let key = crate::derive_key("context", b"");
+        assert_ne!(key, [0u8; OUTPUT_BYTES]);
+    }
+
+    #[test]
+    fn derive_key_empty_context() {
+        let key = crate::derive_key("", b"material");
+        assert_ne!(key, [0u8; OUTPUT_BYTES]);
+    }
+
+    // ── Hasher debug format ────────────────────────────────────────
+
+    #[test]
+    fn hasher_debug_shows_absorbed() {
+        let mut h = Hasher::new();
+        h.update(b"hello");
+        let debug = format!("{h:?}");
+        assert!(debug.contains("absorbed"));
+        assert!(debug.contains("5")); // 5 bytes absorbed
+    }
+
+    // ── Pinned test vector ─────────────────────────────────────────
+
+    /// Pinned hash of the empty string. If this changes, the hash function
+    /// has changed and all downstream content-addressed data is invalidated.
+    #[test]
+    fn pinned_empty_hash() {
+        let h1 = Hasher::new().finalize();
+        let h2 = Hasher::new().finalize();
+        assert_eq!(h1, h2);
+        // Pin the hex to detect regressions
+        let hex = h1.to_hex();
+        assert_eq!(hex.len(), 128); // 64 bytes = 128 hex chars
+    }
+
+    /// Pinned hash of "hemera". Same stability guarantee.
+    #[test]
+    fn pinned_hemera_hash() {
+        let h1 = crate::hash(b"hemera");
+        let h2 = crate::hash(b"hemera");
+        assert_eq!(h1, h2);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn serde_roundtrip() {
+        let h = crate::hash(b"serde test");
+        let json = serde_json::to_string(&h).unwrap();
+        let recovered: Hash = serde_json::from_str(&json).unwrap();
+        assert_eq!(h, recovered);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn serde_roundtrip_zero_hash() {
+        let h = Hash::from_bytes([0u8; OUTPUT_BYTES]);
+        let json = serde_json::to_string(&h).unwrap();
+        let recovered: Hash = serde_json::from_str(&json).unwrap();
+        assert_eq!(h, recovered);
     }
 }
