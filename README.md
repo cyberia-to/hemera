@@ -1,5 +1,10 @@
 # hemera
 
+> **WARNING: This is novel, unaudited cryptography. The parameter set, sponge
+> construction, and self-bootstrapping round constant generation have not been
+> reviewed by third-party cryptographers. Do not use in production systems
+> where cryptographic guarantees are required. Use at your own risk.**
+
 Poseidon2 hash over the Goldilocks field.
 
 ```

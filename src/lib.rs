@@ -1,5 +1,14 @@
 //! Poseidon2 hash over the Goldilocks field (Hemera parameters).
 //!
+//! # WARNING
+//!
+//! **This is novel, unaudited cryptography.** The parameter set, sponge
+//! construction, and self-bootstrapping round constant generation have not
+//! been reviewed by third-party cryptographers. Do not use in production
+//! systems where cryptographic guarantees are required. Use at your own risk.
+//!
+//! ---
+//!
 //! This crate provides a streaming hash API backed by the Poseidon2
 //! algebraic hash function operating over the Goldilocks prime field
 //! (p = 2^64 - 2^32 + 1).
