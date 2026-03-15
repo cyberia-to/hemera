@@ -48,8 +48,8 @@ extern crate alloc;
 #[cfg(feature = "std")]
 extern crate std;
 
-#[cfg(test)]
-mod bootstrap;
+pub mod stream;
+pub mod bootstrap;
 pub mod constants;
 mod encoding;
 pub mod field;
