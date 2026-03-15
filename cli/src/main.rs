@@ -191,8 +191,8 @@ fn prove_node(path: &str, start: u64, end: u64) -> i32 {
     } else {
         println!("range: [{start}..{end}) of {n} chunks");
     }
-    println!("depth: {}", proof.siblings.len());
-    for (i, sibling) in proof.siblings.iter().enumerate() {
+    println!("depth: {}", proof.depth());
+    for (i, sibling) in proof.siblings().iter().enumerate() {
         let (dir, hash) = match sibling {
             cyber_hemera::tree::Sibling::Left(h) => ("L", h),
             cyber_hemera::tree::Sibling::Right(h) => ("R", h),

@@ -87,6 +87,9 @@ pub const OUTPUT_BYTES: usize = OUTPUT_ELEMENTS * OUTPUT_BYTES_PER_ELEMENT; // 6
 /// `hash_leaf`. The last chunk may be shorter. See spec §4.6.1.
 pub const CHUNK_SIZE: usize = 4096;
 
+/// Maximum tree depth (sufficient for 2^64 chunks).
+pub const MAX_TREE_DEPTH: usize = 64;
+
 // ── Security properties (informational) ─────────────────────────────
 
 /// Classical collision resistance in bits.

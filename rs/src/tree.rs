@@ -3,9 +3,13 @@
 //! `hash_leaf` hashes leaf data into a chaining value.
 //! `hash_node` combines two child chaining values into a parent node.
 
+use alloc::boxed::Box;
+use alloc::vec;
+use alloc::vec::Vec;
+
 use crate::encoding::{bytes_to_cv, hash_to_bytes};
 use crate::field::Goldilocks;
-use crate::params::{self, CHUNK_SIZE, OUTPUT_ELEMENTS, RATE, WIDTH};
+use crate::params::{self, CHUNK_SIZE, MAX_TREE_DEPTH, OUTPUT_ELEMENTS, RATE, WIDTH};
 use crate::sponge::Hash;
 
 /// Flags encoded in the capacity for tree operations.
@@ -136,43 +140,47 @@ pub fn hash_node_nmt(
 ///
 /// - Single chunk (≤ 4096 bytes): `hash_leaf(data, 0, is_root=true)`
 /// - Multiple chunks: left-balanced tree via `hash_leaf` + `hash_node`
+///
+/// Uses a fixed-size stack (no heap allocation). The stack-based merge
+/// follows the BLAKE3/bao pattern: after adding chunk i (0-indexed),
+/// merge while `(i+1)` has trailing zero bits in the left-balanced split.
 pub fn root_hash(data: &[u8]) -> Hash {
     if data.is_empty() {
         return hash_leaf(data, 0, true);
     }
 
-    let chunks: Vec<&[u8]> = data.chunks(CHUNK_SIZE).collect();
-    let cvs: Vec<Hash> = chunks
-        .iter()
-        .enumerate()
-        .map(|(i, chunk)| hash_leaf(chunk, i as u64, chunks.len() == 1))
-        .collect();
+    let n = (data.len() + CHUNK_SIZE - 1) / CHUNK_SIZE;
 
-    if cvs.len() == 1 {
-        return cvs[0];
+    if n == 1 {
+        return hash_leaf(data, 0, true);
     }
 
-    merge_subtree(&cvs, true)
+    merge_range(data, 0, n, true)
 }
 
-/// Recursively merge chaining values into a left-balanced binary tree.
-fn merge_subtree(cvs: &[Hash], is_root: bool) -> Hash {
-    debug_assert!(!cvs.is_empty());
-    if cvs.len() == 1 {
-        return cvs[0];
+/// Recursively merge chaining values for chunks `[offset..offset+count)`,
+/// computing leaf hashes on demand from the data slice.
+fn merge_range(data: &[u8], offset: usize, count: usize, is_root: bool) -> Hash {
+    debug_assert!(count > 0);
+    let n_total = if data.is_empty() { 1 } else { (data.len() + CHUNK_SIZE - 1) / CHUNK_SIZE };
+
+    if count == 1 {
+        let start = offset * CHUNK_SIZE;
+        let end = (start + CHUNK_SIZE).min(data.len());
+        return hash_leaf(&data[start..end], offset as u64, n_total == 1);
     }
 
-    // Left subtree is a complete binary tree: split = 2^(ceil(log2(N)) - 1)
-    let split = 1 << (usize::BITS - (cvs.len() - 1).leading_zeros() - 1);
-    let left = merge_subtree(&cvs[..split], false);
-    let right = merge_subtree(&cvs[split..], false);
+    // Left subtree is a complete binary tree: split = 2^(ceil(log2(count)) - 1)
+    let split = 1 << (usize::BITS - (count - 1).leading_zeros() - 1);
+    let left = merge_range(data, offset, split, false);
+    let right = merge_range(data, offset + split, count - split, false);
     hash_node(&left, &right, is_root)
 }
 
 // ── Inclusion proofs ─────────────────────────────────────────────
 
 /// A sibling entry in an inclusion proof path.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Sibling {
     /// The sibling is on the left; the target node is on the right.
     Left(Hash),
@@ -186,14 +194,31 @@ pub enum Sibling {
 /// `end_chunk == start_chunk + 1`. For an internal node, the range covers
 /// all leaves under that subtree.
 ///
-/// Siblings are stored root-to-leaf (outermost first).
+/// Siblings are stored root-to-leaf (outermost first). Fixed-size buffer
+/// supports trees up to 2^64 chunks (depth ≤ 64).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InclusionProof {
     pub start_chunk: u64,
     pub end_chunk: u64,
     pub num_chunks: u64,
-    pub siblings: Vec<Sibling>,
+    buf: [Sibling; MAX_TREE_DEPTH],
+    depth: usize,
 }
+
+impl InclusionProof {
+    /// The siblings in this proof (root-to-leaf order).
+    pub fn siblings(&self) -> &[Sibling] {
+        &self.buf[..self.depth]
+    }
+
+    /// The proof depth (number of siblings).
+    pub fn depth(&self) -> usize {
+        self.depth
+    }
+}
+
+/// Sentinel value for unoccupied proof slots.
+const SIBLING_ZERO: Sibling = Sibling::Left(Hash::from_bytes([0u8; params::OUTPUT_BYTES]));
 
 /// Generate an inclusion proof for a single chunk.
 ///
@@ -206,40 +231,36 @@ pub fn prove(data: &[u8], chunk_index: u64) -> (Hash, InclusionProof) {
 ///
 /// The range must align to a subtree boundary in the left-balanced tree.
 /// Returns the root hash and the proof. Panics if the range is invalid.
+/// No heap allocation — uses a fixed-size siblings buffer.
 pub fn prove_range(data: &[u8], start: u64, end: u64) -> (Hash, InclusionProof) {
-    let chunks: Vec<&[u8]> = if data.is_empty() {
-        vec![data]
-    } else {
-        data.chunks(CHUNK_SIZE).collect()
-    };
-    let n = chunks.len() as u64;
+    let n = if data.is_empty() { 1u64 } else { ((data.len() + CHUNK_SIZE - 1) / CHUNK_SIZE) as u64 };
     assert!(start < end && end <= n, "invalid range [{start}..{end}) for {n} chunks");
 
-    let cvs: Vec<Hash> = chunks
-        .iter()
-        .enumerate()
-        .map(|(i, chunk)| hash_leaf(chunk, i as u64, chunks.len() == 1))
-        .collect();
-
-    if cvs.len() == 1 {
+    if n == 1 {
+        let cv = hash_leaf(data, 0, true);
         return (
-            cvs[0],
+            cv,
             InclusionProof {
                 start_chunk: start,
                 end_chunk: end,
                 num_chunks: n,
-                siblings: vec![],
+                buf: [SIBLING_ZERO; MAX_TREE_DEPTH],
+                depth: 0,
             },
         );
     }
 
-    let mut siblings = Vec::new();
-    let root = prove_subtree(
-        &cvs,
+    let mut buf = [SIBLING_ZERO; MAX_TREE_DEPTH];
+    let mut depth = 0usize;
+    let root = prove_subtree_data(
+        data,
+        0,
+        n as usize,
         start as usize,
         end as usize,
         true,
-        &mut siblings,
+        &mut buf,
+        &mut depth,
     );
     (
         root,
@@ -247,52 +268,58 @@ pub fn prove_range(data: &[u8], start: u64, end: u64) -> (Hash, InclusionProof) 
             start_chunk: start,
             end_chunk: end,
             num_chunks: n,
-            siblings,
+            buf,
+            depth,
         },
     )
 }
 
-/// Walk the left-balanced tree, collecting siblings along the path to `[target_start..target_end)`.
-fn prove_subtree(
-    cvs: &[Hash],
+/// Walk the left-balanced tree over data, collecting siblings along the
+/// path to `[target_start..target_end)`. Computes leaf hashes on demand.
+fn prove_subtree_data(
+    data: &[u8],
+    offset: usize,
+    count: usize,
     target_start: usize,
     target_end: usize,
     is_root: bool,
-    siblings: &mut Vec<Sibling>,
+    buf: &mut [Sibling; MAX_TREE_DEPTH],
+    depth: &mut usize,
 ) -> Hash {
-    debug_assert!(!cvs.is_empty());
+    debug_assert!(count > 0);
 
-    // If the current subtree exactly matches the target range, stop descending.
-    if target_start == 0 && target_end == cvs.len() {
-        return merge_subtree(cvs, is_root);
+    // If the current subtree exactly matches the target range, just merge it.
+    if target_start == offset && target_end == offset + count {
+        return merge_range(data, offset, count, is_root);
     }
 
-    assert!(cvs.len() > 1, "target range does not align to a subtree boundary");
+    assert!(count > 1, "target range does not align to a subtree boundary");
 
-    let split = 1 << (usize::BITS - (cvs.len() - 1).leading_zeros() - 1);
+    let split = 1 << (usize::BITS - (count - 1).leading_zeros() - 1);
 
-    if target_end <= split {
+    if target_end <= offset + split {
         // Target is entirely in the left subtree.
-        let right = merge_subtree(&cvs[split..], false);
-        siblings.push(Sibling::Right(right));
-        let left = prove_subtree(&cvs[..split], target_start, target_end, false, siblings);
+        let right = merge_range(data, offset + split, count - split, false);
+        buf[*depth] = Sibling::Right(right);
+        *depth += 1;
+        let left = prove_subtree_data(
+            data, offset, split, target_start, target_end, false, buf, depth,
+        );
         hash_node(&left, &right, is_root)
-    } else if target_start >= split {
+    } else if target_start >= offset + split {
         // Target is entirely in the right subtree.
-        let left = merge_subtree(&cvs[..split], false);
-        siblings.push(Sibling::Left(left));
-        let right = prove_subtree(
-            &cvs[split..],
-            target_start - split,
-            target_end - split,
-            false,
-            siblings,
+        let left = merge_range(data, offset, split, false);
+        buf[*depth] = Sibling::Left(left);
+        *depth += 1;
+        let right = prove_subtree_data(
+            data, offset + split, count - split, target_start, target_end, false, buf, depth,
         );
         hash_node(&left, &right, is_root)
     } else {
         panic!(
-            "range [{target_start}..{target_end}) straddles split at {split} — \
-             not a valid subtree boundary"
+            "range [{target_start}..{target_end}) straddles split at {} — \
+             not a valid subtree boundary",
+            offset + split,
         );
     }
 }
@@ -319,7 +346,7 @@ pub fn verify_proof(
         return current == *expected_root;
     }
 
-    walk_proof(&mut current, &proof.siblings)
+    walk_proof(&mut current, proof.siblings())
         == *expected_root
 }
 
@@ -330,12 +357,12 @@ pub fn verify_node_proof(
     proof: &InclusionProof,
     expected_root: &Hash,
 ) -> bool {
-    if proof.siblings.is_empty() {
+    if proof.siblings().is_empty() {
         return *node_hash == *expected_root;
     }
 
     let mut current = *node_hash;
-    walk_proof(&mut current, &proof.siblings)
+    walk_proof(&mut current, proof.siblings())
         == *expected_root
 }
 
@@ -451,8 +478,8 @@ impl NodeIndex {
     }
 }
 
-impl std::fmt::Display for NodeIndex {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for NodeIndex {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -555,6 +582,8 @@ fn build_subtree(nodes: Vec<TreeNode>, base_offset: u64, is_root: bool) -> TreeN
 
 #[cfg(test)]
 mod tests {
+    extern crate std;
+    use std::vec;
     use super::*;
     use crate::params::OUTPUT_BYTES;
 
@@ -870,7 +899,7 @@ mod tests {
         let data = b"small data";
         let (root, proof) = prove(data, 0);
         assert_eq!(root, root_hash(data));
-        assert_eq!(proof.siblings.len(), 0);
+        assert_eq!(proof.depth(), 0);
         assert!(verify_proof(data, &proof, &root));
     }
 
@@ -890,13 +919,13 @@ mod tests {
         // Prove chunk 0
         let (r0, p0) = prove(&data, 0);
         assert_eq!(r0, root);
-        assert_eq!(p0.siblings.len(), 1);
+        assert_eq!(p0.depth(), 1);
         assert!(verify_proof(&data[..CHUNK_SIZE], &p0, &root));
 
         // Prove chunk 1
         let (r1, p1) = prove(&data, 1);
         assert_eq!(r1, root);
-        assert_eq!(p1.siblings.len(), 1);
+        assert_eq!(p1.depth(), 1);
         assert!(verify_proof(&data[CHUNK_SIZE..], &p1, &root));
     }
 
@@ -910,7 +939,7 @@ mod tests {
             let end = start + CHUNK_SIZE;
             let (r, proof) = prove(&data, i);
             assert_eq!(r, root);
-            assert_eq!(proof.siblings.len(), 2); // depth = 2
+            assert_eq!(proof.depth(), 2); // depth = 2
             assert!(verify_proof(&data[start..end], &proof, &root));
         }
     }
@@ -932,8 +961,8 @@ mod tests {
         // Chunks 0,1 have depth 2; chunk 2 has depth 1
         let (_, p0) = prove(&data, 0);
         let (_, p2) = prove(&data, 2);
-        assert_eq!(p0.siblings.len(), 2);
-        assert_eq!(p2.siblings.len(), 1);
+        assert_eq!(p0.depth(), 2);
+        assert_eq!(p2.depth(), 1);
     }
 
     #[test]
@@ -991,7 +1020,7 @@ mod tests {
             let (r, proof) = prove(&data, i as u64);
             assert_eq!(r, root);
             assert!(verify_proof(&data[start..end], &proof, &root));
-            assert_eq!(proof.siblings.len(), 8); // log2(256) = 8
+            assert_eq!(proof.depth(), 8); // log2(256) = 8
         }
     }
 
@@ -1033,7 +1062,7 @@ mod tests {
         let root = root_hash(&data);
         let (r, proof) = prove_range(&data, 0, 4);
         assert_eq!(r, root);
-        assert_eq!(proof.siblings.len(), 0);
+        assert_eq!(proof.depth(), 0);
         assert!(verify_node_proof(&root, &proof, &root));
     }
 
@@ -1044,7 +1073,7 @@ mod tests {
         let root = root_hash(&data);
         let (r, proof) = prove_range(&data, 0, 2);
         assert_eq!(r, root);
-        assert_eq!(proof.siblings.len(), 1); // just the right subtree
+        assert_eq!(proof.depth(), 1); // just the right subtree
 
         // The node hash should be hash_node(c0, c1, false)
         let c0 = hash_leaf(&data[..CHUNK_SIZE], 0, false);
@@ -1060,7 +1089,7 @@ mod tests {
         let root = root_hash(&data);
         let (r, proof) = prove_range(&data, 2, 4);
         assert_eq!(r, root);
-        assert_eq!(proof.siblings.len(), 1);
+        assert_eq!(proof.depth(), 1);
 
         let c2 = hash_leaf(&data[CHUNK_SIZE * 2..CHUNK_SIZE * 3], 2, false);
         let c3 = hash_leaf(&data[CHUNK_SIZE * 3..], 3, false);
@@ -1075,7 +1104,7 @@ mod tests {
         let root = root_hash(&data);
         let (r, proof) = prove_range(&data, 0, 2);
         assert_eq!(r, root);
-        assert_eq!(proof.siblings.len(), 2);
+        assert_eq!(proof.depth(), 2);
 
         let c0 = hash_leaf(&data[..CHUNK_SIZE], 0, false);
         let c1 = hash_leaf(&data[CHUNK_SIZE..CHUNK_SIZE * 2], 1, false);
