@@ -16,6 +16,10 @@
 //! The GPU path is optional — the CPU backend (`cyber-hemera`) is always
 //! available as fallback.
 
+// GPU crate interfaces with external hardware (wgpu). All data is
+// marshalled through GPU buffers — heap allocation is unavoidable.
+#![allow(unknown_lints, rs_no_vec, rs_unbounded_async)]
+
 use std::num::NonZeroU64;
 
 use cyber_hemera::field::Goldilocks;

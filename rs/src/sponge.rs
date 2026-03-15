@@ -30,6 +30,7 @@ impl Hash {
 
     /// Convert the hash to a hex string.
     #[cfg(feature = "std")]
+    #[allow(unknown_lints, rs_no_string)]
     pub fn to_hex(&self) -> alloc::string::String {
         let mut s = alloc::string::String::with_capacity(OUTPUT_BYTES * 2);
         for byte in &self.0 {

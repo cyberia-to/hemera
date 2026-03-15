@@ -11,11 +11,9 @@
 //! 2. Run Hemera₀ as a sponge: absorb GENESIS_SEED with 0x01 padding
 //! 3. Squeeze 192 field elements as round constants for the final Hemera
 
-use alloc::vec::Vec;
-
 use crate::constants::NUM_CONSTANTS;
 use crate::field::Goldilocks;
-use crate::params::{RATE, RATE_BYTES, ROUNDS_F, ROUNDS_P, WIDTH};
+use crate::params::{RATE, RATE_BYTES, WIDTH};
 use crate::permutation::permute_with_constants;
 
 /// Genesis seed: five bytes [0x63, 0x79, 0x62, 0x65, 0x72].
@@ -63,24 +61,23 @@ pub fn bootstrap_sponge_state() -> [Goldilocks; WIDTH] {
 ///
 /// Returns the canonical Goldilocks representations in the exact order consumed
 /// by `new_from_rng`: 128 external (8 rounds × 16 elements) then 64 internal.
-pub fn bootstrap_constants_u64() -> Vec<u64> {
+pub fn bootstrap_constants_u64() -> [u64; NUM_CONSTANTS] {
     let mut state = bootstrap_sponge_state();
-    let total = ROUNDS_F * WIDTH + ROUNDS_P; // 192
 
-    let mut constants = Vec::with_capacity(total);
+    let mut constants = [0u64; NUM_CONSTANTS];
     let mut pos = RATE; // force initial squeeze
+    let mut filled = 0usize;
 
-    for _ in 0..total {
+    for i in 0..NUM_CONSTANTS {
         if pos >= RATE {
-            // Squeeze: extract rate elements, then permute for next block.
-            // On first iteration the state is already permuted from bootstrap_sponge_state.
-            if !constants.is_empty() {
+            if filled > 0 {
                 permute_with_constants(&mut state, &ZERO_CONSTANTS);
             }
             pos = 0;
         }
-        constants.push(state[pos].as_canonical_u64());
+        constants[i] = state[pos].as_canonical_u64();
         pos += 1;
+        filled += 1;
     }
 
     constants
@@ -117,7 +114,7 @@ mod tests {
     #[test]
     fn bootstrap_constants_count() {
         let constants = bootstrap_constants_u64();
-        let expected = ROUNDS_F * WIDTH + ROUNDS_P; // 192
+        let expected = NUM_CONSTANTS;
         assert_eq!(constants.len(), expected);
     }
 

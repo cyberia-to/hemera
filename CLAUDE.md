@@ -524,3 +524,96 @@ proposals are not spec. they document desire before commitment.
 write the reference entry before writing the implementation. the spec
 is the contract. the code fulfills it. if you cannot specify what a
 feature does before building it, you do not understand it yet.
+
+---
+
+# rs-lang companion repo
+
+hemera is compiled with `rsc` — the rs edition compiler. source of
+truth for the language spec lives in `~/git/rs/reference/`.
+
+## companion repos
+
+| repo | path | role |
+|------|------|------|
+| rs | `~/git/rs/` | compiler driver (rsc), proc-macros, core runtime types |
+| hemera | `~/git/hemera/` | application — must compile clean under rsc |
+
+## building with rsc
+
+```nu
+$env.RUSTC = ($env.HOME + "/git/rs/rsc/target/release/rsc")
+$env.RUSTFLAGS = "--rs-edition"
+cargo build
+```
+
+rebuild rsc after any changes to `~/git/rs/rsc/`:
+
+```nu
+cd ~/git/rs/rsc; cargo build --release
+```
+
+## edition restrictions (RS501–RS507)
+
+rsc enforces these restrictions when `--rs-edition` is active.
+every violation must be fixed — not suppressed — unless interfacing
+with an external Rust crate.
+
+| code | forbidden | replacement |
+|------|-----------|-------------|
+| RS501 | `Box::new()` | stack values or `Arena<T, N>` |
+| RS502 | `Vec<T>` | `BoundedVec<T, N>` with compile-time capacity |
+| RS503 | `String` | `&str` or `ArrayString<N>` |
+| RS504 | `dyn Trait` | generics or enum dispatch |
+| RS505 | `Arc<T>`, `Rc<T>` | cell-owned state or bounded channels |
+| RS506 | `panic!()` | `Result` for recoverable, abort for unrecoverable |
+| RS507 | `HashMap`, `HashSet` | `BTreeMap`, `BTreeSet`, or `BoundedMap<K,V,N>` |
+
+## opt-in for FFI / external crate boundaries
+
+```rust
+#[allow(rs::heap)]          // lifts RS501, RS502, RS503, RS505
+#[allow(rs::dyn_dispatch)]  // lifts RS504
+#[allow(rs::nondeterministic)] // lifts RS507
+// RS506 (panic) has no opt-out — always enforced
+```
+
+apply at module or function scope. never at crate level.
+
+## rs-lang types
+
+import: `use rs_lang::prelude::*;`
+
+- `BoundedVec<T, N>` — fixed-capacity vec, `try_push()` returns Err if full
+- `BoundedMap<K, V, N>` — fixed-capacity ordered map
+- `ArrayString<N>` — fixed-capacity string
+- `Arena<T, N>` — typed arena, compile-time max, all freed on drop
+- `FixedPoint<u128, DECIMALS>` — deterministic decimal arithmetic
+- `Particle` — 64-byte content-address hash (Copy, Eq, Ord)
+
+## fixing violations
+
+when rsc reports errors, apply these patterns:
+
+```rust
+// RS501: Box::new(x)  →  stack value or arena
+let node = arena.alloc(TreeNode { ... })?;
+
+// RS502: Vec<T>  →  BoundedVec<T, N>
+let items: BoundedVec<Item, 1024> = BoundedVec::new();
+
+// RS502: vec.collect()  →  bounded collect
+let result: BoundedVec<_, 256> = iter.try_collect()?;
+
+// RS503: String  →  ArrayString or &str
+let name: ArrayString<64> = ArrayString::try_from("hello")?;
+
+// RS507: HashMap<K,V>  →  BTreeMap<K,V> or BoundedMap<K,V,N>
+let lookup: BTreeMap<Key, Value> = BTreeMap::new();
+```
+
+## do not touch zones
+
+- `~/git/rs/reference/` — canonical spec, change there first
+- `~/git/rs/rsc/` — compiler driver, changes require rsc rebuild
+- `Cargo.toml` dependency versions — discuss before changing

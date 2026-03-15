@@ -3,10 +3,6 @@
 //! `hash_leaf` hashes leaf data into a chaining value.
 //! `hash_node` combines two child chaining values into a parent node.
 
-use alloc::boxed::Box;
-use alloc::vec;
-use alloc::vec::Vec;
-
 use crate::encoding::{bytes_to_cv, hash_to_bytes};
 use crate::field::Goldilocks;
 use crate::params::{self, CHUNK_SIZE, MAX_TREE_DEPTH, OUTPUT_ELEMENTS, RATE, WIDTH};
@@ -232,6 +228,7 @@ impl serde::Serialize for InclusionProof {
 }
 
 #[cfg(feature = "serde")]
+#[allow(unknown_lints, rs_no_vec)]
 impl<'de> serde::Deserialize<'de> for InclusionProof {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         use alloc::vec::Vec as AllocVec;
@@ -582,12 +579,13 @@ pub fn tree_depth(n: u64) -> u32 {
 
 /// A node in the hash tree with its position and children.
 #[derive(Clone, Debug)]
+#[allow(unknown_lints, rs_no_box)]
 pub struct TreeNode {
     pub hash: Hash,
     pub depth: u32,
     pub index: NodeIndex,
-    pub left: Option<Box<TreeNode>>,
-    pub right: Option<Box<TreeNode>>,
+    pub left: Option<alloc::boxed::Box<TreeNode>>,
+    pub right: Option<alloc::boxed::Box<TreeNode>>,
     /// For leaves: the chunk index.
     pub chunk_index: Option<u64>,
 }
@@ -596,14 +594,18 @@ pub struct TreeNode {
 ///
 /// Each node contains its hash, depth, in-order index, and references
 /// to children. Leaves have `chunk_index` set and no children.
+///
+/// Uses heap allocation: the tree is data-proportional and built for
+/// display/inspection, not for the hot hashing path.
+#[allow(unknown_lints, rs_no_vec, rs_no_box)]
 pub fn build_tree(data: &[u8]) -> TreeNode {
-    let chunks: Vec<&[u8]> = if data.is_empty() {
-        vec![data]
+    let chunks: alloc::vec::Vec<&[u8]> = if data.is_empty() {
+        alloc::vec![data]
     } else {
         data.chunks(CHUNK_SIZE).collect()
     };
 
-    let leaves: Vec<TreeNode> = chunks
+    let leaves: alloc::vec::Vec<TreeNode> = chunks
         .iter()
         .enumerate()
         .map(|(i, chunk)| TreeNode {
@@ -624,17 +626,18 @@ pub fn build_tree(data: &[u8]) -> TreeNode {
 }
 
 /// `base_offset` is the in-order index offset for the first leaf in this subtree.
-fn build_subtree(nodes: Vec<TreeNode>, base_offset: u64, is_root: bool) -> TreeNode {
+#[allow(unknown_lints, rs_no_vec, rs_no_box)]
+fn build_subtree(nodes: alloc::vec::Vec<TreeNode>, base_offset: u64, is_root: bool) -> TreeNode {
     if nodes.len() == 1 {
         return nodes.into_iter().next().unwrap();
     }
 
     let n = nodes.len();
     let split = 1 << (usize::BITS - (n - 1).leading_zeros() - 1);
-    let (left_nodes, right_nodes): (Vec<_>, Vec<_>) = {
+    let (left_nodes, right_nodes): (alloc::vec::Vec<_>, alloc::vec::Vec<_>) = {
         let mut iter = nodes.into_iter();
-        let left: Vec<_> = iter.by_ref().take(split).collect();
-        let right: Vec<_> = iter.collect();
+        let left: alloc::vec::Vec<_> = iter.by_ref().take(split).collect();
+        let right: alloc::vec::Vec<_> = iter.collect();
         (left, right)
     };
 
@@ -652,8 +655,8 @@ fn build_subtree(nodes: Vec<TreeNode>, base_offset: u64, is_root: bool) -> TreeN
         hash,
         depth,
         index: NodeIndex(root_index),
-        left: Some(Box::new(left)),
-        right: Some(Box::new(right)),
+        left: Some(alloc::boxed::Box::new(left)),
+        right: Some(alloc::boxed::Box::new(right)),
         chunk_index: None,
     }
 }

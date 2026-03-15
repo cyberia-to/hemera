@@ -3,6 +3,7 @@ use std::io::{self, Read, Write};
 use std::path::Path;
 use std::process;
 
+#[allow(unknown_lints, rs_no_vec, rs_no_string)]
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
 
@@ -12,22 +13,18 @@ fn main() {
     }
 
     match args.first().map(|s| s.as_str()) {
-        // hemera tree <file>  — display full tree structure
         Some("tree") => {
-            let rest: Vec<&str> = args[1..].iter().map(|s| s.as_str()).collect();
-            if rest.len() != 1 {
+            if args.len() != 2 {
                 eprintln!("hemera: tree requires <file>");
                 process::exit(1);
             }
-            process::exit(show_tree(rest[0]));
+            process::exit(show_tree(&args[1]));
         }
-        // hemera prove <file> [chunk | start:end]  — generate inclusion proof
         Some("prove") => {
-            let rest: Vec<&str> = args[1..].iter().map(|s| s.as_str()).collect();
-            match rest.len() {
-                1 => process::exit(prove_node(rest[0], 0, 1)),
-                2 => {
-                    if let Some((s, e)) = rest[1].split_once(':') {
+            match args.len() {
+                2 => process::exit(prove_node(&args[1], 0, 1)),
+                3 => {
+                    if let Some((s, e)) = args[2].split_once(':') {
                         let start: u64 = s.parse().unwrap_or_else(|_| {
                             eprintln!("hemera: invalid range start: {s}");
                             process::exit(1);
@@ -36,13 +33,13 @@ fn main() {
                             eprintln!("hemera: invalid range end: {e}");
                             process::exit(1);
                         });
-                        process::exit(prove_node(rest[0], start, end));
+                        process::exit(prove_node(&args[1], start, end));
                     } else {
-                        let idx: u64 = rest[1].parse().unwrap_or_else(|_| {
-                            eprintln!("hemera: invalid chunk index: {}", rest[1]);
+                        let idx: u64 = args[2].parse().unwrap_or_else(|_| {
+                            eprintln!("hemera: invalid chunk index: {}", args[2]);
                             process::exit(1);
                         });
-                        process::exit(prove_node(rest[0], idx, idx + 1));
+                        process::exit(prove_node(&args[1], idx, idx + 1));
                     }
                 }
                 _ => {
@@ -51,83 +48,60 @@ fn main() {
                 }
             }
         }
-        // hemera encode <file> [-o output]  — encode to verified stream
-        Some("encode") => {
-            let rest: Vec<&str> = args[1..].iter().map(|s| s.as_str()).collect();
-            match rest.as_slice() {
-                [input] => process::exit(cmd_encode(input, None)),
-                [input, "-o", output] => process::exit(cmd_encode(input, Some(output))),
-                _ => {
-                    eprintln!("hemera: encode requires <file> [-o output]");
-                    process::exit(1);
-                }
+        Some("encode") => match args.len() {
+            2 => process::exit(cmd_encode(&args[1], None)),
+            4 if args[2] == "-o" => process::exit(cmd_encode(&args[1], Some(&args[3]))),
+            _ => {
+                eprintln!("hemera: encode requires <file> [-o output]");
+                process::exit(1);
             }
-        }
-        // hemera decode <file> <hash> [-o output]  — decode and verify stream
-        Some("decode") => {
-            let rest: Vec<&str> = args[1..].iter().map(|s| s.as_str()).collect();
-            match rest.as_slice() {
-                [input, hash] => process::exit(cmd_decode(input, hash, None)),
-                [input, hash, "-o", output] => process::exit(cmd_decode(input, hash, Some(output))),
-                _ => {
-                    eprintln!("hemera: decode requires <file> <hash> [-o output]");
-                    process::exit(1);
-                }
+        },
+        Some("decode") => match args.len() {
+            3 => process::exit(cmd_decode(&args[1], &args[2], None)),
+            5 if args[3] == "-o" => {
+                process::exit(cmd_decode(&args[1], &args[2], Some(&args[4])))
             }
-        }
-        // hemera outboard <file> [-o output]  — compute outboard hash tree
-        Some("outboard") => {
-            let rest: Vec<&str> = args[1..].iter().map(|s| s.as_str()).collect();
-            match rest.as_slice() {
-                [input] => process::exit(cmd_outboard(input, None)),
-                [input, "-o", output] => process::exit(cmd_outboard(input, Some(output))),
-                _ => {
-                    eprintln!("hemera: outboard requires <file> [-o output]");
-                    process::exit(1);
-                }
+            _ => {
+                eprintln!("hemera: decode requires <file> <hash> [-o output]");
+                process::exit(1);
             }
-        }
-        // hemera keyed-hash <key-hex> <file>  — keyed hash
+        },
+        Some("outboard") => match args.len() {
+            2 => process::exit(cmd_outboard(&args[1], None)),
+            4 if args[2] == "-o" => process::exit(cmd_outboard(&args[1], Some(&args[3]))),
+            _ => {
+                eprintln!("hemera: outboard requires <file> [-o output]");
+                process::exit(1);
+            }
+        },
         Some("keyed-hash") => {
-            let rest: Vec<&str> = args[1..].iter().map(|s| s.as_str()).collect();
-            if rest.len() != 2 {
+            if args.len() != 3 {
                 eprintln!("hemera: keyed-hash requires <key-hex> <file>");
                 process::exit(1);
             }
-            process::exit(cmd_keyed_hash(rest[0], rest[1]));
+            process::exit(cmd_keyed_hash(&args[1], &args[2]));
         }
-        // hemera derive-key <context> <file>  — derive key from context + material
         Some("derive-key") => {
-            let rest: Vec<&str> = args[1..].iter().map(|s| s.as_str()).collect();
-            if rest.len() != 2 {
+            if args.len() != 3 {
                 eprintln!("hemera: derive-key requires <context> <file>");
                 process::exit(1);
             }
-            process::exit(cmd_derive_key(rest[0], rest[1]));
+            process::exit(cmd_derive_key(&args[1], &args[2]));
         }
-        // hemera verify <file> <hash>  — verify single file against hash
-        // hemera verify <checksums>    — verify batch from checksum file
-        Some("verify") => {
-            let rest: Vec<&str> = args[1..].iter().map(|s| s.as_str()).collect();
-            match rest.len() {
-                2 => process::exit(verify_single(rest[0], rest[1])),
-                1 => process::exit(verify_checksums(rest[0])),
-                _ => {
-                    eprintln!("hemera: verify requires <file> <hash> or <checksums-file>");
-                    process::exit(1);
-                }
+        Some("verify") => match args.len() {
+            3 => process::exit(verify_single(&args[1], &args[2])),
+            2 => process::exit(verify_checksums(&args[1])),
+            _ => {
+                eprintln!("hemera: verify requires <file> <hash> or <checksums-file>");
+                process::exit(1);
             }
-        }
+        },
         _ => {}
     }
 
-    let files: Vec<&str> = args
-        .iter()
-        .filter(|a| !a.starts_with('-'))
-        .map(|s| s.as_str())
-        .collect();
+    let has_files = args.iter().any(|a| !a.starts_with('-'));
 
-    if files.is_empty() {
+    if !has_files {
         if io::IsTerminal::is_terminal(&io::stdin()) {
             print_usage();
             return;
@@ -140,12 +114,15 @@ fn main() {
         let hex = cyber_hemera::tree::root_hash(&data).to_string();
         println!("{hex}  -");
     } else {
-        for path in &files {
-            hash_path(Path::new(path));
+        for arg in &args {
+            if !arg.starts_with('-') {
+                hash_path(Path::new(arg));
+            }
         }
     }
 }
 
+#[allow(unknown_lints, rs_no_vec)]
 fn hash_path(path: &Path) {
     let meta = match fs::metadata(path) {
         Ok(m) => m,
@@ -178,6 +155,7 @@ fn hash_path(path: &Path) {
     }
 }
 
+#[allow(unknown_lints, rs_no_vec)]
 fn hash_file(path: &Path) -> io::Result<String> {
     let mut file = File::open(path)?;
     let mut data = Vec::new();
@@ -333,10 +311,8 @@ fn cmd_encode(path: &str, output: Option<&str>) -> i32 {
     };
 
     let (root, encoded) = cyber_hemera::stream::encode(&data);
-    let out_path = output.unwrap_or_else(|| {
-        // leak is fine — we exit right after
-        Box::leak(format!("{path}.hemera").into_boxed_str())
-    });
+    let default_path = format!("{path}.hemera");
+    let out_path = output.unwrap_or(&default_path);
 
     if let Err(e) = fs::write(out_path, &encoded) {
         eprintln!("hemera: {out_path}: {e}");
@@ -399,9 +375,8 @@ fn cmd_outboard(path: &str, output: Option<&str>) -> i32 {
     };
 
     let (root, ob) = cyber_hemera::stream::outboard(&data);
-    let out_path = output.unwrap_or_else(|| {
-        Box::leak(format!("{path}.obao").into_boxed_str())
-    });
+    let default_path = format!("{path}.obao");
+    let out_path = output.unwrap_or(&default_path);
 
     if let Err(e) = fs::write(out_path, &ob) {
         eprintln!("hemera: {out_path}: {e}");
@@ -422,16 +397,13 @@ fn cmd_keyed_hash(key_hex: &str, path: &str) -> i32 {
         return 1;
     }
 
-    let key = match hex_to_bytes(key_hex) {
-        Some(b) => b,
+    let key = match parse_hex_fixed::<{ cyber_hemera::OUTPUT_BYTES }>(key_hex) {
+        Some(k) => k,
         None => {
             eprintln!("hemera: invalid hex key: {key_hex}");
             return 1;
         }
     };
-
-    let mut key_arr = [0u8; cyber_hemera::OUTPUT_BYTES];
-    key_arr.copy_from_slice(&key);
 
     let data = match fs::read(path) {
         Ok(d) => d,
@@ -441,7 +413,7 @@ fn cmd_keyed_hash(key_hex: &str, path: &str) -> i32 {
         }
     };
 
-    let h = cyber_hemera::keyed_hash(&key_arr, &data);
+    let h = cyber_hemera::keyed_hash(&key, &data);
     println!("{h}  {path}");
     0
 }
@@ -464,23 +436,19 @@ fn cmd_derive_key(context: &str, path: &str) -> i32 {
 }
 
 fn parse_hash(hex: &str) -> Option<cyber_hemera::Hash> {
-    let bytes = hex_to_bytes(hex)?;
-    if bytes.len() != cyber_hemera::OUTPUT_BYTES {
-        return None;
-    }
-    let mut arr = [0u8; cyber_hemera::OUTPUT_BYTES];
-    arr.copy_from_slice(&bytes);
-    Some(cyber_hemera::Hash::from_bytes(arr))
+    let bytes = parse_hex_fixed::<{ cyber_hemera::OUTPUT_BYTES }>(hex)?;
+    Some(cyber_hemera::Hash::from_bytes(bytes))
 }
 
-fn hex_to_bytes(hex: &str) -> Option<Vec<u8>> {
-    if hex.len() % 2 != 0 {
+fn parse_hex_fixed<const N: usize>(hex: &str) -> Option<[u8; N]> {
+    if hex.len() != N * 2 {
         return None;
     }
-    (0..hex.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).ok())
-        .collect()
+    let mut out = [0u8; N];
+    for (i, byte) in out.iter_mut().enumerate() {
+        *byte = u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16).ok()?;
+    }
+    Some(out)
 }
 
 fn print_usage() {

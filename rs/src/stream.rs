@@ -55,6 +55,7 @@ impl core::fmt::Display for DecodeError {
 /// Encode data into the combined pre-order format.
 ///
 /// Returns `(root_hash, encoded_bytes)`.
+#[allow(unknown_lints, rs_no_vec)]
 pub fn encode(data: &[u8]) -> (Hash, Vec<u8>) {
     let n = num_chunks(data.len()) as usize;
 
@@ -118,6 +119,7 @@ fn encode_subtree(
 ///
 /// Returns the verified data, or an error if the stream is truncated
 /// or any hash does not match.
+#[allow(unknown_lints, rs_no_vec)]
 pub fn decode(encoded: &[u8], expected_root: &Hash) -> Result<Vec<u8>, DecodeError> {
     if encoded.len() < HEADER_SIZE {
         return Err(DecodeError::Truncated);
@@ -202,6 +204,7 @@ fn decode_subtree(
 ///
 /// Returns `(root_hash, outboard_bytes)`. The outboard contains an 8-byte
 /// LE size header followed by parent hash pairs in pre-order.
+#[allow(unknown_lints, rs_no_vec)]
 pub fn outboard(data: &[u8]) -> (Hash, Vec<u8>) {
     let n = num_chunks(data.len()) as usize;
 
