@@ -159,7 +159,7 @@ impl Hasher {
     ///
     /// First hashes the context string to produce a context key, then
     /// sets up a second hasher seeded with that key for absorbing key material.
-    pub(crate) fn new_derive_key_context(context: &str) -> Self {
+    pub fn new_derive_key_context(context: &str) -> Self {
         let mut state = [Goldilocks::new(0); WIDTH];
         state[CAPACITY_START + 3] = Goldilocks::new(DOMAIN_DERIVE_KEY_CONTEXT);
         let mut hasher = Self {
@@ -173,7 +173,7 @@ impl Hasher {
     }
 
     /// Create a derive-key hasher for the material phase, seeded by a context hash.
-    pub(crate) fn new_derive_key_material(context_hash: &Hash) -> Self {
+    pub fn new_derive_key_material(context_hash: &Hash) -> Self {
         let mut state = [Goldilocks::new(0); WIDTH];
         state[CAPACITY_START + 3] = Goldilocks::new(DOMAIN_DERIVE_KEY_MATERIAL);
 
@@ -230,7 +230,7 @@ impl Hasher {
     /// 2. Pad to RATE_BYTES with zeros
     /// 3. Encode as field elements and absorb
     /// 4. Store total byte count in capacity[2]
-    fn finalize_state(&self) -> [Goldilocks; WIDTH] {
+    pub fn finalize_state(&self) -> [Goldilocks; WIDTH] {
         let mut state = self.state;
         let mut padded = [0u8; RATE_BYTES];
         padded[..self.buf_len].copy_from_slice(&self.buf[..self.buf_len]);
