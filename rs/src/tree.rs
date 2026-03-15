@@ -142,7 +142,7 @@ pub fn hash_node_nmt(
 /// - Multiple chunks: left-balanced tree via `hash_leaf` + `hash_node`
 ///
 /// Uses a fixed-size stack (no heap allocation). The stack-based merge
-/// follows the BLAKE3/bao pattern: after adding chunk i (0-indexed),
+/// follows the BLAKE3 pattern: after adding chunk i (0-indexed),
 /// merge while `(i+1)` has trailing zero bits in the left-balanced split.
 pub fn root_hash(data: &[u8]) -> Hash {
     if data.is_empty() {
@@ -181,6 +181,7 @@ fn merge_range(data: &[u8], offset: usize, count: usize, is_root: bool) -> Hash 
 
 /// A sibling entry in an inclusion proof path.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Sibling {
     /// The sibling is on the left; the target node is on the right.
     Left(Hash),
@@ -214,6 +215,82 @@ impl InclusionProof {
     /// The proof depth (number of siblings).
     pub fn depth(&self) -> usize {
         self.depth
+    }
+}
+
+#[cfg(feature = "serde")]
+impl serde::Serialize for InclusionProof {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut s = serializer.serialize_struct("InclusionProof", 4)?;
+        s.serialize_field("start_chunk", &self.start_chunk)?;
+        s.serialize_field("end_chunk", &self.end_chunk)?;
+        s.serialize_field("num_chunks", &self.num_chunks)?;
+        s.serialize_field("siblings", self.siblings())?;
+        s.end()
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for InclusionProof {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use alloc::vec::Vec as AllocVec;
+        use serde::de::{self, MapAccess, SeqAccess};
+
+        #[derive(serde::Deserialize)]
+        #[serde(field_identifier, rename_all = "snake_case")]
+        enum Field { StartChunk, EndChunk, NumChunks, Siblings }
+
+        struct InclusionProofVisitor;
+
+        impl<'de> de::Visitor<'de> for InclusionProofVisitor {
+            type Value = InclusionProof;
+
+            fn expecting(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+                f.write_str("struct InclusionProof")
+            }
+
+            fn visit_seq<V: SeqAccess<'de>>(self, mut seq: V) -> Result<InclusionProof, V::Error> {
+                let start_chunk = seq.next_element()?.ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                let end_chunk = seq.next_element()?.ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                let num_chunks = seq.next_element()?.ok_or_else(|| de::Error::invalid_length(2, &self))?;
+                let siblings: AllocVec<Sibling> = seq.next_element()?.ok_or_else(|| de::Error::invalid_length(3, &self))?;
+                if siblings.len() > MAX_TREE_DEPTH {
+                    return Err(de::Error::custom("too many siblings"));
+                }
+                let mut buf = [SIBLING_ZERO; MAX_TREE_DEPTH];
+                buf[..siblings.len()].copy_from_slice(&siblings);
+                Ok(InclusionProof { start_chunk, end_chunk, num_chunks, buf, depth: siblings.len() })
+            }
+
+            fn visit_map<V: MapAccess<'de>>(self, mut map: V) -> Result<InclusionProof, V::Error> {
+                let mut start_chunk = None;
+                let mut end_chunk = None;
+                let mut num_chunks = None;
+                let mut siblings: Option<AllocVec<Sibling>> = None;
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::StartChunk => { start_chunk = Some(map.next_value()?); }
+                        Field::EndChunk => { end_chunk = Some(map.next_value()?); }
+                        Field::NumChunks => { num_chunks = Some(map.next_value()?); }
+                        Field::Siblings => { siblings = Some(map.next_value()?); }
+                    }
+                }
+                let start_chunk = start_chunk.ok_or_else(|| de::Error::missing_field("start_chunk"))?;
+                let end_chunk = end_chunk.ok_or_else(|| de::Error::missing_field("end_chunk"))?;
+                let num_chunks = num_chunks.ok_or_else(|| de::Error::missing_field("num_chunks"))?;
+                let siblings = siblings.ok_or_else(|| de::Error::missing_field("siblings"))?;
+                if siblings.len() > MAX_TREE_DEPTH {
+                    return Err(de::Error::custom("too many siblings"));
+                }
+                let mut buf = [SIBLING_ZERO; MAX_TREE_DEPTH];
+                buf[..siblings.len()].copy_from_slice(&siblings);
+                Ok(InclusionProof { start_chunk, end_chunk, num_chunks, buf, depth: siblings.len() })
+            }
+        }
+
+        const FIELDS: &[&str] = &["start_chunk", "end_chunk", "num_chunks", "siblings"];
+        deserializer.deserialize_struct("InclusionProof", FIELDS, InclusionProofVisitor)
     }
 }
 
@@ -392,6 +469,7 @@ fn walk_proof(current: &mut Hash, siblings: &[Sibling]) -> Hash {
 ///
 /// Navigation is pure arithmetic on the index.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct NodeIndex(pub u64);
 
 impl NodeIndex {
