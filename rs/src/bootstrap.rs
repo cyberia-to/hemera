@@ -23,7 +23,7 @@ use crate::permutation::permute_with_constants;
 /// The cryptographic input is this byte sequence alone — no character set,
 /// no encoding convention. The fact that these bytes happen to spell "cyber"
 /// in ASCII is the human meaning; the specification is the hex literals.
-pub(crate) const GENESIS_SEED: &[u8] = &[0x63, 0x79, 0x62, 0x65, 0x72];
+pub const GENESIS_SEED: &[u8] = &[0x63, 0x79, 0x62, 0x65, 0x72];
 
 /// All-zero round constants for Hemera₀.
 const ZERO_CONSTANTS: [Goldilocks; NUM_CONSTANTS] = [Goldilocks::ZERO; NUM_CONSTANTS];
@@ -32,7 +32,7 @@ const ZERO_CONSTANTS: [Goldilocks; NUM_CONSTANTS] = [Goldilocks::ZERO; NUM_CONST
 ///
 /// This is the shared bootstrap logic used by both the CPU verification
 /// and the GPU round constant export.
-pub(crate) fn bootstrap_sponge_state() -> [Goldilocks; WIDTH] {
+pub fn bootstrap_sponge_state() -> [Goldilocks; WIDTH] {
     // Absorb the genesis seed through Hemera₀ sponge.
     let mut state = [Goldilocks::ZERO; WIDTH];
 
@@ -63,7 +63,7 @@ pub(crate) fn bootstrap_sponge_state() -> [Goldilocks; WIDTH] {
 ///
 /// Returns the canonical Goldilocks representations in the exact order consumed
 /// by `new_from_rng`: 128 external (8 rounds × 16 elements) then 64 internal.
-pub(crate) fn bootstrap_constants_u64() -> Vec<u64> {
+pub fn bootstrap_constants_u64() -> Vec<u64> {
     let mut state = bootstrap_sponge_state();
     let total = ROUNDS_F * WIDTH + ROUNDS_P; // 192
 
