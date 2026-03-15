@@ -1,5 +1,5 @@
 use std::fs::{self, File};
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 use std::path::Path;
 use std::process;
 
@@ -50,6 +50,60 @@ fn main() {
                     process::exit(1);
                 }
             }
+        }
+        // hemera encode <file> [-o output]  — encode to verified stream
+        Some("encode") => {
+            let rest: Vec<&str> = args[1..].iter().map(|s| s.as_str()).collect();
+            match rest.as_slice() {
+                [input] => process::exit(cmd_encode(input, None)),
+                [input, "-o", output] => process::exit(cmd_encode(input, Some(output))),
+                _ => {
+                    eprintln!("hemera: encode requires <file> [-o output]");
+                    process::exit(1);
+                }
+            }
+        }
+        // hemera decode <file> <hash> [-o output]  — decode and verify stream
+        Some("decode") => {
+            let rest: Vec<&str> = args[1..].iter().map(|s| s.as_str()).collect();
+            match rest.as_slice() {
+                [input, hash] => process::exit(cmd_decode(input, hash, None)),
+                [input, hash, "-o", output] => process::exit(cmd_decode(input, hash, Some(output))),
+                _ => {
+                    eprintln!("hemera: decode requires <file> <hash> [-o output]");
+                    process::exit(1);
+                }
+            }
+        }
+        // hemera outboard <file> [-o output]  — compute outboard hash tree
+        Some("outboard") => {
+            let rest: Vec<&str> = args[1..].iter().map(|s| s.as_str()).collect();
+            match rest.as_slice() {
+                [input] => process::exit(cmd_outboard(input, None)),
+                [input, "-o", output] => process::exit(cmd_outboard(input, Some(output))),
+                _ => {
+                    eprintln!("hemera: outboard requires <file> [-o output]");
+                    process::exit(1);
+                }
+            }
+        }
+        // hemera keyed-hash <key-hex> <file>  — keyed hash
+        Some("keyed-hash") => {
+            let rest: Vec<&str> = args[1..].iter().map(|s| s.as_str()).collect();
+            if rest.len() != 2 {
+                eprintln!("hemera: keyed-hash requires <key-hex> <file>");
+                process::exit(1);
+            }
+            process::exit(cmd_keyed_hash(rest[0], rest[1]));
+        }
+        // hemera derive-key <context> <file>  — derive key from context + material
+        Some("derive-key") => {
+            let rest: Vec<&str> = args[1..].iter().map(|s| s.as_str()).collect();
+            if rest.len() != 2 {
+                eprintln!("hemera: derive-key requires <context> <file>");
+                process::exit(1);
+            }
+            process::exit(cmd_derive_key(rest[0], rest[1]));
         }
         // hemera verify <file> <hash>  — verify single file against hash
         // hemera verify <checksums>    — verify batch from checksum file
@@ -269,6 +323,166 @@ fn verify_checksums(path: &str) -> i32 {
     }
 }
 
+fn cmd_encode(path: &str, output: Option<&str>) -> i32 {
+    let data = match fs::read(path) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("hemera: {path}: {e}");
+            return 1;
+        }
+    };
+
+    let (root, encoded) = cyber_hemera::stream::encode(&data);
+    let out_path = output.unwrap_or_else(|| {
+        // leak is fine — we exit right after
+        Box::leak(format!("{path}.hemera").into_boxed_str())
+    });
+
+    if let Err(e) = fs::write(out_path, &encoded) {
+        eprintln!("hemera: {out_path}: {e}");
+        return 1;
+    }
+
+    println!("{root}  {out_path}");
+    0
+}
+
+fn cmd_decode(path: &str, hash_hex: &str, output: Option<&str>) -> i32 {
+    let encoded = match fs::read(path) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("hemera: {path}: {e}");
+            return 1;
+        }
+    };
+
+    let root = match parse_hash(hash_hex) {
+        Some(h) => h,
+        None => {
+            eprintln!("hemera: invalid hash: {hash_hex}");
+            return 1;
+        }
+    };
+
+    match cyber_hemera::stream::decode(&encoded, &root) {
+        Ok(data) => {
+            if let Some(out_path) = output {
+                if let Err(e) = fs::write(out_path, &data) {
+                    eprintln!("hemera: {out_path}: {e}");
+                    return 1;
+                }
+                println!("{path}: OK → {out_path}");
+            } else {
+                let stdout = io::stdout();
+                let mut handle = stdout.lock();
+                if let Err(e) = handle.write_all(&data) {
+                    eprintln!("hemera: {e}");
+                    return 1;
+                }
+            }
+            0
+        }
+        Err(e) => {
+            eprintln!("hemera: {path}: {e}");
+            1
+        }
+    }
+}
+
+fn cmd_outboard(path: &str, output: Option<&str>) -> i32 {
+    let data = match fs::read(path) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("hemera: {path}: {e}");
+            return 1;
+        }
+    };
+
+    let (root, ob) = cyber_hemera::stream::outboard(&data);
+    let out_path = output.unwrap_or_else(|| {
+        Box::leak(format!("{path}.obao").into_boxed_str())
+    });
+
+    if let Err(e) = fs::write(out_path, &ob) {
+        eprintln!("hemera: {out_path}: {e}");
+        return 1;
+    }
+
+    println!("{root}  {out_path}");
+    0
+}
+
+fn cmd_keyed_hash(key_hex: &str, path: &str) -> i32 {
+    if key_hex.len() != cyber_hemera::OUTPUT_BYTES * 2 {
+        eprintln!(
+            "hemera: key must be {} hex chars ({} bytes)",
+            cyber_hemera::OUTPUT_BYTES * 2,
+            cyber_hemera::OUTPUT_BYTES
+        );
+        return 1;
+    }
+
+    let key = match hex_to_bytes(key_hex) {
+        Some(b) => b,
+        None => {
+            eprintln!("hemera: invalid hex key: {key_hex}");
+            return 1;
+        }
+    };
+
+    let mut key_arr = [0u8; cyber_hemera::OUTPUT_BYTES];
+    key_arr.copy_from_slice(&key);
+
+    let data = match fs::read(path) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("hemera: {path}: {e}");
+            return 1;
+        }
+    };
+
+    let h = cyber_hemera::keyed_hash(&key_arr, &data);
+    println!("{h}  {path}");
+    0
+}
+
+fn cmd_derive_key(context: &str, path: &str) -> i32 {
+    let data = match fs::read(path) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("hemera: {path}: {e}");
+            return 1;
+        }
+    };
+
+    let key = cyber_hemera::derive_key(context, &data);
+    for byte in &key {
+        print!("{byte:02x}");
+    }
+    println!("  {path}");
+    0
+}
+
+fn parse_hash(hex: &str) -> Option<cyber_hemera::Hash> {
+    let bytes = hex_to_bytes(hex)?;
+    if bytes.len() != cyber_hemera::OUTPUT_BYTES {
+        return None;
+    }
+    let mut arr = [0u8; cyber_hemera::OUTPUT_BYTES];
+    arr.copy_from_slice(&bytes);
+    Some(cyber_hemera::Hash::from_bytes(arr))
+}
+
+fn hex_to_bytes(hex: &str) -> Option<Vec<u8>> {
+    if hex.len() % 2 != 0 {
+        return None;
+    }
+    (0..hex.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).ok())
+        .collect()
+}
+
 fn print_usage() {
     eprintln!(
         "\
@@ -285,14 +499,19 @@ fn print_usage() {
     t=16  R_F=8  R_P=64  d=7  rate=8  output=64B
     genesis: [0x63, 0x79, 0x62, 0x65, 0x72]
 \x1b[0m
-  hemera file1.txt file2.txt       Hash files
-  hemera src/                      Hash directory (recursive)
-  echo hello | hemera              Hash stdin
-  hemera tree file.txt             Show tree structure
-  hemera prove file.txt [chunk]    Leaf inclusion proof
-  hemera prove file.txt 0:4        Subtree inclusion proof
-  hemera verify file.txt <hash>    Verify file against hash
-  hemera verify sums.txt           Verify checksums from file
+  hemera file1.txt file2.txt         Hash files
+  hemera src/                        Hash directory (recursive)
+  echo hello | hemera                Hash stdin
+  hemera tree file.txt               Show tree structure
+  hemera prove file.txt [chunk]      Leaf inclusion proof
+  hemera prove file.txt 0:4          Subtree inclusion proof
+  hemera verify file.txt <hash>      Verify file against hash
+  hemera verify sums.txt             Verify checksums from file
+  hemera encode file.txt [-o out]    Encode to verified stream
+  hemera decode file.hemera <hash>   Decode and verify stream
+  hemera outboard file.txt [-o out]  Compute outboard hash tree
+  hemera keyed-hash <key-hex> file   Keyed hash
+  hemera derive-key <context> file   Derive key from context
 
   -h, --help  Print this help"
     );
