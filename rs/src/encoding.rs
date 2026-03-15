@@ -8,8 +8,8 @@ use crate::params::{
 ///
 /// Each element holds 7 bytes (little-endian). The last element may hold fewer bytes,
 /// zero-padded in the high positions.
-#[allow(dead_code)] // Used in tests; will be used by future streaming tree code.
-pub(crate) fn bytes_to_elements(bytes: &[u8]) -> Vec<Goldilocks> {
+#[cfg(test)]
+pub(crate) fn bytes_to_elements(bytes: &[u8]) -> alloc::vec::Vec<Goldilocks> {
     bytes
         .chunks(INPUT_BYTES_PER_ELEMENT)
         .map(|chunk| {
@@ -72,6 +72,8 @@ pub(crate) fn bytes_to_cv(bytes: &[u8; OUTPUT_BYTES]) -> [Goldilocks; OUTPUT_ELE
 
 #[cfg(test)]
 mod tests {
+    extern crate std;
+    use std::vec;
     use super::*;
     use crate::params::RATE_BYTES;
 

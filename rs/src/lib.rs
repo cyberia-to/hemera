@@ -41,6 +41,13 @@
 //! let key = derive_key("my app v1", b"key material");
 //! ```
 
+#![no_std]
+
+extern crate alloc;
+
+#[cfg(feature = "std")]
+extern crate std;
+
 #[cfg(test)]
 mod bootstrap;
 pub mod constants;
@@ -88,6 +95,8 @@ pub fn derive_key(context: &str, key_material: &[u8]) -> [u8; OUTPUT_BYTES] {
 
 #[cfg(test)]
 mod tests {
+    extern crate std;
+    use std::{vec, vec::Vec};
     use super::*;
 
     #[test]
@@ -232,6 +241,7 @@ mod tests {
 /// Property-based tests using proptest.
 #[cfg(test)]
 mod proptests {
+    extern crate std;
     use super::*;
     use proptest::prelude::*;
 

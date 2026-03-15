@@ -11,6 +11,8 @@
 //! 2. Run Hemera₀ as a sponge: absorb GENESIS_SEED with 0x01 padding
 //! 3. Squeeze 192 field elements as round constants for the final Hemera
 
+use alloc::vec::Vec;
+
 use crate::constants::NUM_CONSTANTS;
 use crate::field::Goldilocks;
 use crate::params::{RATE, RATE_BYTES, ROUNDS_F, ROUNDS_P, WIDTH};

@@ -1,5 +1,4 @@
-use std::fmt;
-use std::io;
+use core::fmt;
 
 use crate::encoding::{bytes_to_rate_block, hash_to_bytes};
 use crate::field::Goldilocks;
@@ -30,10 +29,11 @@ impl Hash {
     }
 
     /// Convert the hash to a hex string.
-    pub fn to_hex(&self) -> String {
-        let mut s = String::with_capacity(OUTPUT_BYTES * 2);
+    #[cfg(feature = "std")]
+    pub fn to_hex(&self) -> alloc::string::String {
+        let mut s = alloc::string::String::with_capacity(OUTPUT_BYTES * 2);
         for byte in &self.0 {
-            use fmt::Write;
+            use core::fmt::Write;
             write!(s, "{byte:02x}").unwrap();
         }
         s
@@ -115,10 +115,12 @@ impl fmt::Debug for Hash {
 /// - Key derivation (`new_derive_key`)
 ///
 /// Data is absorbed in 56-byte blocks (8 Goldilocks elements × 7 bytes each).
+/// Zero heap allocations — the internal buffer is a fixed `[u8; RATE_BYTES]`.
 #[derive(Clone)]
 pub struct Hasher {
     state: [Goldilocks; WIDTH],
-    buf: Vec<u8>,
+    buf: [u8; RATE_BYTES],
+    buf_len: usize,
     absorbed: u64,
 }
 
@@ -129,7 +131,8 @@ impl Hasher {
         state[CAPACITY_START + 3] = Goldilocks::new(DOMAIN_HASH);
         Self {
             state,
-            buf: Vec::new(),
+            buf: [0u8; RATE_BYTES],
+            buf_len: 0,
             absorbed: 0,
         }
     }
@@ -144,7 +147,8 @@ impl Hasher {
         // Absorb the key into the rate portion via the normal buffer path.
         let mut hasher = Self {
             state,
-            buf: Vec::new(),
+            buf: [0u8; RATE_BYTES],
+            buf_len: 0,
             absorbed: 0,
         };
         hasher.update(key.as_slice());
@@ -160,7 +164,8 @@ impl Hasher {
         state[CAPACITY_START + 3] = Goldilocks::new(DOMAIN_DERIVE_KEY_CONTEXT);
         let mut hasher = Self {
             state,
-            buf: Vec::new(),
+            buf: [0u8; RATE_BYTES],
+            buf_len: 0,
             absorbed: 0,
         };
         hasher.update(context.as_bytes());
@@ -181,22 +186,30 @@ impl Hasher {
 
         Self {
             state,
-            buf: Vec::new(),
+            buf: [0u8; RATE_BYTES],
+            buf_len: 0,
             absorbed: 0,
         }
     }
 
     /// Absorb input data into the sponge.
-    pub fn update(&mut self, data: &[u8]) -> &mut Self {
-        self.buf.extend_from_slice(data);
+    pub fn update(&mut self, mut data: &[u8]) -> &mut Self {
         self.absorbed += data.len() as u64;
 
-        // Process complete rate blocks.
-        while self.buf.len() >= RATE_BYTES {
-            let block_bytes: Vec<u8> = self.buf.drain(..RATE_BYTES).collect();
-            let mut rate_block = [Goldilocks::new(0); RATE];
-            bytes_to_rate_block(&block_bytes, &mut rate_block);
-            self.absorb_block(&rate_block);
+        // Fill the buffer from data, processing complete rate blocks.
+        while !data.is_empty() {
+            let space = RATE_BYTES - self.buf_len;
+            let n = space.min(data.len());
+            self.buf[self.buf_len..self.buf_len + n].copy_from_slice(&data[..n]);
+            self.buf_len += n;
+            data = &data[n..];
+
+            if self.buf_len == RATE_BYTES {
+                let mut rate_block = [Goldilocks::new(0); RATE];
+                bytes_to_rate_block(&self.buf, &mut rate_block);
+                self.absorb_block(&rate_block);
+                self.buf_len = 0;
+            }
         }
 
         self
@@ -219,13 +232,12 @@ impl Hasher {
     /// 4. Store total byte count in capacity[2]
     fn finalize_state(&self) -> [Goldilocks; WIDTH] {
         let mut state = self.state;
-        let mut padded = self.buf.clone();
+        let mut padded = [0u8; RATE_BYTES];
+        padded[..self.buf_len].copy_from_slice(&self.buf[..self.buf_len]);
 
         // Append padding marker (Hemera: 0x01).
-        padded.push(0x01);
-
-        // Pad to full rate block.
-        padded.resize(RATE_BYTES, 0x00);
+        padded[self.buf_len] = 0x01;
+        // Remaining bytes already zero.
 
         // Encode and absorb the final block (Goldilocks field addition).
         let mut rate_block = [Goldilocks::new(0); RATE];
@@ -271,7 +283,7 @@ impl fmt::Debug for Hasher {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Hasher")
             .field("absorbed", &self.absorbed)
-            .field("buffered", &self.buf.len())
+            .field("buffered", &self.buf_len)
             .finish()
     }
 }
@@ -315,8 +327,9 @@ impl OutputReader {
     }
 }
 
-impl io::Read for OutputReader {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+#[cfg(feature = "std")]
+impl std::io::Read for OutputReader {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         self.fill(buf);
         Ok(buf.len())
     }
@@ -330,6 +343,8 @@ impl fmt::Debug for OutputReader {
 
 #[cfg(test)]
 mod tests {
+    extern crate std;
+    use std::{format, vec, vec::Vec};
     use super::*;
 
     #[test]
@@ -383,7 +398,7 @@ mod tests {
         let byte_at_a_time = {
             let mut h = Hasher::new();
             for b in &data {
-                h.update(std::slice::from_ref(b));
+                h.update(core::slice::from_ref(b));
             }
             h.finalize()
         };
@@ -591,8 +606,9 @@ mod tests {
     #[test]
     fn hash_to_hex_length() {
         let h = Hash::from_bytes([0x00; OUTPUT_BYTES]);
-        assert_eq!(h.to_hex().len(), OUTPUT_BYTES * 2);
-        assert_eq!(h.to_hex(), "0".repeat(OUTPUT_BYTES * 2));
+        let hex = format!("{h}");
+        assert_eq!(hex.len(), OUTPUT_BYTES * 2);
+        assert_eq!(hex, "0".repeat(OUTPUT_BYTES * 2));
     }
 
     #[test]
@@ -655,7 +671,7 @@ mod tests {
             .finalize();
 
         let context_only = Hasher::new_derive_key_context(
-            std::str::from_utf8(data).unwrap()
+            core::str::from_utf8(data).unwrap()
         ).finalize();
 
         // All pairwise different
@@ -710,7 +726,7 @@ mod tests {
         let h2 = Hasher::new().finalize();
         assert_eq!(h1, h2);
         // Pin the hex to detect regressions
-        let hex = h1.to_hex();
+        let hex = format!("{h1}");
         assert_eq!(hex.len(), 128); // 64 bytes = 128 hex chars
     }
 
