@@ -1,5 +1,6 @@
 use cyber_hemera::field::Goldilocks;
 use cyber_hemera::permutation::permute;
+use cyber_hemera::sparse::SparseTree;
 use cyber_hemera::{Hash, CHUNK_SIZE, OUTPUT_BYTES, WIDTH};
 use cyber_hemera_wgsl::GpuContext;
 
@@ -543,4 +544,114 @@ fn gpu_squeeze_batch() {
             assert_eq!(block, &cpu_block);
         }
     }
+}
+
+// ── Sparse proof verification tests ────────────────────────
+
+#[test]
+fn gpu_verify_sparse_inclusion() {
+    require_gpu!(gpu);
+    let mut tree = SparseTree::new(8);
+    let key = [0u8; 32];
+    tree.insert(&key, b"value");
+    let proof = tree.prove(&key);
+    let root = tree.root();
+
+    let results = pollster::block_on(
+        gpu.batch_verify_sparse_proofs(&[(&proof, Some(b"value".as_slice()), &root)], 8),
+    );
+    assert_eq!(results, vec![true]);
+}
+
+#[test]
+fn gpu_verify_sparse_non_inclusion() {
+    require_gpu!(gpu);
+    let mut tree = SparseTree::new(8);
+    let k1 = [0u8; 32];
+    tree.insert(&k1, b"exists");
+    let absent = [0xFF; 32];
+    let proof = tree.prove(&absent);
+    let root = tree.root();
+
+    let results = pollster::block_on(
+        gpu.batch_verify_sparse_proofs(&[(&proof, None, &root)], 8),
+    );
+    assert_eq!(results, vec![true]);
+}
+
+#[test]
+fn gpu_verify_sparse_wrong_value_fails() {
+    require_gpu!(gpu);
+    let mut tree = SparseTree::new(8);
+    let key = [0u8; 32];
+    tree.insert(&key, b"correct");
+    let proof = tree.prove(&key);
+    let root = tree.root();
+
+    let results = pollster::block_on(
+        gpu.batch_verify_sparse_proofs(&[(&proof, Some(b"wrong".as_slice()), &root)], 8),
+    );
+    assert_eq!(results, vec![false]);
+}
+
+#[test]
+fn gpu_verify_sparse_batch_multiple() {
+    require_gpu!(gpu);
+    let mut tree = SparseTree::new(8);
+    let k1 = [0u8; 32];
+    let k2 = [0xFF; 32];
+    let k3 = [0x42; 32];
+    tree.insert(&k1, b"one");
+    tree.insert(&k2, b"two");
+    let root = tree.root();
+
+    let p1 = tree.prove(&k1);
+    let p2 = tree.prove(&k2);
+    let p3 = tree.prove(&k3);
+
+    let results = pollster::block_on(gpu.batch_verify_sparse_proofs(
+        &[
+            (&p1, Some(b"one".as_slice()), &root),
+            (&p2, Some(b"two".as_slice()), &root),
+            (&p3, None, &root),
+        ],
+        8,
+    ));
+    assert_eq!(results, vec![true, true, true]);
+}
+
+#[test]
+fn gpu_verify_sparse_matches_cpu() {
+    require_gpu!(gpu);
+    let mut tree = SparseTree::new(16);
+    let keys: Vec<[u8; 32]> = (0..5).map(|i| {
+        let mut k = [0u8; 32];
+        k[0] = i;
+        k
+    }).collect();
+
+    for (i, key) in keys.iter().enumerate() {
+        tree.insert(key, &[i as u8; 10]);
+    }
+    let root = tree.root();
+
+    let proofs: Vec<_> = keys.iter().map(|k| tree.prove(k)).collect();
+    let values: Vec<Vec<u8>> = (0..5).map(|i| vec![i as u8; 10]).collect();
+
+    for (i, proof) in proofs.iter().enumerate() {
+        assert!(SparseTree::verify(proof, Some(&values[i]), &root, 16));
+    }
+
+    let entries: Vec<_> = proofs.iter().enumerate().map(|(i, p)| {
+        (p, Some(values[i].as_slice()), &root)
+    }).collect();
+    let results = pollster::block_on(gpu.batch_verify_sparse_proofs(&entries, 16));
+    assert_eq!(results, vec![true; 5]);
+}
+
+#[test]
+fn gpu_verify_sparse_empty_input() {
+    require_gpu!(gpu);
+    let results = pollster::block_on(gpu.batch_verify_sparse_proofs(&[], 8));
+    assert!(results.is_empty());
 }

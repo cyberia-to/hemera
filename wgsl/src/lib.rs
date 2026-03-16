@@ -23,6 +23,7 @@
 use std::num::NonZeroU64;
 
 use cyber_hemera::field::Goldilocks;
+use cyber_hemera::sparse::CompressedSparseProof;
 use cyber_hemera::tree::{InclusionProof, Sibling};
 use cyber_hemera::{Hash, CHUNK_SIZE, OUTPUT_BYTES, WIDTH};
 use wgpu::util::DeviceExt;
@@ -537,6 +538,95 @@ impl GpuContext {
         proofs.iter().enumerate().map(|(i, (_, _, root))| current[i] == **root).collect()
     }
 
+    /// Verify multiple sparse Merkle proofs in batch on GPU.
+    ///
+    /// Each entry is `(proof, value_if_inclusion, expected_root)`.
+    /// `value` is `Some(data)` for inclusion proofs, `None` for non-inclusion.
+    /// Returns a Vec of bools indicating which proofs verified successfully.
+    pub async fn batch_verify_sparse_proofs(
+        &self,
+        proofs: &[(&CompressedSparseProof, Option<&[u8]>, &Hash)],
+        depth: u32,
+    ) -> Vec<bool> {
+        if proofs.is_empty() { return vec![]; }
+
+        // Compute sentinel table on CPU (done once).
+        let sentinels = cyber_hemera::sparse::sentinel_table(depth);
+
+        // Compute initial leaf hashes on CPU.
+        let n = proofs.len();
+        let mut current_hashes: Vec<Hash> = proofs.iter().map(|(proof, value, _)| {
+            match value {
+                Some(v) => cyber_hemera::tree::hash_leaf(
+                    &[proof.key.as_slice(), *v].concat(), 0, false,
+                ),
+                None => sentinels[0],
+            }
+        }).collect();
+        let mut cursors = vec![0usize; n];
+
+        for level in 0..depth {
+            let is_root_level = level + 1 == depth;
+            let mut root_pairs: Vec<(Hash, Hash)> = Vec::new();
+            let mut root_indices: Vec<usize> = Vec::new();
+            let mut inner_pairs: Vec<(Hash, Hash)> = Vec::new();
+            let mut inner_indices: Vec<usize> = Vec::new();
+
+            for (i, (proof, _, _)) in proofs.iter().enumerate() {
+                let byte_idx = (level / 8) as usize;
+                let bit_in_byte = level % 8;
+                let has_real = (proof.bitmask[byte_idx] >> bit_in_byte) & 1 == 1;
+
+                let sibling = if has_real {
+                    if cursors[i] >= proof.siblings.len() {
+                        // Invalid proof — mark with sentinel to fail later.
+                        current_hashes[i] = Hash::from_bytes([0xFF; 64]);
+                        continue;
+                    }
+                    let s = proof.siblings[cursors[i]];
+                    cursors[i] += 1;
+                    s
+                } else {
+                    sentinels[level as usize]
+                };
+
+                let bit_pos = depth - 1 - level;
+                let is_right = key_bit_static(&proof.key, bit_pos);
+
+                let pair = if is_right {
+                    (sibling, current_hashes[i])
+                } else {
+                    (current_hashes[i], sibling)
+                };
+
+                if is_root_level {
+                    root_pairs.push(pair);
+                    root_indices.push(i);
+                } else {
+                    inner_pairs.push(pair);
+                    inner_indices.push(i);
+                }
+            }
+
+            if !inner_pairs.is_empty() {
+                let results = self.batch_hash_nodes(&inner_pairs, false).await;
+                for (j, &idx) in inner_indices.iter().enumerate() {
+                    current_hashes[idx] = results[j];
+                }
+            }
+            if !root_pairs.is_empty() {
+                let results = self.batch_hash_nodes(&root_pairs, true).await;
+                for (j, &idx) in root_indices.iter().enumerate() {
+                    current_hashes[idx] = results[j];
+                }
+            }
+        }
+
+        proofs.iter().enumerate().map(|(i, (proof, _, root))| {
+            current_hashes[i] == **root && cursors[i] == proof.siblings.len()
+        }).collect()
+    }
+
     /// Batch XOF squeeze: given finalized sponge states, produce `count`
     /// output blocks (64 bytes each) per state using GPU permutations.
     pub async fn batch_squeeze(
@@ -665,6 +755,13 @@ fn extract_output(state: &[Goldilocks; WIDTH]) -> [u8; OUTPUT_BYTES] {
         out[i * 8..(i + 1) * 8].copy_from_slice(&state[i].as_canonical_u64().to_le_bytes());
     }
     out
+}
+
+/// Extract the i-th path bit from a key (MSB-first), matching `sparse::key_bit`.
+fn key_bit_static(key: &[u8; 32], bit_index: u32) -> bool {
+    let byte_idx = (bit_index / 8) as usize;
+    let bit_in_byte = 7 - (bit_index % 8);
+    (key[byte_idx] >> bit_in_byte) & 1 == 1
 }
 
 // ── Tree helpers ─────────────────────────────────────────────
