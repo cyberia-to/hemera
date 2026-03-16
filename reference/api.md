@@ -35,6 +35,17 @@ pub fn verify_node_proof(node_hash: &Hash, proof: &InclusionProof, root: &Hash) 
 pub fn prove_batch(data: &[u8], indices: &[u64]) -> (Hash, BatchInclusionProof);
 pub fn verify_batch(chunks: &[&[u8]], proof: &BatchInclusionProof) -> bool;
 
+// ── Sparse Tree API ────────────────────────────────────────────
+pub fn sparse_new(depth: u32) -> SparseTree;
+pub fn sparse_insert(tree: &mut SparseTree, key: &[u8; 32], value: &[u8]) -> Hash;
+pub fn sparse_delete(tree: &mut SparseTree, key: &[u8; 32]) -> Hash;
+pub fn sparse_get(tree: &SparseTree, key: &[u8; 32]) -> Option<&[u8]>;
+pub fn sparse_root(tree: &SparseTree) -> Hash;
+pub fn sparse_prove(tree: &SparseTree, key: &[u8; 32]) -> CompressedSparseProof;
+pub fn sparse_prove_batch(tree: &SparseTree, keys: &[&[u8; 32]]) -> CompressedSparseBatchProof;
+pub fn sparse_verify(proof: &CompressedSparseProof, value: Option<&[u8]>, root: &Hash) -> bool;
+pub fn sparse_verify_batch(proof: &CompressedSparseBatchProof, values: &[Option<&[u8]>], root: &Hash) -> bool;
+
 // ── Convenience ──────────────────────────────────────────────
 pub fn hash(data: &[u8]) -> Hash;
 pub fn keyed_hash(key: &[u8; 64], data: &[u8]) -> Hash;
