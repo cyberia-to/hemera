@@ -193,8 +193,12 @@ impl GpuContext {
         enc.copy_buffer_to_buffer(io, 0, &dl, 0, io.size());
         self.queue.submit([enc.finish()]);
         let slice = dl.slice(..);
-        slice.map_async(wgpu::MapMode::Read, |_| {});
-        let _ = self.device.poll(wgpu::PollType::wait_indefinitely());
+        slice.map_async(wgpu::MapMode::Read, |r| {
+            r.expect("GPU buffer map failed — compute may have timed out");
+        });
+        self.device
+            .poll(wgpu::PollType::wait_indefinitely())
+            .unwrap();
         let mapped = slice.get_mapped_range();
         let out: Vec<u32> = bytemuck::cast_slice(&mapped).to_vec();
         drop(mapped);
@@ -293,17 +297,96 @@ impl GpuContext {
         )
     }
 
+    /// Maximum leaves per GPU dispatch to avoid command buffer timeouts.
+    const LEAF_BATCH: usize = 4096;
+
     /// Hash leaf chunks on GPU (sponge + tree domain).
+    ///
+    /// For large inputs, dispatches in batches to avoid GPU timeouts.
+    /// The counter offset (param slot ns_min_lo) ensures each leaf gets
+    /// its correct global chunk index regardless of batch boundaries.
     pub async fn batch_hash_leaves(&self, data: &[u8], chunk_size: usize, is_root: bool) -> Vec<Hash> {
         if data.is_empty() { return vec![]; }
-        let n = data.len().div_ceil(chunk_size) as u32;
-        let flags = if is_root { FLAG_ROOT } else { 0 };
-        self.dispatch_hash(
-            &self.hash_leaf_pipeline,
-            &pad4(data),
-            [n, flags, chunk_size as u32, data.len() as u32, 0, 0, 0, 0],
-            n,
-        )
+        let total_chunks = data.len().div_ceil(chunk_size);
+
+        if total_chunks <= Self::LEAF_BATCH {
+            let n = total_chunks as u32;
+            let flags = if is_root { FLAG_ROOT } else { 0 };
+            return self.dispatch_hash(
+                &self.hash_leaf_pipeline,
+                &pad4(data),
+                [n, flags, chunk_size as u32, data.len() as u32, 0, 0, 0, 0],
+                n,
+            );
+        }
+
+        // Batch: split data into sub-slices and dispatch each independently.
+        let mut all_hashes = Vec::with_capacity(total_chunks);
+        let mut offset = 0;
+        while offset < total_chunks {
+            let batch_end = (offset + Self::LEAF_BATCH).min(total_chunks);
+            let byte_start = offset * chunk_size;
+            let byte_end = (batch_end * chunk_size).min(data.len());
+            let slice = &data[byte_start..byte_end];
+            let n = (batch_end - offset) as u32;
+            let counter_offset = offset as u32;
+            let hashes = self.dispatch_hash(
+                &self.hash_leaf_pipeline,
+                &pad4(slice),
+                [n, 0, chunk_size as u32, slice.len() as u32, counter_offset, 0, 0, 0],
+                n,
+            );
+            all_hashes.extend(hashes);
+            offset = batch_end;
+        }
+        all_hashes
+    }
+
+    /// Hash leaf chunks with progress reporting (used by root_hash_with_progress).
+    async fn batch_hash_leaves_progress(
+        &self,
+        data: &[u8],
+        chunk_size: usize,
+        is_root: bool,
+        total: usize,
+        progress: &impl Fn(usize, usize),
+    ) -> Vec<Hash> {
+        if data.is_empty() { return vec![]; }
+        let total_chunks = data.len().div_ceil(chunk_size);
+
+        if total_chunks <= Self::LEAF_BATCH {
+            let n = total_chunks as u32;
+            let flags = if is_root { FLAG_ROOT } else { 0 };
+            let result = self.dispatch_hash(
+                &self.hash_leaf_pipeline,
+                &pad4(data),
+                [n, flags, chunk_size as u32, data.len() as u32, 0, 0, 0, 0],
+                n,
+            );
+            progress(total_chunks, total);
+            return result;
+        }
+
+        let mut all_hashes = Vec::with_capacity(total_chunks);
+        let mut offset = 0;
+        while offset < total_chunks {
+            let batch_end = (offset + Self::LEAF_BATCH).min(total_chunks);
+            let byte_start = offset * chunk_size;
+            let byte_end = (batch_end * chunk_size).min(data.len());
+            let slice = &data[byte_start..byte_end];
+            let n = (batch_end - offset) as u32;
+            let counter_offset = offset as u32;
+            let hashes = self.dispatch_hash(
+                &self.hash_leaf_pipeline,
+                &pad4(slice),
+                [n, 0, chunk_size as u32, slice.len() as u32, counter_offset, 0, 0, 0],
+                n,
+            );
+            all_hashes.extend(hashes);
+            offset = batch_end;
+            progress(offset, total);
+        }
+        all_hashes
     }
 
     /// Combine pairs of child hashes into parent hashes.
@@ -343,6 +426,17 @@ impl GpuContext {
     /// Hashes all leaves in one GPU dispatch, then merges level-by-level
     /// until a single root remains. Matches `cyber_hemera::tree::root_hash`.
     pub async fn root_hash(&self, data: &[u8]) -> Hash {
+        self.root_hash_with_progress(data, |_, _| {}).await
+    }
+
+    /// Compute the Merkle root hash on GPU with progress callback.
+    ///
+    /// `progress` receives `(completed, total)` operation counts.
+    pub async fn root_hash_with_progress(
+        &self,
+        data: &[u8],
+        progress: impl Fn(usize, usize),
+    ) -> Hash {
         if data.is_empty() {
             return cyber_hemera::tree::hash_leaf(data, 0, true);
         }
@@ -350,15 +444,21 @@ impl GpuContext {
         if n == 1 {
             return self.batch_hash_leaves(data, CHUNK_SIZE, true).await.remove(0);
         }
-        let leaves = self.batch_hash_leaves(data, CHUNK_SIZE, false).await;
-        self.merge_tree(leaves).await
+        let total = 2 * n - 1;
+        progress(0, total);
+        let leaves = self.batch_hash_leaves_progress(data, CHUNK_SIZE, false, total, &progress).await;
+        self.merge_tree_with_progress(leaves, n, total, &progress).await
     }
 
-    /// Build the left-balanced tree from leaf hashes and return the root.
-    ///
-    /// Decomposes n leaves into complete binary subtrees, reduces each
-    /// level-by-level on GPU, then folds subtree roots along the spine.
-    async fn merge_tree(&self, leaves: Vec<Hash>) -> Hash {
+    /// Merge tree with progress reporting.
+    async fn merge_tree_with_progress(
+        &self,
+        leaves: Vec<Hash>,
+        done_start: usize,
+        total: usize,
+        progress: &impl Fn(usize, usize),
+    ) -> Hash {
+        let mut done = done_start;
         let n = leaves.len();
         let segments = left_balanced_decompose(n);
         let num_segments = segments.len();
@@ -400,7 +500,10 @@ impl GpuContext {
 
             // Determine is_root: only if single segment and final round.
             let is_root = num_segments == 1 && round + 1 == max_height;
+            let num_pairs = pairs.len();
             let results = self.batch_hash_nodes(&pairs, is_root).await;
+            done += num_pairs;
+            if total > 0 { progress(done, total); }
 
             let mut ri = 0;
             for (si, &(_, size)) in segments.iter().enumerate() {
@@ -434,6 +537,8 @@ impl GpuContext {
             let is_root = roots.is_empty();
             let result = self.batch_hash_nodes(&[(left, right)], is_root).await;
             roots.push(result[0]);
+            done += 1;
+            if total > 0 { progress(done, total); }
         }
 
         roots.pop().unwrap()

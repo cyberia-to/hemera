@@ -6,6 +6,45 @@ use std::time::Instant;
 
 use cyber_hemera_wgsl::GpuContext;
 
+fn fmt_size(bytes: u64) -> String {
+    if bytes < 1024 {
+        format!("{bytes} B")
+    } else if bytes < 1024 * 1024 {
+        format!("{:.1} KB", bytes as f64 / 1024.0)
+    } else if bytes < 1024 * 1024 * 1024 {
+        format!("{:.1} MB", bytes as f64 / (1024.0 * 1024.0))
+    } else {
+        format!("{:.2} GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
+    }
+}
+
+/// Print a transient status line to stderr (overwritten by next status or final output).
+fn status(msg: &str) {
+    if io::IsTerminal::is_terminal(&io::stderr()) {
+        eprint!("\x1b[2K\r\x1b[90m{msg}\x1b[0m");
+    }
+}
+
+/// Clear the status line.
+fn status_clear() {
+    if io::IsTerminal::is_terminal(&io::stderr()) {
+        eprint!("\x1b[2K\r");
+    }
+}
+
+/// Progress callback that shows percentage on the status line (0.1% resolution).
+fn progress_status(label: &str) -> impl Fn(usize, usize) + '_ {
+    let last_permille = std::cell::Cell::new(u16::MAX);
+    move |done, total| {
+        if total == 0 { return; }
+        let permille = ((done as u64 * 1000) / total as u64) as u16;
+        if permille != last_permille.get() {
+            last_permille.set(permille);
+            status(&format!("{label} {}.{}%", permille / 10, permille % 10));
+        }
+    }
+}
+
 // ── backend selection ─────────────────────────────────────────────
 
 #[derive(Clone, Copy, PartialEq)]
@@ -30,15 +69,18 @@ struct Ctx {
 
 impl Ctx {
     fn new(forced: Option<Backend>) -> Self {
-        let gpu = if forced == Some(Backend::Cpu) {
-            None
+        // Default to CPU — WGSL u64 emulation is slower than native CPU
+        // on Apple Silicon. GPU available via --gpu for testing.
+        let gpu = if forced == Some(Backend::Gpu) {
+            let g = pollster::block_on(GpuContext::new());
+            if g.is_none() {
+                eprintln!("hemera: --gpu requested but no GPU adapter available");
+                process::exit(1);
+            }
+            g
         } else {
-            pollster::block_on(GpuContext::new())
+            None
         };
-        if forced == Some(Backend::Gpu) && gpu.is_none() {
-            eprintln!("hemera: --gpu requested but no GPU adapter available");
-            process::exit(1);
-        }
         Self { gpu, forced }
     }
 
@@ -57,12 +99,13 @@ impl Ctx {
         self.gpu.as_ref().unwrap()
     }
 
-    fn root_hash(&self, data: &[u8]) -> (cyber_hemera::Hash, Backend) {
+    fn root_hash(&self, data: &[u8], label: &str) -> (cyber_hemera::Hash, Backend) {
         let b = self.backend();
+        let cb = progress_status(label);
         let h = if b == Backend::Gpu {
-            pollster::block_on(self.gpu().root_hash(data))
+            pollster::block_on(self.gpu().root_hash_with_progress(data, &cb))
         } else {
-            cyber_hemera::tree::root_hash(data)
+            cyber_hemera::tree::root_hash_with_progress(data, &cb)
         };
         (h, b)
     }
@@ -249,13 +292,15 @@ fn main() {
             print_usage();
             return;
         }
+        status("reading stdin…");
         let mut data = Vec::new();
         io::stdin().read_to_end(&mut data).unwrap_or_else(|e| {
             eprintln!("hemera: {e}");
             process::exit(1);
         });
         let t = Instant::now();
-        let (hash, backend) = ctx.root_hash(&data);
+        let (hash, backend) = ctx.root_hash(&data, "hashing");
+        status_clear();
         print_timing(backend, t.elapsed());
         println!("{}  -", hash);
     } else {
@@ -305,15 +350,27 @@ fn hash_path(ctx: &Ctx, path: &Path) {
 
 #[allow(unknown_lints, rs_no_vec)]
 fn hash_file(ctx: &Ctx, path: &Path) -> io::Result<(String, Backend, std::time::Duration)> {
+    let meta = fs::metadata(path)?;
+    status(&format!("reading {} ({})", path.display(), fmt_size(meta.len())));
     let mut file = File::open(path)?;
     let mut data = Vec::new();
     file.read_to_end(&mut data)?;
+    let label = format!("hashing {}", path.display());
     let t = Instant::now();
-    let (hash, backend) = ctx.root_hash(&data);
+    let (hash, backend) = ctx.root_hash(&data, &label);
+    status_clear();
     Ok((hash.to_string(), backend, t.elapsed()))
 }
 
 fn show_tree(path: &str) -> i32 {
+    let size = match fs::metadata(path) {
+        Ok(m) => m.len(),
+        Err(e) => {
+            eprintln!("hemera: {path}: {e}");
+            return 1;
+        }
+    };
+    status(&format!("reading {path} ({})…", fmt_size(size)));
     let data = match fs::read(path) {
         Ok(d) => d,
         Err(e) => {
@@ -323,7 +380,8 @@ fn show_tree(path: &str) -> i32 {
     };
 
     let n = cyber_hemera::tree::num_chunks(data.len());
-    let tree = cyber_hemera::tree::build_tree(&data);
+    let tree = cyber_hemera::tree::build_tree_with_progress(&data, progress_status("building tree"));
+    status_clear();
 
     println!("file: {path}");
     println!("size: {} bytes", data.len());
@@ -351,6 +409,8 @@ fn print_tree_node(node: &cyber_hemera::tree::TreeNode, connector: &str, prefix:
 }
 
 fn prove_node(path: &str, start: u64, end: u64) -> i32 {
+    let size = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+    status(&format!("reading {path} ({})…", fmt_size(size)));
     let data = match fs::read(path) {
         Ok(d) => d,
         Err(e) => {
@@ -365,7 +425,9 @@ fn prove_node(path: &str, start: u64, end: u64) -> i32 {
         return 1;
     }
 
+    status(&format!("proving range [{start}..{end})…"));
     let (root, proof) = cyber_hemera::tree::prove_range(&data, start, end);
+    status_clear();
 
     println!("root: {root}");
     if end - start == 1 {
@@ -454,6 +516,8 @@ fn verify_checksums(ctx: &Ctx, path: &str) -> i32 {
 }
 
 fn cmd_encode(_ctx: &Ctx, path: &str, output: Option<&str>) -> i32 {
+    let size = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+    status(&format!("reading {path} ({})…", fmt_size(size)));
     let data = match fs::read(path) {
         Ok(d) => d,
         Err(e) => {
@@ -462,8 +526,10 @@ fn cmd_encode(_ctx: &Ctx, path: &str, output: Option<&str>) -> i32 {
         }
     };
 
+    status(&format!("encoding ({})…", fmt_size(size)));
     let t = Instant::now();
     let (root, encoded) = cyber_hemera::stream::encode(&data);
+    status_clear();
     let elapsed = t.elapsed();
     let default_path = format!("{path}.hemera");
     let out_path = output.unwrap_or(&default_path);
@@ -523,6 +589,8 @@ fn cmd_decode(path: &str, hash_hex: &str, output: Option<&str>) -> i32 {
 }
 
 fn cmd_outboard(ctx: &Ctx, path: &str, output: Option<&str>) -> i32 {
+    let size = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+    status(&format!("reading {path} ({})…", fmt_size(size)));
     let data = match fs::read(path) {
         Ok(d) => d,
         Err(e) => {
@@ -531,8 +599,10 @@ fn cmd_outboard(ctx: &Ctx, path: &str, output: Option<&str>) -> i32 {
         }
     };
 
+    status(&format!("computing outboard ({})…", fmt_size(size)));
     let t = Instant::now();
     let ((root, ob), backend) = ctx.outboard(&data);
+    status_clear();
     let elapsed = t.elapsed();
     let default_path = format!("{path}.obao");
     let out_path = output.unwrap_or(&default_path);
@@ -605,6 +675,8 @@ fn cmd_derive_key(_ctx: &Ctx, context: &str, path: &str) -> i32 {
 }
 
 fn cmd_prove_batch(path: &str, indices: &[u64]) -> i32 {
+    let size = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+    status(&format!("reading {path} ({})…", fmt_size(size)));
     let data = match fs::read(path) {
         Ok(d) => d,
         Err(e) => {
@@ -617,7 +689,9 @@ fn cmd_prove_batch(path: &str, indices: &[u64]) -> i32 {
     sorted.sort();
     sorted.dedup();
 
+    status(&format!("proving batch ({} indices)…", sorted.len()));
     let (root, proof) = cyber_hemera::batch::prove_batch(&data, &sorted);
+    status_clear();
     println!("root: {root}");
     println!("indices: {sorted:?}");
     println!("siblings: {}", proof.siblings.len());
@@ -744,7 +818,7 @@ fn print_usage() {
 \x1b[90m
   flags:    --gpu  force GPU backend
             --cpu  force CPU backend
-            (default: GPU if available, else CPU)
+            (default: CPU)
 \x1b[0m
   -h, --help  Print this help"
     );

@@ -154,6 +154,57 @@ pub fn root_hash(data: &[u8]) -> Hash {
     merge_range(data, 0, n, true)
 }
 
+/// Hash arbitrary-length content with a progress callback.
+///
+/// `progress` receives `(completed, total)` where total = 2n−1 (n leaves + n−1 nodes).
+#[allow(unknown_lints, rs_no_vec, rs_no_box)]
+pub fn root_hash_with_progress(data: &[u8], progress: impl Fn(usize, usize)) -> Hash {
+    if data.is_empty() {
+        return hash_leaf(data, 0, true);
+    }
+    let n = (data.len() + CHUNK_SIZE - 1) / CHUNK_SIZE;
+    if n == 1 {
+        return hash_leaf(data, 0, true);
+    }
+    let total = 2 * n - 1;
+    let done = core::cell::Cell::new(0usize);
+    let tick = |d: &core::cell::Cell<usize>| {
+        let v = d.get() + 1;
+        d.set(v);
+        progress(v, total);
+    };
+    merge_range_progress(data, 0, n, true, &done, &tick)
+}
+
+/// Recursive merge with progress counter.
+#[allow(unknown_lints, rs_no_vec, rs_no_box)]
+fn merge_range_progress(
+    data: &[u8],
+    offset: usize,
+    count: usize,
+    is_root: bool,
+    done: &core::cell::Cell<usize>,
+    tick: &impl Fn(&core::cell::Cell<usize>),
+) -> Hash {
+    debug_assert!(count > 0);
+    let n_total = if data.is_empty() { 1 } else { (data.len() + CHUNK_SIZE - 1) / CHUNK_SIZE };
+
+    if count == 1 {
+        let start = offset * CHUNK_SIZE;
+        let end = (start + CHUNK_SIZE).min(data.len());
+        let h = hash_leaf(&data[start..end], offset as u64, n_total == 1);
+        tick(done);
+        return h;
+    }
+
+    let split = 1 << (usize::BITS - (count - 1).leading_zeros() - 1);
+    let left = merge_range_progress(data, offset, split, false, done, tick);
+    let right = merge_range_progress(data, offset + split, count - split, false, done, tick);
+    let h = hash_node(&left, &right, is_root);
+    tick(done);
+    h
+}
+
 /// Recursively merge chaining values for chunks `[offset..offset+count)`,
 /// computing leaf hashes on demand from the data slice.
 pub(crate) fn merge_range(data: &[u8], offset: usize, count: usize, is_root: bool) -> Hash {
@@ -623,6 +674,91 @@ pub fn build_tree(data: &[u8]) -> TreeNode {
     }
 
     build_subtree(leaves, 0, true)
+}
+
+/// Build full tree with progress callback.
+///
+/// `progress` receives `(completed, total)` where total = 2n−1.
+#[allow(unknown_lints, rs_no_vec, rs_no_box)]
+pub fn build_tree_with_progress(data: &[u8], progress: impl Fn(usize, usize)) -> TreeNode {
+    let chunks: alloc::vec::Vec<&[u8]> = if data.is_empty() {
+        alloc::vec![data]
+    } else {
+        data.chunks(CHUNK_SIZE).collect()
+    };
+
+    let n = chunks.len();
+    let total = if n <= 1 { 1 } else { 2 * n - 1 };
+    let done = core::cell::Cell::new(0usize);
+
+    let leaves: alloc::vec::Vec<TreeNode> = chunks
+        .iter()
+        .enumerate()
+        .map(|(i, chunk)| {
+            let node = TreeNode {
+                hash: hash_leaf(chunk, i as u64, n == 1),
+                depth: 0,
+                index: NodeIndex::from_chunk(i as u64),
+                left: None,
+                right: None,
+                chunk_index: Some(i as u64),
+            };
+            let v = done.get() + 1;
+            done.set(v);
+            progress(v, total);
+            node
+        })
+        .collect();
+
+    if leaves.len() == 1 {
+        return leaves.into_iter().next().unwrap();
+    }
+
+    build_subtree_progress(leaves, 0, true, &done, total, &progress)
+}
+
+/// Recursive subtree builder with progress.
+#[allow(unknown_lints, rs_no_vec, rs_no_box)]
+fn build_subtree_progress(
+    nodes: alloc::vec::Vec<TreeNode>,
+    base_offset: u64,
+    is_root: bool,
+    done: &core::cell::Cell<usize>,
+    total: usize,
+    progress: &impl Fn(usize, usize),
+) -> TreeNode {
+    if nodes.len() == 1 {
+        return nodes.into_iter().next().unwrap();
+    }
+
+    let n = nodes.len();
+    let split = 1 << (usize::BITS - (n - 1).leading_zeros() - 1);
+    let (left_nodes, right_nodes): (alloc::vec::Vec<_>, alloc::vec::Vec<_>) = {
+        let mut iter = nodes.into_iter();
+        let left: alloc::vec::Vec<_> = iter.by_ref().take(split).collect();
+        let right: alloc::vec::Vec<_> = iter.collect();
+        (left, right)
+    };
+
+    let left = build_subtree_progress(left_nodes, base_offset, false, done, total, progress);
+    let right_offset = base_offset + (split as u64) * 2;
+    let right = build_subtree_progress(right_nodes, right_offset, false, done, total, progress);
+    let hash = hash_node(&left.hash, &right.hash, is_root);
+    let depth = left.depth.max(right.depth) + 1;
+    let root_index = base_offset + (split as u64) * 2 - 1;
+
+    let v = done.get() + 1;
+    done.set(v);
+    progress(v, total);
+
+    TreeNode {
+        hash,
+        depth,
+        index: NodeIndex(root_index),
+        left: Some(alloc::boxed::Box::new(left)),
+        right: Some(alloc::boxed::Box::new(right)),
+        chunk_index: None,
+    }
 }
 
 /// `base_offset` is the in-order index offset for the first leaf in this subtree.

@@ -50,9 +50,11 @@ fn hemera_hash_leaf(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     let chunk_start = chunk_idx * dp.chunk_size;
     let chunk_len = min(dp.chunk_size, dp.total_bytes - chunk_start);
+    // Global counter = local index + batch offset (dp.ns_min_lo repurposed).
+    let counter = chunk_idx + dp.ns_min_lo;
 
     let leaf_flags = FLAG_CHUNK | dp.flags;
-    let result = tree_hash_leaf(chunk_start, chunk_len, chunk_idx, leaf_flags);
+    let result = tree_hash_leaf(chunk_start, chunk_len, counter, leaf_flags);
     store_hash_output(chunk_idx, result);
 }
 
