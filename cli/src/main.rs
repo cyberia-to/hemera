@@ -88,6 +88,33 @@ fn main() {
             }
             process::exit(cmd_derive_key(&args[1], &args[2]));
         }
+        Some("prove-batch") => {
+            if args.len() < 3 {
+                eprintln!("hemera: prove-batch requires <file> <index>...");
+                process::exit(1);
+            }
+            let indices: Vec<u64> = args[2..].iter().map(|s| {
+                s.parse().unwrap_or_else(|_| {
+                    eprintln!("hemera: invalid chunk index: {s}");
+                    process::exit(1);
+                })
+            }).collect();
+            process::exit(cmd_prove_batch(&args[1], &indices));
+        }
+        Some("verify-batch") => {
+            if args.len() < 3 {
+                eprintln!("hemera: verify-batch requires <file> <root-hash>");
+                process::exit(1);
+            }
+            process::exit(cmd_verify_batch(&args[1], &args[2]));
+        }
+        Some("sparse") => {
+            if args.len() < 2 {
+                eprintln!("hemera: sparse requires a subcommand (new, insert, get, prove, verify, root)");
+                process::exit(1);
+            }
+            process::exit(cmd_sparse(&args[1..]));
+        }
         Some("verify") => match args.len() {
             3 => process::exit(verify_single(&args[1], &args[2])),
             2 => process::exit(verify_checksums(&args[1])),
@@ -435,6 +462,104 @@ fn cmd_derive_key(context: &str, path: &str) -> i32 {
     0
 }
 
+fn cmd_prove_batch(path: &str, indices: &[u64]) -> i32 {
+    let data = match fs::read(path) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("hemera: {path}: {e}");
+            return 1;
+        }
+    };
+
+    let mut sorted = indices.to_vec();
+    sorted.sort();
+    sorted.dedup();
+
+    let (root, proof) = cyber_hemera::batch::prove_batch(&data, &sorted);
+    println!("root: {root}");
+    println!("indices: {sorted:?}");
+    println!("siblings: {}", proof.siblings.len());
+    println!("chunks: {}", proof.num_chunks);
+    for (i, sib) in proof.siblings.iter().enumerate() {
+        println!("  [{i}] {sib}");
+    }
+    0
+}
+
+fn cmd_verify_batch(proof_path: &str, root_hex: &str) -> i32 {
+    // Reads a batch proof JSON file and verifies against the given root.
+    // Format: { "indices": [...], "siblings": ["hex"...], "num_chunks": N, "chunks": ["hex"...] }
+    let content = match fs::read_to_string(proof_path) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("hemera: {proof_path}: {e}");
+            return 1;
+        }
+    };
+
+    let root = match parse_hash(root_hex) {
+        Some(h) => h,
+        None => {
+            eprintln!("hemera: invalid root hash: {root_hex}");
+            return 1;
+        }
+    };
+
+    // Minimal JSON parsing: extract fields by line scanning.
+    // This avoids pulling in serde_json for a CLI tool.
+    eprintln!("hemera: verify-batch expects structured proof input (not yet implemented)");
+    eprintln!("  use the library API: cyber_hemera::batch::verify_batch()");
+    let _ = (content, root);
+    1
+}
+
+#[allow(unknown_lints, rs_no_vec, rs_no_string)]
+fn cmd_sparse(args: &[String]) -> i32 {
+    match args[0].as_str() {
+        "hash-leaf" => {
+            // hemera sparse hash-leaf <key-hex> <file>
+            if args.len() != 3 {
+                eprintln!("hemera: sparse hash-leaf requires <key-hex-32bytes> <file>");
+                return 1;
+            }
+            let key = match parse_hex_fixed::<32>(&args[1]) {
+                Some(k) => k,
+                None => {
+                    eprintln!("hemera: invalid 32-byte hex key: {}", args[1]);
+                    return 1;
+                }
+            };
+            let data = match fs::read(&args[2]) {
+                Ok(d) => d,
+                Err(e) => {
+                    eprintln!("hemera: {}: {e}", args[2]);
+                    return 1;
+                }
+            };
+            // sparse_leaf_hash(key, value) == hash_leaf(key || value, 0, false)
+            let mut input = Vec::with_capacity(32 + data.len());
+            input.extend_from_slice(&key);
+            input.extend_from_slice(&data);
+            let h = cyber_hemera::tree::hash_leaf(&input, 0, false);
+            println!("{h}");
+            0
+        }
+        "prove" => {
+            // hemera sparse prove <depth> <key-hex> <data-dir>
+            // For now, just document the API.
+            eprintln!("hemera: sparse prove — use the library API: SparseTree::prove()");
+            eprintln!("  interactive sparse tree operations require state persistence");
+            eprintln!("  which is beyond the scope of a stateless CLI");
+            1
+        }
+        _ => {
+            eprintln!("hemera: unknown sparse subcommand: {}", args[0]);
+            eprintln!("  available: hash-leaf, prove");
+            1
+        }
+    }
+}
+
 fn parse_hash(hex: &str) -> Option<cyber_hemera::Hash> {
     let bytes = parse_hex_fixed::<{ cyber_hemera::OUTPUT_BYTES }>(hex)?;
     Some(cyber_hemera::Hash::from_bytes(bytes))
@@ -478,6 +603,8 @@ fn print_usage() {
   hemera encode file.txt [-o out]    Encode to verified stream
   hemera decode file.hemera <hash>   Decode and verify stream
   hemera outboard file.txt [-o out]  Compute outboard hash tree
+  hemera prove-batch file 0 1 3      Batch inclusion proof
+  hemera sparse hash-leaf <key> file Sparse leaf hash
   hemera keyed-hash <key-hex> file   Keyed hash
   hemera derive-key <context> file   Derive key from context
 
