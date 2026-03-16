@@ -254,8 +254,8 @@ fn main() {
             process::exit(cmd_prove_batch(&args[1], &indices));
         }
         Some("verify-batch") => {
-            if args.len() < 3 {
-                eprintln!("hemera: verify-batch requires <file> <root-hash>");
+            if args.len() != 3 {
+                eprintln!("hemera: verify-batch requires <data-file> <proof-file>");
                 process::exit(1);
             }
             process::exit(cmd_verify_batch(&args[1], &args[2]));
@@ -702,7 +702,15 @@ fn cmd_prove_batch(path: &str, indices: &[u64]) -> i32 {
     0
 }
 
-fn cmd_verify_batch(proof_path: &str, root_hex: &str) -> i32 {
+fn cmd_verify_batch(data_path: &str, proof_path: &str) -> i32 {
+    let data = match fs::read(data_path) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("hemera: {data_path}: {e}");
+            return 1;
+        }
+    };
+
     let content = match fs::read_to_string(proof_path) {
         Ok(c) => c,
         Err(e) => {
@@ -711,18 +719,104 @@ fn cmd_verify_batch(proof_path: &str, root_hex: &str) -> i32 {
         }
     };
 
-    let root = match parse_hash(root_hex) {
-        Some(h) => h,
+    // Parse prove-batch output format:
+    //   root: <hash>
+    //   indices: [0, 1, 3]
+    //   siblings: 5
+    //   chunks: 8
+    //   [0] <hash>
+    //   [1] <hash>
+    //   ...
+    let mut root = None;
+    let mut indices: Vec<u64> = Vec::new();
+    let mut num_chunks: u64 = 0;
+    let mut siblings: Vec<cyber_hemera::Hash> = Vec::new();
+
+    for line in content.lines() {
+        let line = line.trim();
+        if let Some(rest) = line.strip_prefix("root: ") {
+            root = parse_hash(rest.trim());
+            if root.is_none() {
+                eprintln!("hemera: invalid root hash in proof: {rest}");
+                return 1;
+            }
+        } else if let Some(rest) = line.strip_prefix("indices: ") {
+            let trimmed = rest.trim().trim_start_matches('[').trim_end_matches(']');
+            indices = trimmed
+                .split(',')
+                .map(|s| s.trim().parse::<u64>())
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap_or_else(|_| {
+                    eprintln!("hemera: invalid indices in proof: {rest}");
+                    process::exit(1);
+                });
+        } else if let Some(rest) = line.strip_prefix("chunks: ") {
+            num_chunks = rest.trim().parse().unwrap_or_else(|_| {
+                eprintln!("hemera: invalid chunks count in proof: {rest}");
+                process::exit(1);
+            });
+        } else if line.starts_with('[') {
+            // Sibling line: [N] <hash>
+            if let Some((_idx_part, hash_part)) = line.split_once("] ") {
+                match parse_hash(hash_part.trim()) {
+                    Some(h) => siblings.push(h),
+                    None => {
+                        eprintln!("hemera: invalid sibling hash: {hash_part}");
+                        return 1;
+                    }
+                }
+            }
+        }
+    }
+
+    let root = match root {
+        Some(r) => r,
         None => {
-            eprintln!("hemera: invalid root hash: {root_hex}");
+            eprintln!("hemera: no root hash found in proof file");
             return 1;
         }
     };
 
-    eprintln!("hemera: verify-batch expects structured proof input (not yet implemented)");
-    eprintln!("  use the library API: cyber_hemera::batch::verify_batch()");
-    let _ = (content, root);
-    1
+    if indices.is_empty() {
+        eprintln!("hemera: no indices found in proof file");
+        return 1;
+    }
+
+    if num_chunks == 0 {
+        eprintln!("hemera: no chunk count found in proof file");
+        return 1;
+    }
+
+    // Extract chunk data from the original file.
+    let chunk_size = cyber_hemera::CHUNK_SIZE;
+    let chunks_data: Vec<&[u8]> = indices
+        .iter()
+        .map(|&idx| {
+            let start = idx as usize * chunk_size;
+            let end = (start + chunk_size).min(data.len());
+            &data[start..end]
+        })
+        .collect();
+
+    let proof = cyber_hemera::batch::BatchInclusionProof {
+        indices,
+        siblings,
+        num_chunks,
+        root,
+    };
+
+    let t = Instant::now();
+    let valid = cyber_hemera::batch::verify_batch(&chunks_data, &proof);
+    let elapsed = t.elapsed();
+
+    print_timing(Backend::Cpu, elapsed);
+    if valid {
+        println!("verify-batch: OK");
+        0
+    } else {
+        println!("verify-batch: FAILED");
+        1
+    }
 }
 
 #[allow(unknown_lints, rs_no_vec, rs_no_string)]
@@ -754,17 +848,171 @@ fn cmd_sparse(args: &[String]) -> i32 {
             println!("{h}");
             0
         }
-        "prove" => {
-            eprintln!("hemera: sparse prove — use the library API: SparseTree::prove()");
-            eprintln!("  interactive sparse tree operations require state persistence");
-            eprintln!("  which is beyond the scope of a stateless CLI");
-            1
+        "verify" => {
+            // hemera sparse verify <proof-file> <root-hash> [--value <file>] [--depth N]
+            // Omitting --value means non-inclusion proof.
+            if args.len() < 3 {
+                eprintln!("hemera: sparse verify requires <proof-file> <root-hash> [--value <file>] [--depth N]");
+                return 1;
+            }
+            let proof_path = &args[1];
+            let root_hex = &args[2];
+            let mut value_path: Option<&str> = None;
+            let mut depth: u32 = cyber_hemera::sparse::DEFAULT_DEPTH;
+            let mut i = 3;
+            while i < args.len() {
+                match args[i].as_str() {
+                    "--value" => {
+                        i += 1;
+                        if i >= args.len() {
+                            eprintln!("hemera: --value requires an argument");
+                            return 1;
+                        }
+                        value_path = Some(&args[i]);
+                    }
+                    "--depth" => {
+                        i += 1;
+                        if i >= args.len() {
+                            eprintln!("hemera: --depth requires an argument");
+                            return 1;
+                        }
+                        depth = args[i].parse().unwrap_or_else(|_| {
+                            eprintln!("hemera: invalid depth: {}", args[i]);
+                            process::exit(1);
+                        });
+                    }
+                    other => {
+                        eprintln!("hemera: unknown flag: {other}");
+                        return 1;
+                    }
+                }
+                i += 1;
+            }
+            cmd_sparse_verify(proof_path, root_hex, value_path, depth)
+        }
+        "sentinel" => {
+            // hemera sparse sentinel [depth]
+            let depth: u32 = if args.len() > 1 {
+                args[1].parse().unwrap_or_else(|_| {
+                    eprintln!("hemera: invalid depth: {}", args[1]);
+                    process::exit(1);
+                })
+            } else {
+                cyber_hemera::sparse::DEFAULT_DEPTH
+            };
+            let table = cyber_hemera::sparse::sentinel_table(depth);
+            println!("depth: {depth}");
+            println!("root sentinel: {}", table[depth as usize]);
+            0
         }
         _ => {
             eprintln!("hemera: unknown sparse subcommand: {}", args[0]);
-            eprintln!("  available: hash-leaf, prove");
+            eprintln!("  available: hash-leaf, verify, sentinel");
             1
         }
+    }
+}
+
+#[allow(unknown_lints, rs_no_vec)]
+fn cmd_sparse_verify(proof_path: &str, root_hex: &str, value_path: Option<&str>, depth: u32) -> i32 {
+    let root = match parse_hash(root_hex) {
+        Some(h) => h,
+        None => {
+            eprintln!("hemera: invalid root hash: {root_hex}");
+            return 1;
+        }
+    };
+
+    let content = match fs::read_to_string(proof_path) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("hemera: {proof_path}: {e}");
+            return 1;
+        }
+    };
+
+    // Parse proof file format:
+    //   key: <64 hex chars>
+    //   bitmask: <64 hex chars>
+    //   siblings: N
+    //     [0] <hash>
+    //     [1] <hash>
+    let mut key = None;
+    let mut bitmask = None;
+    let mut siblings: Vec<cyber_hemera::Hash> = Vec::new();
+
+    for line in content.lines() {
+        let line = line.trim();
+        if let Some(rest) = line.strip_prefix("key: ") {
+            key = parse_hex_fixed::<32>(rest.trim());
+            if key.is_none() {
+                eprintln!("hemera: invalid key in proof: {rest}");
+                return 1;
+            }
+        } else if let Some(rest) = line.strip_prefix("bitmask: ") {
+            bitmask = parse_hex_fixed::<32>(rest.trim());
+            if bitmask.is_none() {
+                eprintln!("hemera: invalid bitmask in proof: {rest}");
+                return 1;
+            }
+        } else if line.starts_with('[') {
+            if let Some((_idx_part, hash_part)) = line.split_once("] ") {
+                match parse_hash(hash_part.trim()) {
+                    Some(h) => siblings.push(h),
+                    None => {
+                        eprintln!("hemera: invalid sibling hash: {hash_part}");
+                        return 1;
+                    }
+                }
+            }
+        }
+    }
+
+    let key = match key {
+        Some(k) => k,
+        None => {
+            eprintln!("hemera: no key found in proof file");
+            return 1;
+        }
+    };
+    let bitmask = match bitmask {
+        Some(b) => b,
+        None => {
+            eprintln!("hemera: no bitmask found in proof file");
+            return 1;
+        }
+    };
+
+    let proof = cyber_hemera::sparse::CompressedSparseProof { key, bitmask, siblings };
+
+    let value_data = match value_path {
+        Some(p) => match fs::read(p) {
+            Ok(d) => Some(d),
+            Err(e) => {
+                eprintln!("hemera: {p}: {e}");
+                return 1;
+            }
+        },
+        None => None,
+    };
+
+    let t = Instant::now();
+    let valid = cyber_hemera::sparse::SparseTree::verify(
+        &proof,
+        value_data.as_deref(),
+        &root,
+        depth,
+    );
+    let elapsed = t.elapsed();
+
+    print_timing(Backend::Cpu, elapsed);
+    if valid {
+        let kind = if value_data.is_some() { "inclusion" } else { "non-inclusion" };
+        println!("sparse verify ({kind}): OK");
+        0
+    } else {
+        println!("sparse verify: FAILED");
+        1
     }
 }
 
@@ -812,7 +1060,10 @@ fn print_usage() {
   hemera decode file.hemera <hash>   Decode and verify stream
   hemera outboard file.txt [-o out]  Compute outboard hash tree
   hemera prove-batch file 0 1 3      Batch inclusion proof
+  hemera verify-batch file proof.txt Verify batch proof
   hemera sparse hash-leaf <key> file Sparse leaf hash
+  hemera sparse verify proof root    Verify sparse proof
+  hemera sparse sentinel [depth]     Show sentinel root hash
   hemera keyed-hash <key-hex> file   Keyed hash
   hemera derive-key <context> file   Derive key from context
 \x1b[90m
