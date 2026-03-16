@@ -42,9 +42,9 @@ margin that justifies this cost at both operating points.
 
 ## Steady-State Adequacy
 
-At scale: 10^15 particles with 1% annual update rate.
+At scale: 10²⁴ cyberlinks with 1% annual update rate.
 
-- 10^15 x 0.01 / (365.25 x 86,400) = ~317,000 particles/sec required
+- 10^24 x 0.01 / (365.25 x 86,400) = ~317B cyberlinks/sec required
 - Each particle = 64 bytes = ~1 permutation
 - Single core at ~53 MB/s = ~946,000 permutations/sec
 - Single core handles steady-state with ~3x headroom

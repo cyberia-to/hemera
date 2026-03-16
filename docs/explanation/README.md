@@ -11,7 +11,7 @@ design decisions behind the [[Hemera]] hash primitive.
 
 ## philosophy
 
-- [[why-hemera]] — six design principles: permanence, endofunction, self-reference, identity, unity, the double seven
+- [[why-hemera]] — eight design principles: permanence, the tree, endofunction, self-reference, identity, unity, beauty, the name
 - [[the-name]] — etymology: Hemera in the Protogenoi, genealogy of hash names
 
 ## parameters
@@ -22,6 +22,7 @@ design decisions behind the [[Hemera]] hash primitive.
 ## architecture
 
 - [[sponge-only]] — why no compression mode (practical, economic, mathematical)
+- [[capacity]] — structured capacity: one function, unlimited contexts, cost analysis
 - [[content-ids]] — why raw 64-byte CIDs, no headers, endofunction closure
 - [[self-bootstrap]] — why self-bootstrapping, non-circularity argument
 

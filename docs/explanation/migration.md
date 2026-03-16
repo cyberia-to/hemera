@@ -17,9 +17,9 @@ If the hash function is broken, the response is a full graph rehash.
 The old graph ceases to exist. Every particle is recomputed under the
 replacement function. This is not weakness — it is a design commitment.
 
-Versioning headers waste bytes at planetary scale. At 5 x 10^15
-particles, a single version byte costs 5 PB of storage across the
-network. A two-byte tag costs 10 PB. The overhead is permanent and
+Versioning headers waste bytes at planetary scale. At 10^24
+cyberlinks, a single version byte costs 1 ZB of storage across the
+network. A two-byte tag costs 2 ZB. The overhead is permanent and
 compounds with every particle created.
 
 Algorithm agility also introduces combinatorial complexity: every
@@ -54,9 +54,9 @@ launches.
 | Week 1-4    | Begin rehash campaign via storage proof infrastructure|
 | Month 1-6   | Complete migration                                  |
 
-At 10^15 particles distributed across 10^6 nodes: each node holds
-~10^9 particles. At ~53 MB/s per core (single-threaded), rehashing
-10^9 x 64 bytes = 64 GB takes approximately 20 minutes. With
+At 10^24 cyberlinks distributed across 10^6 nodes: each node holds
+~10^18 cyberlinks. At ~53 MB/s per core (single-threaded), rehashing
+10^18 x 64 bytes = 64 EB takes significant time per node. With
 overhead for tree reconstruction, I/O, and coordination, estimated
 wall-clock time per node is ~17 hours. The entire network rehashes
 in parallel — total elapsed time is bounded by the slowest node,
