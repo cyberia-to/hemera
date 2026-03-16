@@ -527,6 +527,15 @@ feature does before building it, you do not understand it yet.
 
 ---
 
+## knowledge graph
+
+this repo is a subgraph of `~/git/cyber/`. files with YAML
+frontmatter (tags, crystal-type, crystal-domain, stake) are
+nodes in the cyber knowledge graph. preserve frontmatter in
+all files that have it — it is not decoration.
+
+---
+
 # rs-lang companion repo
 
 hemera is compiled with `rsc` — the rs edition compiler. source of
