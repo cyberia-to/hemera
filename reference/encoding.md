@@ -57,4 +57,4 @@ A Hemera hash is 64 bytes. Nothing more. No version prefix, no mode byte, no esc
 Hemera output = 8 × 8 bytes = 64 bytes (little-endian, canonical range [0, p))
 ```
 
-If Hemera is ever broken, the entire graph rehashes. Storage proofs make this possible. Versioning headers do not save you — they waste bytes multiplied by 10¹⁵ particles.
+If Hemera is ever broken, the entire graph rehashes. Storage proofs make this possible. Versioning headers do not save you — they waste bytes multiplied by 10²⁴ cyberlinks.

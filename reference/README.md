@@ -19,7 +19,7 @@ stake: 43936669831471920
 
 Hemera is the cryptographic hash primitive for [[cyber]], a knowledge graph for planetary-scale collective intelligence. It instantiates the Poseidon2 permutation over the [[Goldilocks field]] (p = 2^64 - 2^32 + 1) with state width t = 16, S-box degree d = 7, and 64 partial rounds (R_P = 64).
 
-The construction provides 256-bit classical collision resistance and 170-bit quantum collision resistance. Algebraic degree 7^64 = 2^180 places the permutation far beyond any foreseeable attack capability. Every content address in the network, every Merkle node in every proof tree, and every commitment in every STARK derives from the same permutation.
+The construction provides 256-bit classical collision resistance and 170-bit quantum collision resistance. Algebraic degree 7^64 = 2^180 places the permutation far beyond any foreseeable attack capability. Every particle address in the network, every Merkle node in every proof tree, and every commitment in every STARK derives from the same permutation.
 
 One function. One mode (sponge). 64 raw bytes output. These parameters are Hemera. If any parameter differs, it is not Hemera.
 
@@ -54,21 +54,24 @@ One function. One mode (sponge). 64 raw bytes output. These parameters are Hemer
 
 ## Specification pages
 
-- [[sponge]] — absorb/squeeze, padding, domain separation
+- [[field]] — Goldilocks prime field (canonical spec in [[aurum]])
+- [[permutation]] — Poseidon2 round structure: S-box, linear layers, complete algorithm
+- [[sponge]] — absorb/squeeze, padding, operational semantics
+- [[capacity]] — structured capacity: flags, domain tags, counters, namespace bounds
 - [[encoding]] — 7-byte canonical encoding, byte-to-field mapping
 - [[tree]] — binary Merkle tree, `hash_node` construction
+- [[constants]] — all 192 round constants (hex values)
 - [[bootstrap]] — round constant self-generation via Hemera₀
 - [[matrices]] — MDS and diagonal matrices for the linear layer
 - [[api]] — public API surface: `hash`, `hash_node`, `absorb`, `squeeze`
 
 ## See also
 
-- [[particle]] — content addressing with Hemera
+- [[particle]] — particle addressing with Hemera
 - [[cyberlink]] — edges referencing [[particles]] by Hemera hash
 - [[cybergraph]] — the graph Hemera addresses
 - [[nox]] — the VM where Hemera executes as a jet
 - [[tri-kernel]] — probability engine consuming Hemera outputs
-- [[Goldilocks field]] — the arithmetic substrate
 - [[cyber/proofs]] — STARK proof system built on Hemera
 - [[cyber/bbg]] — graph database whose every tree structure uses hash_node
 - [[WHIR]] — polynomial commitment scheme whose FRI trees use hash_node
