@@ -16,3 +16,5 @@ workspace = true
 
 [dependencies]
 cyber-hemera = { path = "../rs" }
+cyber-hemera-wgsl = { path = "../wgsl" }
+pollster = "0.4"
