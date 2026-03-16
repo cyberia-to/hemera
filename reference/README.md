@@ -54,7 +54,7 @@ One function. One mode (sponge). 64 raw bytes output. These parameters are Hemer
 
 ## Specification pages
 
-- [[field]] — Goldilocks prime field (canonical spec in [[aurum]])
+- [[field]] — Goldilocks prime field (canonical spec in [[nebu]])
 - [[permutation]] — Poseidon2 round structure: S-box, linear layers, complete algorithm
 - [[sponge]] — absorb/squeeze, padding, operational semantics
 - [[capacity]] — structured capacity: flags, domain tags, counters, namespace bounds
