@@ -156,7 +156,7 @@ pub fn root_hash(data: &[u8]) -> Hash {
 
 /// Recursively merge chaining values for chunks `[offset..offset+count)`,
 /// computing leaf hashes on demand from the data slice.
-fn merge_range(data: &[u8], offset: usize, count: usize, is_root: bool) -> Hash {
+pub(crate) fn merge_range(data: &[u8], offset: usize, count: usize, is_root: bool) -> Hash {
     debug_assert!(count > 0);
     let n_total = if data.is_empty() { 1 } else { (data.len() + CHUNK_SIZE - 1) / CHUNK_SIZE };
 

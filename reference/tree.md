@@ -212,66 +212,85 @@ BatchInclusionProof {
 
 ### Construction: prove_batch
 
-Given a tree with N leaves and a set of leaf indices S = {i₁, ..., iₖ} (sorted):
+Construction uses a recursive tree walk. At each node in the left-balanced tree, the algorithm determines which subtrees contain target leaves. If both subtrees have targets, it recurses into both and emits no sibling. If only one subtree has targets, it computes the other subtree's hash and emits it as a sibling, then recurses into the target side.
 
 ```
 prove_batch(data, indices) → (root, BatchInclusionProof):
 
-    tree ← build_tree(data)
-    needed ← {}                 // set of internal node positions
+    collect_siblings(data, offset, count, targets, is_root, siblings):
+        local ← targets that fall in [offset, offset+count)
 
-    // Walk from each leaf to root, collect nodes the verifier needs
-    for idx in indices:
-        pos ← leaf_position(idx)
-        while pos ≠ root_position:
-            sibling ← sibling(pos)
-            parent  ← parent(pos)
+        if local is empty:
+            return merge_range(data, offset, count, is_root)
 
-            // The verifier can compute a node if both its children
-            // are already known (either as queried leaves or as
-            // parents of queried leaves). Only include the sibling
-            // if it is NOT computable from other queried paths.
-            if sibling ∉ computable_set:
-                needed ← needed ∪ {sibling}
+        if count = 1:
+            return hash_leaf(data[offset], offset, is_root=false)
 
-            computable_set ← computable_set ∪ {parent}
-            pos ← parent
+        split ← 2^(⌈log₂(count)⌉ - 1)
+        left_has  ← any target in [offset, offset+split)
+        right_has ← any target in [offset+split, offset+count)
 
-    siblings ← [tree[pos] for pos in needed], ordered bottom-up left-to-right
-    return (tree.root, BatchInclusionProof { indices, siblings, root })
+        if left_has AND right_has:
+            left  ← collect_siblings(data, offset, split, targets, false, siblings)
+            right ← collect_siblings(data, offset+split, count-split, targets, false, siblings)
+        elif left_has:
+            right ← merge_range(data, offset+split, count-split, false)
+            siblings.push(right)
+            left  ← collect_siblings(data, offset, split, targets, false, siblings)
+        else:
+            left ← merge_range(data, offset, split, false)
+            siblings.push(left)
+            right ← collect_siblings(data, offset+split, count-split, targets, false, siblings)
+
+        return hash_node(left, right, is_root)
+
+    siblings ← []
+    root ← collect_siblings(data, 0, N, indices, true, siblings)
+    return (root, BatchInclusionProof { indices, siblings, root })
 ```
 
-The key invariant: a node is computable if both its children are computable. Queried leaves are computable by definition (the verifier has the chunk data). The algorithm propagates computability upward and only emits sibling hashes that cannot be derived.
+The key invariant: a subtree with targets in both children needs no sibling — the verifier can compute both sides from the provided chunk data. Only subtrees entirely outside the target set appear as siblings. This naturally deduplicates shared paths.
+
+Sibling ordering is depth-first, left-before-right — matching the recursive tree walk. The verifier follows the same recursion and consumes siblings in the same deterministic order.
 
 ### Verification: verify_batch
+
+The verifier follows the same recursive tree walk as construction:
 
 ```
 verify_batch(chunks, proof) → bool:
 
-    known ← {}    // map from tree position → hash
+    verify_subtree(chunks, indices, siblings, cursor, offset, count, is_root):
+        local ← indices that fall in [offset, offset+count)
 
-    // Insert queried leaves
-    for (idx, chunk) in zip(proof.indices, chunks):
-        known[leaf_position(idx)] ← hash_leaf(chunk, idx, is_root=(N=1))
+        if local is empty:
+            return siblings[cursor++]       // consume next sibling
 
-    // Process siblings bottom-up left-to-right
-    sibling_cursor ← 0
-    for level in 0..depth:
-        for each parent at this level where at least one child is known:
-            left_pos  ← left_child(parent)
-            right_pos ← right_child(parent)
+        if count = 1:
+            return hash_leaf(chunks[local_index], offset, is_root=false)
 
-            left  ← known[left_pos]  or proof.siblings[sibling_cursor++]
-            right ← known[right_pos] or proof.siblings[sibling_cursor++]
+        split ← 2^(⌈log₂(count)⌉ - 1)
+        left_has  ← any index in [offset, offset+split)
+        right_has ← any index in [offset+split, offset+count)
 
-            is_root ← (parent = root_position)
-            known[parent] ← hash_node(left, right, is_root)
+        if left_has AND right_has:
+            left  ← verify_subtree(..., offset, split, false)
+            right ← verify_subtree(..., offset+split, count-split, false)
+        elif left_has:
+            right ← siblings[cursor++]
+            left  ← verify_subtree(..., offset, split, false)
+        else:
+            left  ← siblings[cursor++]
+            right ← verify_subtree(..., offset+split, count-split, false)
 
-    return known[root_position] = proof.root
-        AND sibling_cursor = len(proof.siblings)    // all siblings consumed
+        return hash_node(left, right, is_root)
+
+    cursor ← 0
+    computed_root ← verify_subtree(chunks, proof.indices, proof.siblings, cursor, 0, N, true)
+    return computed_root = proof.root AND cursor = len(proof.siblings)
 ```
 
-The verifier recomputes every node it can from known children, pulls the next sibling from the proof only when a child is missing. If any sibling remains unconsumed or the reconstructed root mismatches, verification fails.
+The verifier recomputes the root from chunk data and consumed siblings. If any sibling remains unconsumed or the reconstructed root mismatches, verification fails.
 
 ### Size Analysis
 
@@ -333,15 +352,40 @@ The sentinel table has DEPTH entries (e.g. 256 entries for a 256-bit keyspace). 
 
 ### Key Path
 
-A key K of b bits maps to a leaf at position K. The path from root to leaf follows the bits of K from most significant to least significant:
+A key K is a 32-byte array. Bits are indexed MSB-first: bit 0 is the most significant bit of byte[0], bit 7 is the least significant bit of byte[0], bit 8 is the most significant bit of byte[1], and so on.
 
 ```
+key_bit(K, i):
+    byte_idx ← i / 8
+    bit_in_byte ← 7 - (i % 8)
+    return (K[byte_idx] >> bit_in_byte) & 1
+
 path(K, depth):
     for i in 0..depth:
-        bit ← (K >> (depth - 1 - i)) & 1
-        if bit = 0: descend left
-        if bit = 1: descend right
+        if key_bit(K, i) = 0: descend left
+        if key_bit(K, i) = 1: descend right
 ```
+
+### Sparse Leaf Hashing
+
+Sparse leaves hash both the key and the value through the sponge, then apply structural binding:
+
+```
+sparse_hash_leaf(key, value) → Hash:
+    hasher ← Hasher::new()
+    hasher.absorb(key)         // 32-byte key committed first
+    hasher.absorb(value)       // then the value
+    base_hash ← hasher.finalize()
+
+    state ← [0; 16]
+    state[0..8] ← bytes_to_elements(base_hash)
+    state[8]    ← 0                               // counter = 0 (position encoded in tree path)
+    state[9]    ← FLAG_CHUNK
+    state ← permute(state)
+    output ← elements_to_bytes(state[0..8])
+```
+
+The key is committed in the leaf hash (defense in depth alongside the tree path binding). Counter is 0 because position is encoded structurally — the key bits determine the path from root to leaf.
 
 ### Representation
 
@@ -349,12 +393,15 @@ Only non-empty subtrees are stored. An internal node whose hash equals the senti
 
 ```
 SparseTree {
-    depth: u32,                                // fixed, typically 256
-    root:  Hash,                               // current root hash
-    nodes: BTreeMap<(u32, u256), Hash>,        // (level, prefix) → hash
-    leaves: BTreeMap<u256, Vec<u8>>,           // key → value (only populated leaves)
+    depth:    u32,                                    // fixed, typically 256
+    root:     Hash,                                   // current root hash
+    nodes:    BTreeMap<(u32, [u8; 32]), Hash>,        // (level, masked_key) → hash
+    leaves:   BTreeMap<[u8; 32], Vec<u8>>,            // key → value
+    sentinels: [Hash; DEPTH + 1],                     // precomputed sentinel table
 }
 ```
+
+Node keys are masked to the relevant prefix length: at level l (counting from leaf = 0), the masked key retains the top `depth − l` bits and zeros the rest. Two keys sharing a prefix at a given level map to the same internal node.
 
 A tree with n populated leaves stores at most n × depth nodes in the worst case (all paths disjoint). In practice, shared prefixes reduce this to approximately n × (depth − log₂(n)) nodes.
 
@@ -362,52 +409,56 @@ A tree with n populated leaves stores at most n × depth nodes in the worst case
 
 ```
 insert(tree, key, value):
-    leaf_hash ← hash_leaf(value, key_to_counter(key), is_root=(depth = 0))
+    leaf_hash ← sparse_hash_leaf(key, value)
     tree.leaves[key] ← value
+    tree.nodes[(0, mask_key(key, depth))] ← leaf_hash
 
     // Walk from leaf to root, recomputing hashes
     current ← leaf_hash
     for level in 0..depth:
-        bit ← (key >> level) & 1
-        sibling ← tree.nodes[(level, sibling_prefix(key, level))]
-                   or EMPTY[level]     // sentinel if absent
+        bit_pos ← depth - 1 - level
+        is_right ← key_bit(key, bit_pos)
+        sibling ← sibling_hash(tree, key, level)    // sentinel if absent
 
-        if bit = 0:
-            parent ← hash_node(current, sibling, is_root=(level+1 = depth))
-        else:
+        if is_right:
             parent ← hash_node(sibling, current, is_root=(level+1 = depth))
+        else:
+            parent ← hash_node(current, sibling, is_root=(level+1 = depth))
 
-        tree.nodes[(level+1, parent_prefix(key, level+1))] ← parent
+        tree.nodes[(level+1, mask_key(key, depth-level-1))] ← parent
         current ← parent
 
     tree.root ← current
 ```
 
-Cost: depth × 2 permutations (one `hash_node` per level). For depth 256: 512 permutations per insert.
+`sibling_hash` flips the bit at position `bit_pos` in the key, masks to the prefix length for that level, and looks up the node hash (returning the sentinel if absent).
+
+Cost: depth × 2 permutations (one `hash_node` per level) + 1 `sparse_hash_leaf`. For depth 256: 512 + 75 permutations per insert.
 
 ### Delete
 
 ```
 delete(tree, key):
     tree.leaves.remove(key)
+    tree.nodes.remove((0, mask_key(key, depth)))
 
     // Replace leaf with empty sentinel, recompute path
     current ← EMPTY[0]
     for level in 0..depth:
-        bit ← (key >> level) & 1
-        sibling ← tree.nodes[(level, sibling_prefix(key, level))]
-                   or EMPTY[level]
+        bit_pos ← depth - 1 - level
+        is_right ← key_bit(key, bit_pos)
+        sibling ← sibling_hash(tree, key, level)
 
         // If both children are sentinels, parent is sentinel — prune
         if current = EMPTY[level] AND sibling = EMPTY[level]:
-            tree.nodes.remove((level+1, parent_prefix(key, level+1)))
+            tree.nodes.remove((level+1, mask_key(key, depth-level-1)))
             current ← EMPTY[level+1]
         else:
-            if bit = 0:
-                parent ← hash_node(current, sibling, is_root=(level+1 = depth))
-            else:
+            if is_right:
                 parent ← hash_node(sibling, current, is_root=(level+1 = depth))
-            tree.nodes[(level+1, parent_prefix(key, level+1))] ← parent
+            else:
+                parent ← hash_node(current, sibling, is_root=(level+1 = depth))
+            tree.nodes[(level+1, mask_key(key, depth-level-1))] ← parent
             current ← parent
 
     tree.root ← current
@@ -420,67 +471,68 @@ Pruning: when both children of a node are empty sentinels, the node itself is th
 Proves that key K maps to value V:
 
 ```
-prove_sparse(tree, key) → SparseInclusionProof:
-    path ← []
+prove_sparse(tree, key) → CompressedSparseProof:
+    bitmask ← [0; 32]         // 256 bits
+    siblings ← []
     for level in 0..depth:
-        sibling ← tree.nodes[(level, sibling_prefix(key, level))]
-                   or EMPTY[level]
-        path.push(sibling)
-    return SparseInclusionProof { key, path }
+        sibling ← sibling_hash(tree, key, level)
+        if sibling ≠ EMPTY[level]:
+            bitmask[level/8] |= 1 << (level % 8)
+            siblings.push(sibling)
+    return CompressedSparseProof { key, bitmask, siblings }
 ```
 
-Verification walks from `hash_leaf(value, key_to_counter(key), ...)` to root using the sibling path, identical to a standard Merkle proof. The verifier needs the sentinel table to recognize empty siblings.
+Verification walks from `sparse_hash_leaf(key, value)` to root, reconstructing the path. At each level, the verifier reads the bitmask: bit 0 means use `EMPTY[level]`, bit 1 means consume the next sibling from the proof.
 
-Proof size: depth × 64 bytes. For a 256-deep tree: 16,384 bytes.
+```
+verify_sparse(proof, value, root, depth) → bool:
+    current ← sparse_hash_leaf(proof.key, value)    // or EMPTY[0] if value is None
+    cursor ← 0
+    for level in 0..depth:
+        has_real ← (proof.bitmask[level/8] >> (level%8)) & 1
+        sibling ← if has_real: proof.siblings[cursor++] else: EMPTY[level]
+        bit_pos ← depth - 1 - level
+        is_right ← key_bit(proof.key, bit_pos)
+        is_root ← (level+1 = depth)
+        current ← if is_right: hash_node(sibling, current, is_root)
+                  else:        hash_node(current, sibling, is_root)
+    return current = root AND cursor = len(proof.siblings)
+```
 
 ### Non-Inclusion Proof
 
-Proves that key K has no value (maps to empty). The proof structure is identical to an inclusion proof — the verifier computes the path starting from `EMPTY[0]` instead of `hash_leaf(value, ...)` and checks that it reaches the root. If the reconstructed root matches, the key is absent.
+Proves that key K has no value (maps to empty). The proof structure is identical to an inclusion proof — the verifier computes the path starting from `EMPTY[0]` instead of `sparse_hash_leaf(key, value)` and checks that it reaches the root. If the reconstructed root matches, the key is absent.
 
 No additional mechanism is needed. The sentinel hashes make absence and presence proofs structurally identical.
 
-### Compressed Sparse Proofs
+### Proof Size
 
-A depth-256 proof with 256 sibling hashes is large (16 KB). Most siblings in a sparse tree are sentinels. Compressed proofs replace sentinel siblings with a bitmask:
+All sparse proofs use compression by default. The `CompressedSparseProof` structure replaces sentinel siblings with a bitmask:
 
 ```
 CompressedSparseProof {
-    key:       u256,
+    key:       [u8; 32],
     bitmask:   [u8; 32],          // 256 bits: 1 = real sibling, 0 = sentinel
     siblings:  [Hash; popcount],  // only non-sentinel siblings
 }
 ```
 
-The verifier reconstructs the full path by reading the bitmask: bit 0 means use `EMPTY[level]`, bit 1 means consume the next hash from `siblings`.
-
-Compressed proof size: 32 bytes (bitmask) + popcount × 64 bytes (non-sentinel siblings). For a tree with n = 1,000 leaves, a typical path has ~10 non-sentinel siblings and ~246 sentinel siblings. Compressed proof: 32 + 10 × 64 = 672 bytes instead of 16,384 bytes. 24× reduction.
-
-### Sparse Batch Proofs
-
-Batch proofs (§ Batch Proofs) compose with sparse trees. `prove_sparse_batch` for keys {K₁, ..., Kₖ} deduplicates shared path prefixes and omits sentinel siblings via bitmask:
-
-```
-CompressedSparseBatchProof {
-    keys:      [u256; k],
-    bitmask:   [u8; 32],          // union of all non-sentinel positions
-    siblings:  [Hash; m],         // deduplicated non-sentinel siblings
-}
-```
-
-For k keys with shared prefixes, savings compound: shared prefix segments contribute zero siblings, and sentinel segments contribute zero bytes.
+Compressed proof size: 32 bytes (key) + 32 bytes (bitmask) + popcount × 64 bytes. For a tree with n = 1,000 leaves, a typical path has ~10 non-sentinel siblings and ~246 sentinel siblings. Compressed proof: 64 + 10 × 64 = 704 bytes instead of 16,384 bytes (uncompressed). 23× reduction.
 
 ### API
 
 ```rust
-pub fn sparse_new(depth: u32) -> SparseTree;
-pub fn sparse_insert(tree: &mut SparseTree, key: &[u8; 32], value: &[u8]) -> Hash;
-pub fn sparse_delete(tree: &mut SparseTree, key: &[u8; 32]) -> Hash;
-pub fn sparse_get(tree: &SparseTree, key: &[u8; 32]) -> Option<&[u8]>;
-pub fn sparse_root(tree: &SparseTree) -> Hash;
-pub fn sparse_prove(tree: &SparseTree, key: &[u8; 32]) -> CompressedSparseProof;
-pub fn sparse_prove_batch(tree: &SparseTree, keys: &[&[u8; 32]]) -> CompressedSparseBatchProof;
-pub fn sparse_verify(proof: &CompressedSparseProof, value: Option<&[u8]>, root: &Hash) -> bool;
-pub fn sparse_verify_batch(proof: &CompressedSparseBatchProof, values: &[Option<&[u8]>], root: &Hash) -> bool;
+// Sparse tree
+impl SparseTree {
+    pub fn new(depth: u32) -> Self;
+    pub fn root(&self) -> Hash;
+    pub fn get(&self, key: &[u8; 32]) -> Option<&[u8]>;
+    pub fn len(&self) -> usize;
+    pub fn insert(&mut self, key: &[u8; 32], value: &[u8]) -> Hash;
+    pub fn delete(&mut self, key: &[u8; 32]) -> Hash;
+    pub fn prove(&self, key: &[u8; 32]) -> CompressedSparseProof;
+    pub fn verify(proof: &CompressedSparseProof, value: Option<&[u8]>, root: &Hash, depth: u32) -> bool;
+}
 ```
 
-`sparse_verify` with `value: None` verifies non-inclusion. With `value: Some(data)` verifies inclusion. The same proof structure serves both cases.
+`verify` with `value: None` verifies non-inclusion. With `value: Some(data)` verifies inclusion. The same proof structure serves both cases.

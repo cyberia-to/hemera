@@ -48,6 +48,7 @@ extern crate alloc;
 #[cfg(feature = "std")]
 extern crate std;
 
+pub mod batch;
 pub mod stream;
 pub mod bootstrap;
 pub mod constants;
@@ -56,6 +57,7 @@ pub mod field;
 mod params;
 pub mod permutation;
 mod sponge;
+pub mod sparse;
 pub mod tree;
 
 // Re-export all Hemera parameters so downstream crates never hardcode them.
