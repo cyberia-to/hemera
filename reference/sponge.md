@@ -24,7 +24,7 @@ Absorb:      for each 8-element block of padded input:
 Finalize:    state[10] ← total_input_bytes
              state ← permute(state)
 
-Squeeze:     output ← state[0..8]           (8 elements = 64 bytes)
+Squeeze:     output ← state[0..4]           (4 elements = 32 bytes)
 ```
 
 absorption uses Goldilocks field addition (mod p), not XOR and not wrapping addition. this preserves the algebraic structure that Poseidon2's security proof relies on.
@@ -49,6 +49,6 @@ every use of the sponge in the Hemera stack:
 
 - **WHIR polynomial commitments.** [[cyber]] uses [[WHIR]] for polynomial commitments. the sponge serves as the Fiat-Shamir transcript and builds the commitment Merkle trees. the field-native property eliminates the conversion overhead between hash output and field elements.
 
-- **field-native computation.** the Poseidon2 sponge operates directly over the Goldilocks field, requiring approximately 1,200 constraints per hash in a STARK circuit. BLAKE3 requires approximately 15,000 constraints for the same role.
+- **field-native computation.** the Poseidon2 sponge operates directly over the Goldilocks field, requiring approximately 736 constraints per hash in a STARK circuit (hemera-2: 24 rounds, x⁻¹ partial S-box). BLAKE3 requires approximately 15,000 constraints for the same role.
 
 - **tri-kernel lookup.** the three kernel modes (consensus, settlement, data availability) use the sponge for all hash-addressed lookups, providing a single primitive across the entire stack.
