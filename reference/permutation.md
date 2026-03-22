@@ -3,6 +3,12 @@ tags: cyber, cip
 crystal-type: entity
 crystal-domain: cyber
 alias: Hemera permutation, Poseidon2 permutation
+diffusion: 0.00010722364868599256
+springs: 0.00028195950468585824
+heat: 0.00023159460155239007
+focus: 0.0001845185960592294
+gravity: 0
+density: 0.15
 ---
 
 # permutation specification

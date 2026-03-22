@@ -3,6 +3,12 @@ tags: cyber, cip
 crystal-type: entity
 crystal-domain: cyber
 alias: Hemera content identifiers, raw CIDs, no headers, particle identity
+diffusion: 0.00010722364868599256
+springs: 0.0030383438859984337
+heat: 0.0020874522638244853
+focus: 0.0013826054429074057
+gravity: 0
+density: 1.31
 ---
 
 # particle identifiers: raw bytes, no headers

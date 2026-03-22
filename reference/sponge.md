@@ -3,6 +3,12 @@ tags: cyber, cip
 crystal-type: entity
 crystal-domain: cyber
 alias: Hemera sponge, sponge specification
+diffusion: 0.00010722364868599256
+springs: 0.002289426463559174
+heat: 0.0015732806631330253
+focus: 0.0010550958960373398
+gravity: 0
+density: 0.32
 ---
 
 # sponge specification

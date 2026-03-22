@@ -4,6 +4,12 @@ crystal-type: entity
 crystal-domain: cyber
 alias: Hemera reference, Hemera specification, Hemera spec, Hemera_Hash_Primitive_Reference
 stake: 43936669831471920
+diffusion: 0.00010722364868599256
+springs: 0.002067440114539792
+heat: 0.001443745761651159
+focus: 0.0009625930110351532
+gravity: 0
+density: 2.74
 ---
 
 # Hemera: A Permanent Hash Primitive for Planetary-Scale Collective Intelligence

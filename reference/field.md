@@ -3,6 +3,12 @@ tags: cyber, cip
 crystal-type: entity
 crystal-domain: cyber
 alias: Goldilocks field, Hemera field
+diffusion: 0.00010722364868599256
+springs: 0.00016602166684972312
+heat: 0.00015354221629929347
+focus: 0.00013412676765777018
+gravity: 0
+density: 1.99
 ---
 
 # field specification

@@ -3,6 +3,12 @@ tags: cyber, cip
 crystal-type: entity
 crystal-domain: cyber
 alias: Why Hemera, permanence constraint, design philosophy
+diffusion: 0.00010722364868599256
+springs: 0.002190885472169872
+heat: 0.0015239469650863775
+focus: 0.0010156668590112204
+gravity: 0
+density: 0.66
 ---
 
 # why hemera

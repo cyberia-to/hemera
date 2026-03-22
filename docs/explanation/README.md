@@ -3,6 +3,12 @@ tags: cyber, cip
 crystal-type: entity
 crystal-domain: cyber
 alias: Hemera explanation, design rationale
+diffusion: 0.00010722364868599256
+springs: 0.0007414137239001096
+heat: 0.0005436091679597342
+focus: 0.0003847577751049711
+gravity: 0
+density: 0.85
 ---
 
 # why Hemera works the way it does
