@@ -46,14 +46,32 @@ endgame role: cryptographic root of trust — initial seed, content identity,
 private records. algebraic commitments handle binding and verification at scale.
 ```
 
+## structural sync impact
+
+hemera serves two [[structural sync|structural-sync]] layers:
+
+| layer | hemera role | optimization |
+|-------|------------|--------------|
+| 1. validity | zheng proof generation uses hemera for Fiat-Shamir | algebraic-fiat-shamir: 8.7× fewer hemera calls |
+| 3. completeness | NMT tree hashing for completeness proofs | batched-proving: 400× for N=1000 NMT updates per block |
+
+hemera-3's endgame: hemera becomes the **trust anchor** (content identity, private records, initial seed) while polynomial commitments handle the high-volume work (proof binding, state verification). this mirrors structural sync's architecture — hemera secures the root, algebra handles the scale.
+
+key composition: folded-sponge + proof-carrying = one continuous fold. hemera absorption is folded into the accumulator (30 field ops per block) instead of computed independently. the sponge fold IS the proof fold.
+
 ## cross-repo dependencies
 
 | zheng-2 proposal | hemera interaction |
 |------------------|--------------------|
 | [[algebraic-extraction]] | eliminates Merkle paths — hemera tree hashing reduced |
 | [[folding-first]] | fold hemera calls during proof-carrying execution |
-| [[proof-carrying]] | each hemera permutation = one fold step |
+| [[proof-carrying]] | each hemera permutation = one fold step; folded-sponge composes naturally |
 | [[brakedown-pcs]] | Merkle-free PCS eliminates hemera tree overhead entirely |
+
+| bbg proposal | hemera interaction |
+|--------------|-------------------|
+| [[algebraic-nmt]] | NMT → polynomial reduces hemera calls from 144K to 0 per block |
+| [[signal-first]] | signals are content-addressed via hemera; hemera identity IS signal identity |
 
 ## lifecycle
 
