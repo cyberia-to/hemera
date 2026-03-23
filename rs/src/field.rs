@@ -1,3 +1,8 @@
+// ---
+// tags: hemera, rust
+// crystal-type: source
+// crystal-domain: comp
+// ---
 //! Goldilocks prime field (p = 2^64 - 2^32 + 1).
 //!
 //! Minimal implementation covering the operations hemera needs:

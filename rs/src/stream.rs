@@ -1,3 +1,8 @@
+// ---
+// tags: hemera, rust
+// crystal-type: source
+// crystal-domain: comp
+// ---
 //! Verified streaming encode and decode.
 //!
 //! Provides content-verified streaming using the hemera hash tree.

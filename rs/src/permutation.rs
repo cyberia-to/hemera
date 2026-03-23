@@ -1,3 +1,8 @@
+// ---
+// tags: hemera, rust
+// crystal-type: source
+// crystal-domain: comp
+// ---
 //! Poseidon2 permutation for Goldilocks t=16.
 //!
 //! Hemera parameters: R_F=8 (4+4), R_P=64, d=7.

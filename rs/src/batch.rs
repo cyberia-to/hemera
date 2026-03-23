@@ -1,3 +1,8 @@
+// ---
+// tags: hemera, rust
+// crystal-type: source
+// crystal-domain: comp
+// ---
 //! Batch inclusion proofs for Hemera Merkle trees.
 //!
 //! A batch proof for k leaves deduplicates shared sibling hashes,

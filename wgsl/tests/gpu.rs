@@ -1,3 +1,8 @@
+// ---
+// tags: hemera, rust
+// crystal-type: source
+// crystal-domain: comp
+// ---
 use cyber_hemera::field::Goldilocks;
 use cyber_hemera::permutation::permute;
 use cyber_hemera::sparse::SparseTree;

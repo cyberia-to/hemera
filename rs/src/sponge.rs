@@ -1,3 +1,8 @@
+// ---
+// tags: hemera, rust
+// crystal-type: source
+// crystal-domain: comp
+// ---
 use core::fmt;
 
 use crate::encoding::{bytes_to_rate_block, hash_to_bytes};

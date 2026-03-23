@@ -1,3 +1,8 @@
+// ---
+// tags: hemera, rust
+// crystal-type: source
+// crystal-domain: comp
+// ---
 //! Test that hemera-rs matches the pinned test vectors in vectors/hemera.json.
 
 use cyber_hemera::{hash, derive_key, tree::root_hash};

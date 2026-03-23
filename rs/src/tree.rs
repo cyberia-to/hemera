@@ -1,3 +1,8 @@
+// ---
+// tags: hemera, rust
+// crystal-type: source
+// crystal-domain: comp
+// ---
 //! Hash tree construction.
 //!
 //! `hash_leaf` hashes leaf data into a chaining value.

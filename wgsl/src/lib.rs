@@ -1,3 +1,8 @@
+// ---
+// tags: hemera, rust
+// crystal-type: source
+// crystal-domain: comp
+// ---
 //! GPU backend for Hemera via wgpu compute shaders.
 //!
 //! Provides GPU-accelerated batch operations:

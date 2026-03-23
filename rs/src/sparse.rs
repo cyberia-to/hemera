@@ -1,3 +1,8 @@
+// ---
+// tags: hemera, rust
+// crystal-type: source
+// crystal-domain: comp
+// ---
 //! Sparse Merkle tree: authenticated key-value storage.
 //!
 //! A sparse tree has a fixed depth (matching key length in bits) and

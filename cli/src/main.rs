@@ -1,3 +1,8 @@
+// ---
+// tags: hemera, rust
+// crystal-type: source
+// crystal-domain: comp
+// ---
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::path::Path;

@@ -1,3 +1,8 @@
+// ---
+// tags: hemera, rust
+// crystal-type: source
+// crystal-domain: comp
+// ---
 //! Pre-computed Hemera round constants.
 //!
 //! 192 Goldilocks field elements self-bootstrapped from genesis seed

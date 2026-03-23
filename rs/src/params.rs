@@ -1,3 +1,8 @@
+// ---
+// tags: hemera, rust
+// crystal-type: source
+// crystal-domain: comp
+// ---
 //! Hemera — Poseidon2 parameter set over the Goldilocks field.
 //!
 //! Single source of truth for every constant in the protocol.

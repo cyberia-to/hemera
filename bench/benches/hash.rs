@@ -1,3 +1,8 @@
+// ---
+// tags: hemera, rust
+// crystal-type: source
+// crystal-domain: comp
+// ---
 use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
 
 fn bench_hash(c: &mut Criterion) {

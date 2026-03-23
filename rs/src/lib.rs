@@ -1,3 +1,8 @@
+// ---
+// tags: hemera, rust
+// crystal-type: source
+// crystal-domain: comp
+// ---
 //! Poseidon2 hash over the Goldilocks field (Hemera parameters).
 //!
 //! # WARNING

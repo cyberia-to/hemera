@@ -1,3 +1,8 @@
+# ---
+# tags: hemera, config
+# crystal-type: source
+# crystal-domain: comp
+# ---
 [package]
 name = "hemera-cli"
 version = "0.2.0"

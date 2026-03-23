@@ -1,3 +1,8 @@
+// ---
+// tags: hemera, rust
+// crystal-type: source
+// crystal-domain: comp
+// ---
 //! Self-bootstrapping round constant generation.
 //!
 //! Hemera derives its own round constants from a genesis seed through
