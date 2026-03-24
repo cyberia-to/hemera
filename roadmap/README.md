@@ -2,22 +2,24 @@
 
 hemera is specified: x⁻¹ partial S-box, 16 partial rounds, 32-byte output, ~736 constraints per permutation. these proposals are OPTIMIZATIONS on top of the current spec — reducing constraint count further and shifting hemera's role from "hash for everything" to "trust anchor."
 
-## implemented (in current spec)
+## status: in reference = proposal is now the canonical spec
 
-| proposal | what it did |
-|----------|-------------|
-| [[inversion-sbox]] | x⁻¹ partial S-box, 16 rounds (was x⁷, 64 rounds): 36% fewer constraints, 2^1046 algebraic degree |
-| [[compact-output]] | 32-byte output (was 64): 2× tree speed, single-perm binary nodes |
+## core (implemented in reference)
+
+| proposal | in reference? | what it did |
+|----------|--------------|-------------|
+| [[inversion-sbox]] | **yes** → reference/permutation.md | x⁻¹ S-box, 16 partial rounds, 2^1046 algebraic degree |
+| [[compact-output]] | **yes** → reference/sponge.md, reference/tree.md, reference/api.md | 32-byte output, 1-perm binary nodes |
 
 ## optimization proposals
 
-| proposal | status | target |
-|----------|--------|--------|
-| [[batched-proving]] | draft | N hemera calls → 1 sumcheck: 400× for N=1000 |
-| [[partial-round-collapse]] | draft | precompute linear evolution: 4× prover wall-clock |
-| [[constraint-free-mds]] | draft | absorb MDS into CCS wiring: 26% fewer constraints (~544) |
-| [[folded-sponge]] | draft | fold multi-block absorption: 7× for 10-block inputs |
-| [[algebraic-fiat-shamir]] | draft | algebraic challenge derivation: 8.7× fewer hemera calls |
+| proposal | in reference? | target |
+|----------|--------------|--------|
+| [[batched-proving]] | no | N hemera calls → 1 sumcheck: 400× for N=1000 |
+| [[partial-round-collapse]] | no | precompute linear evolution: 4× prover wall-clock |
+| [[constraint-free-mds]] | no | absorb MDS into CCS wiring: 26% fewer constraints (~544) |
+| [[folded-sponge]] | no | fold multi-block absorption: 7× for 10-block inputs |
+| [[algebraic-fiat-shamir]] | no | algebraic challenge derivation: 8.7× fewer hemera calls |
 
 ## targets
 
