@@ -158,7 +158,7 @@ M_I is cheaper to compute than M_E (16 multiplications + 1 sum vs full matrix mu
 
 ## round constants
 
-192 Goldilocks field elements, partitioned as:
+144 Goldilocks field elements, partitioned as:
 
 ```
 RC_FULL[128]    — 8 full rounds × 16 elements per round

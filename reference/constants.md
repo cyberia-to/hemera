@@ -13,17 +13,17 @@ density: 0
 
 # round constants
 
-192 Goldilocks field elements, self-bootstrapped from genesis seed `[0x63, 0x79, 0x62, 0x65, 0x72]` via Hemera₀. see [[bootstrap]] for the derivation procedure.
+144 Goldilocks field elements, self-bootstrapped from genesis seed `[0x63, 0x79, 0x62, 0x65, 0x72]` via Hemera₀. see [[bootstrap]] for the derivation procedure.
 
 ## layout
 
 ```
 RC_FULL[128]     — 8 full rounds × 16 elements per round
-RC_PARTIAL[64]   — 64 partial rounds × 1 element per round
-total: 192
+RC_PARTIAL[16]   — 16 partial rounds × 1 element per round
+total: 144
 ```
 
-the permutation consumes constants in this order: 4 initial full rounds (64 elements), 64 partial rounds (64 elements), 4 terminal full rounds (64 elements). see [[permutation]] for indexing.
+the permutation consumes constants in this order: 4 initial full rounds (64 elements), 16 partial rounds (16 elements), 4 terminal full rounds (64 elements). see [[permutation]] for indexing.
 
 ## full round constants (RC_FULL)
 
@@ -106,20 +106,8 @@ the permutation consumes constants in this order: 4 initial full rounds (64 elem
  4: 0x390818DE0BB16A9C    5: 0x6786D9CF32F70018    6: 0xD718F771C0BDCBC1    7: 0xE90565D5D30F4ECA
  8: 0x0FEABF48AAC74E6A    9: 0x65E5626024EBCAE3   10: 0x7DB692749E936229   11: 0xFCDC183BF5BD57B5
 12: 0x6D057F8998AB265A   13: 0x76705CB4AE3F709A   14: 0xD2CAD0EDA18FD3D8   15: 0xE93D7D6EB7C9AF97
-16: 0x233DA3D2EC2B80D5   17: 0x6D178C93326CC6B6   18: 0x1C20468A4D8B7402   19: 0xB671C139E8B6E2BA
-20: 0x7ECA2BCC79071CCA   21: 0xC2FC84B3EFC56511   22: 0x7580C24D979CA785   23: 0xACD9FF6657F2F3A7
-24: 0x29EE050F1AECCD3E   25: 0xA0A0C535D56660F7   26: 0x1E1C7288266EFBC6   27: 0x3657F0AAE405CAF8
-28: 0xC5B32A96AB3C183E   29: 0x1C8544088CF67554   30: 0x4DA438FF08852EFA   31: 0x67F51030C8A0D0AD
-32: 0x3C751159A6FAECC4   33: 0xC5C96984382FE04C   34: 0x0D03479BC357608F   35: 0xF60676EFFEE14C7E
-36: 0x0FE6DCA69075F651   37: 0x51E1D7E129446BC7   38: 0x83ADC0E21710FAF2   39: 0x4BCB628B56BF16D6
-40: 0x31F1BE11F970AEE0   41: 0x6DBC366A88EB038C   42: 0xACB8739854C398FC   43: 0xC5B435AB81CCE187
-44: 0x2BEEC5F7778B82A0   45: 0x8828C1377245EFA2   46: 0xF93D62C62CA251D9   47: 0x7D692B4430D2084D
-48: 0x6F32DA6982A590FE   49: 0x07D29ED4B3D5D546   50: 0x62A4F6330E551702   51: 0x90222BD8553246FA
-52: 0x6029C89F65F3E698   53: 0xE00D2F88EF558834   54: 0xF70A3203E3423B53   55: 0x2AE38946987AFC5D
-56: 0x533B661DC0B5ED5A   57: 0xE603FF406197C4AB   58: 0x0A0D305612C952EC   59: 0x2787565AECFC7757
-60: 0x19E0568BC04A175C   61: 0xE8396B888F868B3B   62: 0x5FC8A9C367AEF0EB   63: 0x347B267CA3DD22AD
 ```
 
 ## verification
 
-all 192 values are canonical Goldilocks elements (< p = 0xFFFFFFFF00000001). any implementation can verify these constants by running the bootstrap procedure independently — same seed, same Hemera₀, same output.
+all 144 values are canonical Goldilocks elements (< p = 0xFFFFFFFF00000001). any implementation can verify these constants by running the bootstrap procedure independently — same seed, same Hemera₀, same output.

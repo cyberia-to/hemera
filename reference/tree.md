@@ -27,15 +27,15 @@ Two-pass construction separates content hashing from structural binding:
 Pass 1 — content hashing:
     hasher ← Hasher::new()              (plain sponge, domain_tag = 0x00)
     hasher.absorb(data)
-    base_hash ← hasher.finalize()       (64-byte sponge output)
+    base_hash ← hasher.finalize()       (32-byte sponge output)
 
 Pass 2 — structural binding:
     state ← [0; 16]
-    state[0..8] ← bytes_to_elements(base_hash)    (8 Goldilocks elements)
+    state[0..4] ← bytes_to_elements(base_hash)    (4 Goldilocks elements)
     state[8]    ← counter                          (chunk position, 0-based)
     state[9]    ← FLAG_CHUNK | (FLAG_ROOT if is_root)
     state ← permute(state)
-    output ← elements_to_bytes(state[0..8])        (64-byte chaining value)
+    output ← elements_to_bytes(state[0..4])        (32-byte chaining value)
 ```
 
 Two passes exist for three reasons. The sponge remains a pure hash — no tree metadata contaminates its input stream. Tree logic is layered on top via the capacity region. The `base_hash` is cacheable: if a chunk appears at multiple positions, the expensive 74-absorption pass runs once and the cheap 1-permutation binding runs per position.
@@ -50,20 +50,17 @@ Cost: N absorptions + 1 permutation. At 4096 bytes: 74 + 1 = 75 permutations per
 state ← [0; 16]
 state[9] ← FLAG_PARENT | (FLAG_ROOT if is_root)
 
-// Absorb left child (8 elements = one full rate block)
-state[0..8] += bytes_to_elements(left)     (field addition, element-wise)
+// Absorb both children (4 + 4 = 8 elements = one full rate block)
+state[0..4] += bytes_to_elements(left)     (field addition, element-wise)
+state[4..8] += bytes_to_elements(right)    (field addition, element-wise)
 state ← permute(state)
 
-// Absorb right child (8 elements = one full rate block)
-state[0..8] += bytes_to_elements(right)    (field addition, element-wise)
-state ← permute(state)
-
-output ← elements_to_bytes(state[0..8])    (64-byte chaining value)
+output ← elements_to_bytes(state[0..4])    (32-byte chaining value)
 ```
 
-No padding needed — inputs are always exactly two 64-byte hashes. PARENT flag lives in the capacity region. Order matters: `hash_node(A, B) ≠ hash_node(B, A)`.
+No padding needed — inputs are always exactly two 32-byte hashes (4 + 4 = 8 elements = one rate block). PARENT flag lives in the capacity region. Order matters: `hash_node(A, B) ≠ hash_node(B, A)`.
 
-Cost: 2 permutations per internal node.
+Cost: 1 permutation per internal node.
 
 ## Namespace-Aware Parent: hash_node_nmt(left, right, ns_min, ns_max, is_root) → Hash
 
@@ -78,7 +75,7 @@ When `ns_min = ns_max = 0`, reduces to `hash_node`. Only NMT uses non-zero names
 
 Verifier checks: `parent.ns_min ≤ left.ns_max < right.ns_min ≤ parent.ns_max` (for sorted NMT).
 
-Cost: 2 permutations (same as `hash_node`).
+Cost: 1 permutation (same as `hash_node`).
 
 ## Tree Shape
 
@@ -141,8 +138,8 @@ parent01 = hash_node(L0, L1, is_root=false)     flags = PARENT       = 0x02
 root     = hash_node(parent01, L2, is_root=true) flags = PARENT|ROOT  = 0x03
 
 Cost:  3 leaves  × 75 = 225 permutations
-       2 parents × 2  =   4 permutations
-       total           = 229 permutations
+       2 parents × 1  =   2 permutations
+       total           = 227 permutations
 ```
 
 ## Performance
@@ -151,13 +148,13 @@ Cost breakdown for a file of size S bytes:
 
 ```
 Leaves:   ⌈S / 4096⌉ chunks × 75 = N × 75 permutations
-Parents:  (N − 1) internal nodes × 2 = 2(N − 1) permutations
-Total:    75N + 2(N − 1) ≈ 77N permutations
+Parents:  (N − 1) internal nodes × 1 = (N − 1) permutations
+Total:    75N + (N − 1) ≈ 76N permutations
 ```
 
-The tree overhead is negligible: 2 permutations per parent vs 75 per leaf. Internal nodes add less than 3% to the total cost.
+The tree overhead is negligible: 1 permutation per parent vs 75 per leaf. Internal nodes add less than 2% to the total cost.
 
-Incremental update: modifying one chunk requires rehashing that leaf (75 permutations) plus the path from leaf to root (⌈log₂(N)⌉ nodes × 2 permutations each). For a 1 GB file (262,144 chunks): 75 + 2 × 18 = 111 permutations to update any single chunk.
+Incremental update: modifying one chunk requires rehashing that leaf (75 permutations) plus the path from leaf to root (⌈log₂(N)⌉ nodes × 1 permutation each). For a 1 GB file (262,144 chunks): 75 + 18 = 93 permutations to update any single chunk.
 
 ## The Universal Tree Primitive
 
@@ -191,12 +188,12 @@ All four tree types share the same internal node construction. The content tree 
 
 Constraint cost in a STARK circuit:
 
-| Operation | Permutations | Constraints (≈1200/perm) |
+| Operation | Permutations | Constraints (≈736/perm) |
 |---|---|---|
-| hash_leaf (4 KB chunk) | 75 | 90,000 |
-| hash_node (internal) | 2 | 2,400 |
-| Merkle proof (depth d) | 2d | 2,400d |
-| 1 GB file tree root | ≈20M | ≈24B |
+| hash_leaf (4 KB chunk) | 75 | 55,200 |
+| hash_node (internal) | 1 | 736 |
+| Merkle proof (depth d) | d | 736d |
+| 1 GB file tree root | ≈20M | ≈15B |
 
 One primitive, one circuit, one security analysis. Every tree in the stack benefits from the same audit, the same optimization, and the same hardware acceleration.
 
@@ -312,18 +309,18 @@ For a tree of depth d with k queried leaves:
 
 Worst case (all leaves maximally spread): m = k × d − (k − 1) siblings. Typical case with locality: m ≈ d + k.
 
-At 64 bytes per hash, proving 32 contiguous chunks from a 2^20-leaf tree: individual proofs = 32 × 20 × 64 = 40,960 bytes. Batch proof = (20 + 31) × 64 = 3,264 bytes. 12.5× reduction.
+At 32 bytes per hash, proving 32 contiguous chunks from a 2^20-leaf tree: individual proofs = 32 × 20 × 32 = 20,480 bytes. Batch proof = (20 + 31) × 32 = 1,632 bytes. 12.5× reduction.
 
 ### Verification Cost
 
 | Operation | Individual (k proofs) | Batch |
 |---|---|---|
 | `hash_node` calls | k × d | N_internal (nodes on paths, deduplicated) |
-| Permutations | 2kd | 2 × N_internal |
+| Permutations | kd | N_internal |
 
 For k contiguous leaves: N_internal ≈ d + k − 1. The batch verifier calls `hash_node` once per unique internal node instead of once per proof per level.
 
-In a STARK circuit: batch verification of 32 contiguous chunks costs (20 + 31) × 2 × 1,200 = 122,400 constraints. Individual verification costs 32 × 20 × 2 × 1,200 = 1,536,000 constraints. Same 12.5× reduction in proving cost.
+In a STARK circuit: batch verification of 32 contiguous chunks costs (20 + 31) × 736 = 37,536 constraints. Individual verification costs 32 × 20 × 736 = 470,720 constraints. Same 12.5× reduction in proving cost.
 
 ### API
 
@@ -354,7 +351,7 @@ Precomputed table (DEPTH entries):
     EMPTY[DEPTH] = root of a completely empty tree
 ```
 
-The sentinel table has DEPTH entries (e.g. 256 entries for a 256-bit keyspace). Each entry is 64 bytes. Total: 16 KB for a 256-deep tree. Computed once at initialization, reused across all sparse tree operations.
+The sentinel table has DEPTH entries (e.g. 256 entries for a 256-bit keyspace). Each entry is 32 bytes. Total: 8 KB for a 256-deep tree. Computed once at initialization, reused across all sparse tree operations.
 
 ### Key Path
 
@@ -384,11 +381,11 @@ sparse_hash_leaf(key, value) → Hash:
     base_hash ← hasher.finalize()
 
     state ← [0; 16]
-    state[0..8] ← bytes_to_elements(base_hash)
+    state[0..4] ← bytes_to_elements(base_hash)
     state[8]    ← 0                               // counter = 0 (position encoded in tree path)
     state[9]    ← FLAG_CHUNK
     state ← permute(state)
-    output ← elements_to_bytes(state[0..8])
+    output ← elements_to_bytes(state[0..4])
 ```
 
 The key is committed in the leaf hash (defense in depth alongside the tree path binding). Counter is 0 because position is encoded structurally — the key bits determine the path from root to leaf.
@@ -439,7 +436,7 @@ insert(tree, key, value):
 
 `sibling_hash` flips the bit at position `bit_pos` in the key, masks to the prefix length for that level, and looks up the node hash (returning the sentinel if absent).
 
-Cost: depth × 2 permutations (one `hash_node` per level) + 1 `sparse_hash_leaf`. For depth 256: 512 + 75 permutations per insert.
+Cost: depth × 1 permutation (one `hash_node` per level) + 1 `sparse_hash_leaf`. For depth 256: 256 + 75 permutations per insert.
 
 ### Delete
 
@@ -523,7 +520,7 @@ CompressedSparseProof {
 }
 ```
 
-Compressed proof size: 32 bytes (key) + 32 bytes (bitmask) + popcount × 64 bytes. For a tree with n = 1,000 leaves, a typical path has ~10 non-sentinel siblings and ~246 sentinel siblings. Compressed proof: 64 + 10 × 64 = 704 bytes instead of 16,384 bytes (uncompressed). 23× reduction.
+Compressed proof size: 32 bytes (key) + 32 bytes (bitmask) + popcount × 32 bytes. For a tree with n = 1,000 leaves, a typical path has ~10 non-sentinel siblings and ~246 sentinel siblings. Compressed proof: 64 + 10 × 32 = 384 bytes instead of 8,192 bytes (uncompressed). 21× reduction.
 
 ### API
 

@@ -38,8 +38,8 @@ Output uses the full canonical u64 representation: 8 bytes per element, little-e
 ```
 element 0 → bytes[0..8]     (u64 to LE bytes)
 element 1 → bytes[8..16]
-...
-element 7 → bytes[56..64]   (= 64-byte hash output)
+element 2 → bytes[16..24]
+element 3 → bytes[24..32]   (= 32-byte hash output)
 ```
 
 The asymmetry — 7 bytes in, 8 bytes out — is deliberate. Input encoding must be injective for collision resistance. Output encoding must preserve full field element fidelity for algebraic composability. These are different constraints with different optima.
@@ -57,10 +57,10 @@ The padding is rate-aligned: every message, regardless of length, ends with exac
 
 ## Output Format
 
-A Hemera hash is 64 bytes. Nothing more. No version prefix, no mode byte, no escape hatch. The raw output of 8 Goldilocks field elements in little-endian canonical form IS the particle address.
+A Hemera hash is 32 bytes. Nothing more. No version prefix, no mode byte, no escape hatch. The raw output of 4 Goldilocks field elements in little-endian canonical form IS the particle address.
 
 ```
-Hemera output = 8 × 8 bytes = 64 bytes (little-endian, canonical range [0, p))
+Hemera output = 4 × 8 bytes = 32 bytes (little-endian, canonical range [0, p))
 ```
 
 If Hemera is ever broken, the entire graph rehashes. Storage proofs make this possible. Versioning headers do not save you — they waste bytes multiplied by 10²⁴ cyberlinks.

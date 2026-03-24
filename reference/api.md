@@ -22,9 +22,9 @@ pub struct Hasher { /* sponge state + buffer */ }
 
 impl Hasher {
     pub fn new() -> Self;                           // domain_tag = 0x00
-    pub fn new_keyed(key: &[u8; 64]) -> Self;       // domain_tag = 0x01
+    pub fn new_keyed(key: &[u8; 32]) -> Self;       // domain_tag = 0x01
     pub fn update(&mut self, data: &[u8]) -> &mut Self;
-    pub fn finalize(&self) -> Hash;                 // squeeze 8 elements = 64 bytes
+    pub fn finalize(&self) -> Hash;                 // squeeze 4 elements = 32 bytes
     pub fn finalize_xof(&self) -> OutputReader;     // extendable output
 }
 
@@ -60,11 +60,11 @@ impl SparseTree {
 
 // ── Convenience ──────────────────────────────────────────────
 pub fn hash(data: &[u8]) -> Hash;
-pub fn keyed_hash(key: &[u8; 64], data: &[u8]) -> Hash;
+pub fn keyed_hash(key: &[u8; 32], data: &[u8]) -> Hash;
 
 // ── Key derivation ────────────────────────────────────────────
-pub fn derive_key(context: &str, key_material: &[u8]) -> [u8; 64];
+pub fn derive_key(context: &str, key_material: &[u8]) -> [u8; 32];
 
 // ── Output type ───────────────────────────────────────────────
-pub struct Hash([u8; 64]);  // 8 Goldilocks elements, LE canonical
+pub struct Hash([u8; 32]);  // 4 Goldilocks elements, LE canonical
 ```
