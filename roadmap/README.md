@@ -21,6 +21,13 @@ hemera is specified: x⁻¹ partial S-box, 16 partial rounds, 32-byte output, ~7
 
 batched-proving and folded-sponge removed — polynomial nouns reduce hemera to ~3 calls per execution, making batch/fold optimizations unnecessary.
 
+## scope expansion proposals
+
+| proposal | in reference? | target |
+|----------|--------------|--------|
+| [[erasure-coding]] | no | Reed-Solomon erasure coding over Goldilocks: same field, same NTT, data availability codec |
+| [[capacity-typing]] | no | type tags in reserved capacity slot state[14]: type-integrated hashing, type confusion prevention |
+
 ## targets
 
 ```
@@ -31,10 +38,12 @@ FS calls (20-round):    20 × 736 = 14,720    1 × 736 + 19 × 50 = 1,686
 
 ## endgame role
 
-hemera becomes the **trust anchor**: content identity, private records, initial seed, Fiat-Shamir binding. polynomial commitments ([[Brakedown]]) handle the high-volume work — proof binding and state verification with ZERO hemera calls.
+hemera becomes the **identity layer**: content identity (hash), content typing (capacity), content availability (erasure). polynomial commitments ([[Brakedown]]) handle the high-volume proof work — proof binding and state verification with ZERO hemera calls.
 
 ```
 always hemera:     H(particle) identity, H(cyberlink), Fiat-Shamir seed
+                   type-integrated hashing (capacity slot → type IS identity)
+                   erasure encoding (RS over Goldilocks → availability codec)
 algebraic:         proof challenges (algebraic FS), state verification (polynomial)
 eliminated:        tree hashing (Brakedown is Merkle-free), DAS proofs (PCS openings)
 ```
