@@ -15,11 +15,11 @@ hemera is specified: x⁻¹ partial S-box, 16 partial rounds, 32-byte output, ~7
 
 | proposal | in reference? | target |
 |----------|--------------|--------|
-| [[batched-proving]] | no | N hemera calls → 1 sumcheck: 400× for N=1000 |
 | [[partial-round-collapse]] | no | precompute linear evolution: 4× prover wall-clock |
 | [[constraint-free-mds]] | no | absorb MDS into CCS wiring: 26% fewer constraints (~544) |
-| [[folded-sponge]] | no | fold multi-block absorption: 7× for 10-block inputs |
 | [[algebraic-fiat-shamir]] | no | algebraic challenge derivation: 8.7× fewer hemera calls |
+
+batched-proving and folded-sponge removed — polynomial nouns reduce hemera to ~3 calls per execution, making batch/fold optimizations unnecessary.
 
 ## targets
 
@@ -27,8 +27,6 @@ hemera is specified: x⁻¹ partial S-box, 16 partial rounds, 32-byte output, ~7
                         hemera (current)      + optimizations (all)
 constraints/perm:       ~736                  ~544 (wired MDS)
 FS calls (20-round):    20 × 736 = 14,720    1 × 736 + 19 × 50 = 1,686
-batch (N=1000):         N × 736 = 736K       736 + O(N)
-10-block sponge:        10 × 736 = 7,360     736 + 300 = 1,036
 ```
 
 ## endgame role
@@ -41,14 +39,13 @@ algebraic:         proof challenges (algebraic FS), state verification (polynomi
 eliminated:        tree hashing (Brakedown is Merkle-free), DAS proofs (PCS openings)
 ```
 
-key composition: folded-sponge + [[proof-carrying computation|proof-carrying]] = one continuous fold. hemera absorption is folded into the [[HyperNova]] accumulator (~30 field ops per block) instead of computed independently.
+key composition: with ~3 hemera calls per execution, each permutation folds into the [[HyperNova]] accumulator (~30 field ops) during [[proof-carrying computation|proof-carrying]] execution.
 
 ## cross-repo dependencies
 
 | zheng proposal | hemera interaction |
 |------------------|--------------------|
-| [[folding-first]] | fold hemera calls during proof-carrying execution |
-| [[proof-carrying]] | each hemera permutation = one fold step |
+| [[proof-carrying]] | each hemera permutation (~3 per execution) = one fold step |
 | [[brakedown-pcs]] | Merkle-free PCS eliminates hemera tree overhead entirely |
 
 | bbg proposal | hemera interaction |
