@@ -45,7 +45,7 @@ always hemera:     H(particle) identity, H(cyberlink), Fiat-Shamir seed
                    type-integrated hashing (capacity slot → type IS identity)
                    erasure encoding (RS over Goldilocks → availability codec)
 algebraic:         proof challenges (algebraic FS), state verification (polynomial)
-eliminated:        tree hashing (Brakedown is Merkle-free), DAS proofs (PCS openings)
+eliminated:        tree hashing (Brakedown is Merkle-free), DAS proofs (Lens openings)
 ```
 
 key composition: with ~3 hemera calls per execution, each permutation folds into the [[HyperNova]] accumulator (~30 field ops) during [[proof-carrying computation|proof-carrying]] execution.
@@ -55,7 +55,7 @@ key composition: with ~3 hemera calls per execution, each permutation folds into
 | zheng proposal | hemera interaction |
 |------------------|--------------------|
 | [[proof-carrying]] | each hemera permutation (~3 per execution) = one fold step |
-| [[brakedown-pcs]] | Merkle-free PCS eliminates hemera tree overhead entirely |
+| [[brakedown-pcs]] | Merkle-free Lens eliminates hemera tree overhead entirely |
 
 | bbg proposal | hemera interaction |
 |--------------|-------------------|

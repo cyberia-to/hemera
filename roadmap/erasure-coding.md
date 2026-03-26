@@ -6,7 +6,7 @@ crystal-domain: crypto
 ---
 # erasure coding over Goldilocks
 
-Reed-Solomon erasure coding as a hemera module. same field, same NTT, same pipeline — encode data for availability, commit via hemera, verify via PCS.
+Reed-Solomon erasure coding as a hemera module. same field, same NTT, same pipeline — encode data for availability, commit via hemera, verify via Lens.
 
 ## motivation
 
@@ -45,9 +45,9 @@ rs_encode_2d(data: &[F_p], sqrt_k: usize) → Grid2D
   RS-extend columns: √k → 2√k
   result: 2√k × 2√k grid (4× original size)
 
-rs_sample_verify(grid_commitment: H, row: usize, col: usize, value: F_p, proof: PCSOpening) → bool
+rs_sample_verify(grid_commitment: H, row: usize, col: usize, value: F_p, proof: LensOpening) → bool
   verify single cell against grid commitment
-  uses PCS opening (from zheng) — not hemera internal
+  uses Lens opening (from zheng) — not hemera internal
 ```
 
 ### fraud proof generation
@@ -74,7 +74,7 @@ rs_fraud_proof(row_commitment: H, cells: &[(usize, F_p)], k: usize) → Option<F
 ## what stays outside hemera
 
 - **DAS sampling protocol** (which cells to sample, how many, confidence levels) → bbg
-- **PCS opening proofs** for grid cells → zheng
+- **Lens opening proofs** for grid cells → zheng
 - **network-level chunk distribution** → radio
 - **fraud proof broadcasting** → radio
 

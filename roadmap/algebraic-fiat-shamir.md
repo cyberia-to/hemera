@@ -27,7 +27,7 @@ this is a significant fraction of the total recursive verification cost (~50,000
 
 ## the construction
 
-the zheng-2 IOP (SuperSpartan + sumcheck) commits round polynomials via PCS (WHIR/Brakedown). the commitment is binding. an algebraic challenge can be derived from the commitment itself:
+the zheng-2 IOP (SuperSpartan + sumcheck) commits round polynomials via Lens (WHIR/Brakedown). the commitment is binding. an algebraic challenge can be derived from the commitment itself:
 
 ```
 initial seed: hemera(instance)                    ~736 constraints (one-time)
@@ -48,7 +48,7 @@ improvement:            8.7×
 ## security argument
 
 algebraic Fiat-Shamir requires:
-1. **binding commitment**: WHIR/Brakedown are computationally binding PCS — the prover cannot change the committed polynomial after seeing the challenge
+1. **binding commitment**: WHIR/Brakedown are computationally binding Lens schemes — the prover cannot change the committed polynomial after seeing the challenge
 2. **unpredictable evaluation point**: derived from the hemera-seeded random oracle — the prover cannot predict seed_i before committing
 3. **algebraic independence**: evaluating a committed polynomial at an unpredictable point produces an unpredictable value (Schwartz-Zippel over Goldilocks: probability of collision ≤ degree / p)
 

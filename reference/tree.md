@@ -156,22 +156,22 @@ The tree overhead is negligible: 1 permutation per parent vs 75 per leaf. Intern
 
 Incremental update: modifying one chunk requires rehashing that leaf (75 permutations) plus the path from leaf to root (⌈log₂(N)⌉ nodes × 1 permutation each). For a 1 GB file (262,144 chunks): 75 + 18 = 93 permutations to update any single chunk.
 
-## Polynomial Noun Identity (PCS model)
+## Polynomial Noun Identity (Lens model)
 
-Noun identity uses PCS commitment wrapped by hemera domain separation, not recursive tree hashing. The identity of a polynomial noun is:
+Noun identity uses Lens commitment wrapped by hemera domain separation, not recursive tree hashing. The identity of a polynomial noun is:
 
 ```
-noun_id = hemera(PCS.commit(noun) ‖ tag)
+noun_id = hemera(Lens.commit(noun) ‖ tag)
 
 where:
-  PCS.commit(noun) = Brakedown commitment over the noun's content polynomial
-  tag              = domain separator (e.g., PARTICLE, SIGNAL, CARD)
-  hemera()         = one sponge call (~736 constraints)
+  Lens.commit(noun) = Brakedown commitment over the noun's content polynomial
+  tag               = domain separator (e.g., PARTICLE, SIGNAL, CARD)
+  hemera()          = one sponge call (~736 constraints)
 ```
 
-This replaces the recursive `hemera_node(H(left), H(right))` construction for noun addressing. The PCS commitment captures the entire noun in one algebraic object. Hemera wraps it with a domain tag, binding the commitment to its semantic role. Cost: one PCS commit (bulk polynomial work) + one hemera call (domain binding). No tree traversal.
+This replaces the recursive `hemera_node(H(left), H(right))` construction for noun addressing. The Lens commitment captures the entire noun in one algebraic object. Hemera wraps it with a domain tag, binding the commitment to its semantic role. Cost: one Lens commit (bulk polynomial work) + one hemera call (domain binding). No tree traversal.
 
-Accessing any byte range within a polynomial noun is a PCS opening: `PCS.open(commitment, position)` producing ~75 bytes of proof. This gives O(1) random access to noun content without tree path walks.
+Accessing any byte range within a polynomial noun is a Lens opening: `Lens.open(commitment, position)` producing ~75 bytes of proof. This gives O(1) random access to noun content without tree path walks.
 
 Hemera tree hashing (the recursive construction below) remains available for legacy compatibility and cold storage NMT layout where sequential disk access patterns favor tree structure over polynomial evaluation.
 
