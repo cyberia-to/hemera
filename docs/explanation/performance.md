@@ -18,7 +18,7 @@ density: 0
 | Metric                       | Hemera | Plonky3 Goldilocks t=12 | Ratio |
 |------------------------------|--------|-------------------------|-------|
 | State width                  | 16 elements | 12 elements        | 1.33x |
-| Total rounds                 | 72          | 30                 | 2.40x |
+| Total rounds                 | 24          | 30                 | 0.80x |
 | Permutation field muls       | ~3,648      | ~2,050             | 1.78x |
 | Input bytes per permutation  | 56          | 56                 | 1.00x |
 | Estimated hash rate          | ~53 MB/s    | ~86 MB/s           | 0.62x |
@@ -36,7 +36,7 @@ difference.
 STARK trace dimensions change from Plonky3 Goldilocks to Hemera:
 
 - Trace width: 12 -> 16 columns (~1.33x)
-- Trace length: 30 -> 72 rows (~2.40x)
+- Trace length: 30 -> 24 rows (~0.80x)
 - Combined: ~3.2x proving cost per hash
 
 System-level impact depends on what fraction of total proving time
@@ -51,7 +51,7 @@ margin that justifies this cost at both operating points.
 At scale: 10²⁴ cyberlinks with 1% annual update rate.
 
 - 10^24 x 0.01 / (365.25 x 86,400) = ~317B cyberlinks/sec required
-- Each particle = 64 bytes = ~1 permutation
+- Each particle = 32 bytes = ~1 permutation
 - Single core at ~53 MB/s = ~946,000 permutations/sec
 - Single core handles steady-state with ~3x headroom
 

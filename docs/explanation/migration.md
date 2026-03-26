@@ -16,7 +16,7 @@ density: 0
 ## No Algorithm Agility
 
 Hemera carries no version byte and provides no escape hatch. Every
-particle is exactly 64 bytes — no header, no tag, no room for a
+particle is exactly 32 bytes — no header, no tag, no room for a
 format indicator.
 
 If the hash function is broken, the response is a full graph rehash.
@@ -62,7 +62,7 @@ launches.
 
 At 10^24 cyberlinks distributed across 10^6 nodes: each node holds
 ~10^18 cyberlinks. At ~53 MB/s per core (single-threaded), rehashing
-10^18 x 64 bytes = 64 EB takes significant time per node. With
+10^18 x 32 bytes = 32 EB takes significant time per node. With
 overhead for tree reconstruction, I/O, and coordination, estimated
 wall-clock time per node is ~17 hours. The entire network rehashes
 in parallel — total elapsed time is bounded by the slowest node,

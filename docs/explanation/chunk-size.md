@@ -38,7 +38,7 @@ set from L1 is a hard performance boundary.
 
 ## 4. STARK proof granularity
 
-75 permutations x ~1,200 constraints = ~90,000 constraints per
+75 permutations x ~736 constraints = ~55,200 constraints per
 leaf. Large enough to amortize proof overhead, small enough to
 prove individual chunks without excessive trace length.
 
@@ -46,19 +46,19 @@ prove individual chunks without excessive trace length.
 
 | Data size | Chunks     | Tree depth | Proof size |
 |-----------|------------|------------|------------|
-| 1 MB      | 256        | 8          | 512 B      |
-| 1 GB      | 262,144    | 18         | 1,152 B    |
-| 1 TB      | 268M       | 28         | 1,792 B    |
-| 1 PB      | 274B       | 38         | 2,432 B    |
-| 1 EB      | 281T       | 48         | 3,072 B    |
-| 1 YB      | 288 x 10^18| 68         | 4,352 B    |
+| 1 MB      | 256        | 8          | 256 B      |
+| 1 GB      | 262,144    | 18         | 576 B      |
+| 1 TB      | 268M       | 28         | 896 B      |
+| 1 PB      | 274B       | 38         | 1,216 B    |
+| 1 EB      | 281T       | 48         | 1,536 B    |
+| 1 YB      | 288 x 10^18| 68         | 2,176 B    |
 
 MMR depth at 10^24 cyberlinks remains tractable.
 
 ## 6. Overhead ratio
 
-64 bytes of metadata per 4096-byte chunk = ~1.6% overhead.
-At 256 B chunks: 25%. At 64 KB chunks: 0.1%. 1.6% is the
+32 bytes of metadata per 4096-byte chunk = ~0.8% overhead.
+At 256 B chunks: 12.5%. At 64 KB chunks: 0.05%. 0.8% is the
 practical minimum where overhead is negligible but granularity
 is still useful.
 
@@ -93,11 +93,11 @@ The blast radius of a single-byte edit is bounded and predictable.
 Absorbs/chunk         5     19      74    147     293    1171
 Perms/leaf            6     20      75    148     294    1172
 1GB tree depth       22     20      18     17      16      14
-1GB proof (bytes)  1408   1280    1152   1088    1024     896
-Overhead ratio       25%     6%    1.6%   0.8%    0.4%    0.1%
+1GB proof (bytes)   704    640     576    544     512     448
+Overhead ratio     12.5%     3%    0.8%   0.4%    0.2%   0.05%
 OS page aligned       x      x      yes     x       x       x
 L1 cache fit        yes    yes      yes     ~       x       x
-STARK constraints   7.2K  24.0K   90.0K   178K   353K    1.4M
+STARK constraints   4.4K  14.7K   55.2K   109K   216K    863K
 Streaming buffer   256B     1K      4K     8K     16K     64K
 Dedup quality      poor   fair    good   good    fair    poor
 Network packets       1      1       3      6      12      46

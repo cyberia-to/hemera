@@ -34,8 +34,8 @@ updates, and parallelism — not a second mode.
 ## Mathematical: endofunctions
 
 A sponge hash is an endofunction on the address space. Bytes in,
-64 bytes out — valid input to the same function.
+32 bytes out — valid input to the same function.
 `Hemera(Hemera(x) || Hemera(y))` type-checks. Composition, chaining,
 nesting — the algebra closes. A compression function has a different
-type signature (128 bytes -> 64 bytes). Rejecting leaving the
+type signature (64 bytes -> 32 bytes). Rejecting leaving the
 category, not rejecting speed.

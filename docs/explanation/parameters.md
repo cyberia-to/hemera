@@ -71,10 +71,10 @@ total 24 = 3 × 2³. every component is a power of 2 (R_F=8=2³, R_P=16=2⁴). t
 Loop bounds and array sizes are powers of 2:
 
 - R_F = 8 (2^3)
-- R_P = 64 (2^6)
+- R_P = 16 (2^4)
 - half-full = 4 (2^2)
 
-R_P=64 was chosen over R_P=56 because the partial round constant array is a data structure. A 64-element array aligns to cache lines and simplifies indexing.
+R_P=16 provides 2^918 bits of security margin over the 128-bit target. the x⁻¹ partial S-box achieves far higher algebraic degree per round than x⁷, requiring fewer rounds for equivalent security.
 
 ## computational elegance
 
@@ -87,11 +87,11 @@ Every parameter that appears as a loop bound, array size, or memory layout is a 
 | c (capacity) | 8 | 2^3 | security parameter |
 | r (rate) | 8 | 2^3 | absorption loop bound |
 | R_F (full rounds) | 8 | 2^3 | outer loop bound |
-| R_P (partial rounds) | 64 | 2^6 | inner loop bound, constant array size |
-| output (bytes) | 64 | 2^6 | output buffer size |
+| R_P (partial rounds) | 16 | 2^4 | inner loop bound, constant array size |
+| output (bytes) | 32 | 2^5 | output buffer size |
 | element (bytes) | 8 | 2^3 | memory stride |
 
-Only non-power-of-2 values: derived sums (72 total rounds, 192 total constants), input rate (56 = 7 x 8 bytes), and the S-box exponent d=7.
+Only non-power-of-2 values: derived sums (24 total rounds, 144 total constants), input rate (56 = 7 x 8 bytes), and the S-box exponent d=7.
 
 The Goldilocks prime forces 7 twice: as the S-box exponent (minimum invertible) and in the encoding rate (56 bytes = 7 field elements of 8 bytes each).
 
@@ -105,7 +105,7 @@ for _ in 0..4:        // half-full rounds (power of 2)
     sbox_full()        // 16 S-boxes (power of 2)
     mds()
 
-for _ in 0..64:       // partial rounds (power of 2)
+for _ in 0..16:       // partial rounds (power of 2)
     add_constant()
     sbox_single()      // 1 S-box
     mds()

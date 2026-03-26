@@ -55,6 +55,6 @@ every use of the sponge in the Hemera stack:
 
 - **WHIR polynomial commitments.** [[cyber]] uses [[WHIR]] for polynomial commitments. the sponge serves as the Fiat-Shamir transcript and builds the commitment Merkle trees. the field-native property eliminates the conversion overhead between hash output and field elements.
 
-- **field-native computation.** the Poseidon2 sponge operates directly over the Goldilocks field, requiring ~736 constraints per hash in a STARK circuit (24 rounds, x⁻¹ partial S-box). BLAKE3 requires ~15,000 constraints for the same role.
+- **field-native computation.** the Poseidon2 sponge operates directly over the Goldilocks field, requiring ~736 constraints per hash in a STARK circuit (24 rounds, x⁻¹ partial S-box). BLAKE3 requires ~50,000-100,000 constraints for the same role.
 
 - **tri-kernel lookup.** the three kernel modes (consensus, settlement, data availability) use the sponge for all hash-addressed lookups, providing a single primitive across the entire stack.

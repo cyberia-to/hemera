@@ -67,7 +67,7 @@ leaf chunk:   rate = encode([1,2,3]),  capacity = [5, 0x04, 0, 0x00, 0, 0, 0, 0]
                                             counter  FLAG_CHUNK
 ```
 
-the same input enters the rate. different capacity values enter the permutation. the outputs are completely unrelated — as unrelated as two random 64-byte strings.
+the same input enters the rate. different capacity values enter the permutation. the outputs are completely unrelated — as unrelated as two random 32-byte strings.
 
 ## why it is secure
 
@@ -93,7 +93,7 @@ collision resistance is bounded by capacity size: 2^(c×32) for c capacity eleme
 
 Hemera uses c = 8 because particle addresses are permanent. 128-bit collision resistance (c = 4) is standard for ephemeral proofs — adequate when commitments live for seconds. permanent addresses require the full 256-bit level. the throughput cost (56 vs 84 bytes per block, ~33% reduction) is the price of permanence.
 
-in practice, the throughput cost is smaller than it appears. a 4 KB chunk requires ⌈4096/56⌉ = 74 absorptions with c = 8 vs ⌈4096/84⌉ = 49 absorptions with c = 4. that is 74 vs 49 permutations — a 51% increase. but leaf hashing adds one binding permutation, so the total is 75 vs 50 — still 50% more. for Merkle internal nodes, the cost is 2 permutations regardless of capacity (two 64-byte child hashes fit in the rate at either capacity level). tree overhead is capacity-independent.
+in practice, the throughput cost is smaller than it appears. a 4 KB chunk requires ⌈4096/56⌉ = 74 absorptions with c = 8 vs ⌈4096/84⌉ = 49 absorptions with c = 4. that is 74 vs 49 permutations — a 51% increase. but leaf hashing adds one binding permutation, so the total is 75 vs 50 — still 50% more. for Merkle internal nodes, the cost is 2 permutations regardless of capacity (two 32-byte child hashes fit in the rate at either capacity level). tree overhead is capacity-independent.
 
 ## why not separate functions
 
@@ -109,9 +109,9 @@ five functions for five contexts would work. each could be independently secure.
 
 ## why capacity produces zero storage overhead
 
-capacity encodes real information — flags, counters, domain tags, namespace bounds. this is structural data. yet it adds zero bytes to what is stored. the hash output is still 64 bytes. where did the information go?
+capacity encodes real information — flags, counters, domain tags, namespace bounds. this is structural data. yet it adds zero bytes to what is stored. the hash output is still 32 bytes. where did the information go?
 
-it went into the hash output through the permutation's mixing. the capacity values influence the 64-byte result, but they are not stored alongside it. the output does not carry the capacity values — it is pure, untagged, 64 bytes.
+it went into the hash output through the permutation's mixing. the capacity values influence the 32-byte result, but they are not stored alongside it. the output does not carry the capacity values — it is pure, untagged, 32 bytes.
 
 the information is recoverable from context. when verifying a Merkle proof, the protocol already knows each intermediate node was hashed with `FLAG_PARENT` — because the Merkle verification algorithm says so. when verifying a leaf chunk, the protocol knows the counter value — it is the chunk's position in the file. when calling `hash()` on raw bytes, `domain_tag = 0x00` — because that is what the API specifies.
 
@@ -122,7 +122,7 @@ leaf chunk at position 5:
   state[10] = 4096       ← msg_length (known: full chunk = 4096 bytes)
   state[11] = 0x00       ← domain_tag (known: it is a tree leaf)
 
-  output: 64 bytes       ← this is ALL that gets stored
+  output: 32 bytes       ← this is ALL that gets stored
 ```
 
 every capacity value is **reconstructible** from the context in which the hash appears. the verifier does not need a tag saying "this hash was computed with FLAG_PARENT=0x02" — the protocol already knows, because the protocol is what told it to verify a parent node in the first place.
@@ -131,7 +131,7 @@ this is the opposite of CID headers. a multihash stores type information *in the
 
 one way to think about it: capacity is like a salt in password hashing. a salted password hash is different from an unsalted one, but the salt is not stored inside the hash output — it is stored separately or derived from context. capacity values are derived from protocol context. they shape the output without inflating it.
 
-this is the "identity" principle in action: the 64-byte output IS the address. no version prefix, no type tag, no framing. domain separation lives in the hash input (capacity), not in type prefixes on the output. the output is universal.
+this is the "identity" principle in action: the 32-byte output IS the address. no version prefix, no type tag, no framing. domain separation lives in the hash input (capacity), not in type prefixes on the output. the output is universal.
 
 ## the design insight
 

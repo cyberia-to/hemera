@@ -15,20 +15,20 @@ density: 0
 
 Hemera generates her own round constants. No external primitives.
 
-The permutation structure (S-box x^7, matrices M_E and M_I, round flow 4+64+4) is fully defined before constants exist. With all constants set to zero, the permutation is still a well-defined nonlinear function. We call this Hemera_0.
+The permutation structure (S-box x^7, matrices M_E and M_I, round flow 4+16+4) is fully defined before constants exist. With all constants set to zero, the permutation is still a well-defined nonlinear function. We call this Hemera_0.
 
 ```
-1. Define Hemera_0 = Hemera permutation with all 192 round constants = 0
+1. Define Hemera_0 = Hemera permutation with all 144 round constants = 0
 2. Feed the genesis word through Hemera_0 as a sponge:
 
    input = [0x63, 0x79, 0x62, 0x65, 0x72]    — "cyber" as raw bytes
 
    state = [0; 16]
    absorb input into state using Hemera_0
-   squeeze 192 field elements from state using Hemera_0
+   squeeze 144 field elements from state using Hemera_0
 
 3. First 128 elements → RC_FULL[128]
-   Next 64 elements   → RC_PARTIAL[64]
+   Next 16 elements   → RC_PARTIAL[16]
 
 4. Hemera = Hemera_0 + these constants. Freeze forever.
 ```
@@ -47,4 +47,4 @@ Do not use Hemera_0 for any purpose other than constant generation from non-triv
 
 ## reproducibility
 
-The procedure is fully deterministic. Same S-box, same matrices, same round structure, same sponge, same seed — same 192 field elements.
+The procedure is fully deterministic. Same S-box, same matrices, same round structure, same sponge, same seed — same 144 field elements.
