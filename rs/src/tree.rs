@@ -61,9 +61,9 @@ pub fn hash_leaf(chunk: &[u8], counter: u64, is_root: bool) -> Hash {
 
 /// Combine two child chaining values into a parent chaining value.
 ///
-/// With Hemera parameters (output=8 elements, rate=8), each child hash is 8 elements.
-/// We absorb left (8 elements) then right (8 elements) via two sponge absorptions,
-/// with flags set in the capacity before the first permutation.
+/// With Hemera parameters (output=4 elements, rate=8), each child hash is 4 elements.
+/// Both children together (4 + 4 = 8 elements) fit in one rate block.
+/// Flags are set in the capacity before the absorption.
 ///
 /// The `is_root` flag domain-separates the tree root from interior nodes.
 pub fn hash_node(left: &Hash, right: &Hash, is_root: bool) -> Hash {
@@ -79,15 +79,12 @@ pub fn hash_node(left: &Hash, right: &Hash, is_root: bool) -> Hash {
     }
     state[CAPACITY_FLAGS_IDX] = Goldilocks::new(flags);
 
-    // Absorb left child (8 elements = full rate block, Goldilocks field addition).
-    for i in 0..RATE {
-        state[i] = state[i] + left_elems[i];
+    // Absorb both children (4 + 4 = 8 elements = one full rate block).
+    for i in 0..OUTPUT_ELEMENTS {
+        state[i] += left_elems[i];
     }
-    params::permute(&mut state);
-
-    // Absorb right child (8 elements = full rate block, Goldilocks field addition).
-    for i in 0..RATE {
-        state[i] = state[i] + right_elems[i];
+    for i in 0..OUTPUT_ELEMENTS {
+        state[OUTPUT_ELEMENTS + i] += right_elems[i];
     }
     params::permute(&mut state);
 
@@ -120,13 +117,12 @@ pub fn hash_node_nmt(
     state[CAPACITY_NS_MIN_IDX] = Goldilocks::new(ns_min);
     state[CAPACITY_NS_MAX_IDX] = Goldilocks::new(ns_max);
 
-    for i in 0..RATE {
-        state[i] = state[i] + left_elems[i];
+    // Absorb both children (4 + 4 = 8 elements = one full rate block).
+    for i in 0..OUTPUT_ELEMENTS {
+        state[i] += left_elems[i];
     }
-    params::permute(&mut state);
-
-    for i in 0..RATE {
-        state[i] = state[i] + right_elems[i];
+    for i in 0..OUTPUT_ELEMENTS {
+        state[OUTPUT_ELEMENTS + i] += right_elems[i];
     }
     params::permute(&mut state);
 

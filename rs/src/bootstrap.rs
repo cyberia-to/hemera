@@ -12,9 +12,9 @@
 //!
 //! # Algorithm
 //!
-//! 1. Create Hemera₀ = Poseidon2 with all 192 round constants = 0
+//! 1. Create Hemera₀ = Poseidon2 with all 144 round constants = 0
 //! 2. Run Hemera₀ as a sponge: absorb GENESIS_SEED with 0x01 padding
-//! 3. Squeeze 192 field elements as round constants for the final Hemera
+//! 3. Squeeze 144 field elements as round constants for the final Hemera
 
 use crate::constants::NUM_CONSTANTS;
 use crate::field::Goldilocks;
@@ -62,10 +62,10 @@ pub fn bootstrap_sponge_state() -> [Goldilocks; WIDTH] {
     state
 }
 
-/// Squeeze the 192 round constants as raw u64 values from the bootstrap sponge.
+/// Squeeze the 144 round constants as raw u64 values from the bootstrap sponge.
 ///
 /// Returns the canonical Goldilocks representations in the exact order consumed
-/// by `new_from_rng`: 128 external (8 rounds × 16 elements) then 64 internal.
+/// by `new_from_rng`: 128 external (8 rounds × 16 elements) then 16 internal.
 pub fn bootstrap_constants_u64() -> [u64; NUM_CONSTANTS] {
     let mut state = bootstrap_sponge_state();
 
@@ -152,10 +152,10 @@ mod tests {
     #[test]
     fn bootstrap_pinned_first_constants() {
         let constants = bootstrap_constants_u64();
-        assert_eq!(constants[0], 0xD5CCEAC23026433F);
-        assert_eq!(constants[1], 0xE3578901A12C12D8);
-        assert_eq!(constants[2], 0xF69C218E10D83177);
-        assert_eq!(constants[3], 0x580252688A8C5A9D);
+        assert_eq!(constants[0], 0x7E6EF67C13BC8100);
+        assert_eq!(constants[1], 0x3A658EE0B11555F9);
+        assert_eq!(constants[2], 0x42F4F5D6BE505B01);
+        assert_eq!(constants[3], 0x8D6E969951FEA22C);
     }
 
     #[test]

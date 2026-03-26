@@ -5,7 +5,7 @@
 // ---
 //! Poseidon2 permutation for Goldilocks t=16.
 //!
-//! Hemera parameters: R_F=8 (4+4), R_P=64, d=7.
+//! Hemera parameters: R_F=8 (4+4), R_P=16, full-round S-box=x^7, partial S-box=x^(-1).
 
 use crate::constants::ROUND_CONSTANTS;
 use crate::field::{Goldilocks, matmul_internal, mds_light_permutation};
@@ -15,7 +15,7 @@ const NUM_EXTERNAL: usize = 128;
 
 /// Apply the Poseidon2 permutation in-place using the standard Hemera constants.
 ///
-/// Structure: initial MDS → 4 full rounds → 64 partial rounds → 4 full rounds.
+/// Structure: initial MDS → 4 full rounds → 16 partial rounds → 4 full rounds.
 pub fn permute(state: &mut [Goldilocks; 16]) {
     permute_with_constants(state, &ROUND_CONSTANTS);
 }
@@ -44,10 +44,10 @@ pub fn permute_with_constants(state: &mut [Goldilocks; 16], constants: &[Goldilo
     }
 
     // ── Internal (partial) rounds ───────────────────────────────
-    // 64 partial rounds: add_rc to state[0] + sbox state[0] + diffusion
-    for round in 0..64 {
+    // 16 partial rounds: add_rc to state[0] + sbox state[0] (field inversion) + diffusion
+    for round in 0..16 {
         state[0] += internal[round];
-        state[0] = state[0].pow7();
+        state[0] = state[0].inv();
         matmul_internal(state);
     }
 

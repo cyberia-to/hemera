@@ -11,9 +11,9 @@ const RATE: u32 = 8u;
 const RATE_BYTES: u32 = 56u;
 const BYTES_PER_ELEMENT: u32 = 7u;
 const ROUNDS_F: u32 = 8u;
-const ROUNDS_P: u32 = 64u;
+const ROUNDS_P: u32 = 16u;
 const STATE_U32S: u32 = 32u;
-const HASH_U32S: u32 = 16u;
+const HASH_U32S: u32 = 8u;
 
 const FLAG_ROOT: u32 = 1u;
 const FLAG_PARENT: u32 = 2u;
@@ -31,7 +31,7 @@ const DOMAIN_KEYED: u32 = 1u;
 const DOMAIN_DERIVE_KEY_CONTEXT: u32 = 2u;
 const DOMAIN_DERIVE_KEY_MATERIAL: u32 = 3u;
 
-const OUTPUT_BYTES_CONST: u32 = 64u;
+const OUTPUT_BYTES_CONST: u32 = 32u;
 
 // ── Dispatch parameters ─────────────────────────────────────────
 

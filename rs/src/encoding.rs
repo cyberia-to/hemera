@@ -89,10 +89,6 @@ mod tests {
             Goldilocks::new(2),
             Goldilocks::new(3),
             Goldilocks::new(4),
-            Goldilocks::new(5),
-            Goldilocks::new(6),
-            Goldilocks::new(7),
-            Goldilocks::new(8),
         ];
         let bytes = hash_to_bytes(&elements);
         let recovered = bytes_to_cv(&bytes);
@@ -199,10 +195,6 @@ mod tests {
             Goldilocks::new(0),
             Goldilocks::new(1),
             Goldilocks::new(p - 2),
-            Goldilocks::new(0xDEAD_BEEF),
-            Goldilocks::new((1u64 << 56) - 1), // max 7-byte value
-            Goldilocks::new(p / 2),
-            Goldilocks::new(42),
         ];
         let bytes = hash_to_bytes(&elements);
         let recovered = bytes_to_cv(&bytes);

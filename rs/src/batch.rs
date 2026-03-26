@@ -328,7 +328,7 @@ mod tests {
     fn batch_wrong_root_fails() {
         let data = vec![0x42u8; CHUNK_SIZE * 4];
         let (_, mut proof) = prove_batch(&data, &[0]);
-        proof.root = Hash::from_bytes([0xFF; 64]);
+        proof.root = Hash::from_bytes([0xFF; 32]);
         assert!(!verify_batch(&[&data[..CHUNK_SIZE]], &proof));
     }
 
@@ -395,7 +395,7 @@ mod tests {
     fn batch_extra_siblings_rejected() {
         let data = vec![0x42u8; CHUNK_SIZE * 4];
         let (_, mut proof) = prove_batch(&data, &[0]);
-        proof.siblings.push(Hash::from_bytes([0xAA; 64]));
+        proof.siblings.push(Hash::from_bytes([0xAA; 32]));
         assert!(!verify_batch(&[&data[..CHUNK_SIZE]], &proof));
     }
 }

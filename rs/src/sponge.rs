@@ -18,7 +18,7 @@ const DOMAIN_DERIVE_KEY_MATERIAL: u64 = 0x03;
 /// Index where the capacity region starts (after the rate region).
 const CAPACITY_START: usize = RATE; // 8
 
-/// A 64-byte Poseidon2 hash output (Hemera: 8 Goldilocks elements).
+/// A 32-byte Poseidon2 hash output (Hemera: 4 Goldilocks elements).
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Hash([u8; OUTPUT_BYTES]);
 
@@ -183,7 +183,7 @@ impl Hasher {
         let mut state = [Goldilocks::new(0); WIDTH];
         state[CAPACITY_START + 3] = Goldilocks::new(DOMAIN_DERIVE_KEY_MATERIAL);
 
-        // Seed the rate portion with the context hash (8 elements = 64 bytes).
+        // Seed the rate portion with the context hash (4 elements = 32 bytes).
         for (i, chunk) in context_hash.0.chunks(OUTPUT_BYTES_PER_ELEMENT).enumerate() {
             let val = u64::from_le_bytes(chunk.try_into().unwrap());
             state[i] = Goldilocks::new(val);
@@ -733,7 +733,7 @@ mod tests {
         assert_eq!(h1, h2);
         // Pin the hex to detect regressions
         let hex = format!("{h1}");
-        assert_eq!(hex.len(), 128); // 64 bytes = 128 hex chars
+        assert_eq!(hex.len(), 64); // 32 bytes = 64 hex chars
     }
 
     /// Pinned hash of "hemera". Same stability guarantee.

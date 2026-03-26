@@ -27,11 +27,12 @@
 //! - **Field**: Goldilocks (p = 2^64 - 2^32 + 1)
 //! - **State width**: t = 16
 //! - **Full rounds**: R_F = 8
-//! - **Partial rounds**: R_P = 64
-//! - **S-box degree**: d = 7 (x^7)
+//! - **Partial rounds**: R_P = 16
+//! - **Full-round S-box**: x^7
+//! - **Partial-round S-box**: x^(-1) (field inversion)
 //! - **Rate**: 8 elements (56 input bytes per block)
 //! - **Capacity**: 8 elements
-//! - **Output**: 8 elements (64 bytes)
+//! - **Output**: 4 elements (32 bytes)
 //! - **Padding**: 0x01 || 0x00*
 //! - **Encoding**: little-endian canonical
 //!
@@ -72,7 +73,7 @@ pub use params::{
 };
 pub use sponge::{Hash, Hasher, OutputReader};
 
-/// Hash the input bytes and return a 64-byte digest.
+/// Hash the input bytes and return a 32-byte digest.
 pub fn hash(input: &[u8]) -> Hash {
     let mut hasher = Hasher::new();
     hasher.update(input);

@@ -50,13 +50,49 @@ impl Goldilocks {
         self * self
     }
 
-    /// Compute x^7 (the Poseidon2 S-box for Goldilocks).
+    /// Compute x^7 (the Poseidon2 full-round S-box for Goldilocks).
     #[inline]
     pub fn pow7(self) -> Self {
         let x2 = self.square();
         let x3 = x2 * self;
         let x4 = x2.square();
         x3 * x4
+    }
+
+    /// Compute x^(-1) = x^(p-2) (the Poseidon2 partial-round S-box).
+    ///
+    /// Uses Fermat's little theorem: x^(-1) = x^(p-2) mod p.
+    /// Convention: 0^(-1) = 0 (permutation over F_p).
+    #[inline]
+    pub fn inv(self) -> Self {
+        if self.as_canonical_u64() == 0 {
+            return Self::ZERO;
+        }
+        // p - 2 = 0xFFFF_FFFE_FFFF_FFFF
+        // Binary: 63 ones, then a zero at bit 32, then 32 ones
+        // Square-and-multiply for x^(p-2)
+        //
+        // p-2 = 2^64 - 2^32 - 1
+        //     = (2^32 - 1) * 2^32 + (2^32 - 1) - 2^32
+        //     = 0xFFFF_FFFE_FFFF_FFFF
+        //
+        // Efficient addition chain:
+        // We compute x^(p-2) via repeated squaring.
+        let mut result = Self::new(1);
+        let mut base = self;
+        let exp: u64 = P - 2; // 0xFFFF_FFFE_FFFF_FFFF
+
+        let mut e = exp;
+        while e > 0 {
+            if e & 1 == 1 {
+                result = result * base;
+            }
+            e >>= 1;
+            if e > 0 {
+                base = base.square();
+            }
+        }
+        result
     }
 
     /// Double this element.
@@ -296,6 +332,39 @@ mod tests {
     #[test]
     fn pow7_one() {
         assert_eq!(Goldilocks::new(1).pow7().as_canonical_u64(), 1);
+    }
+
+    #[test]
+    fn inv_basic() {
+        // 2 * inv(2) = 1
+        let x = Goldilocks::new(2);
+        let x_inv = x.inv();
+        assert_eq!((x * x_inv).as_canonical_u64(), 1);
+    }
+
+    #[test]
+    fn inv_one() {
+        assert_eq!(Goldilocks::new(1).inv().as_canonical_u64(), 1);
+    }
+
+    #[test]
+    fn inv_zero() {
+        assert_eq!(Goldilocks::ZERO.inv().as_canonical_u64(), 0);
+    }
+
+    #[test]
+    fn inv_roundtrip() {
+        let x = Goldilocks::new(42);
+        let x_inv = x.inv();
+        assert_eq!((x * x_inv).as_canonical_u64(), 1);
+        assert_eq!(x_inv.inv().as_canonical_u64(), x.as_canonical_u64());
+    }
+
+    #[test]
+    fn inv_p_minus_one() {
+        // (p-1)^(-1) = p-1 since (p-1)^2 = 1 mod p
+        let a = Goldilocks::new(P - 1);
+        assert_eq!(a.inv().as_canonical_u64(), P - 1);
     }
 
     #[test]

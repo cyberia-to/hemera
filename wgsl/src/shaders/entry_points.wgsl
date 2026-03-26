@@ -16,9 +16,9 @@ fn load_aux_elem(base: u32, idx: u32) -> vec2<u32> {
     return vec2<u32>(aux_data[off], aux_data[off + 1u]);
 }
 
-fn store_hash_output(base_idx: u32, result: array<vec2<u32>, 8>) {
+fn store_hash_output(base_idx: u32, result: array<vec2<u32>, 4>) {
     let out_base = base_idx * HASH_U32S;
-    for (var i = 0u; i < 8u; i++) {
+    for (var i = 0u; i < 4u; i++) {
         store_io(out_base, i, result[i]);
     }
 }
@@ -64,9 +64,9 @@ fn hemera_hash_node(@builtin(global_invocation_id) gid: vec3<u32>) {
     if pair_idx >= dp.count { return; }
 
     let in_base = pair_idx * (HASH_U32S * 2u);
-    var left: array<vec2<u32>, 8>;
-    var right: array<vec2<u32>, 8>;
-    for (var i = 0u; i < 8u; i++) {
+    var left: array<vec2<u32>, 4>;
+    var right: array<vec2<u32>, 4>;
+    for (var i = 0u; i < 4u; i++) {
         left[i] = load_aux_elem(in_base, i);
         right[i] = load_aux_elem(in_base + HASH_U32S, i);
     }
@@ -90,7 +90,7 @@ fn hemera_hash_chunk(@builtin(global_invocation_id) gid: vec3<u32>) {
     store_hash_output(chunk_idx, result);
 }
 
-// Keyed hash: key at aux[0..64), data chunks at aux[64..).
+// Keyed hash: key at aux[0..32), data chunks at aux[32..).
 // dp: count, 0, chunk_size, total_data_bytes
 @compute @workgroup_size(64)
 fn hemera_keyed_hash(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -106,7 +106,7 @@ fn hemera_keyed_hash(@builtin(global_invocation_id) gid: vec3<u32>) {
 
 // Derive key material phase.
 // dp: count, 0, chunk_size, material_total_bytes
-// aux_data: [context_hash(16 u32s)] [material bytes...]
+// aux_data: [context_hash(8 u32s)] [material bytes...]
 @compute @workgroup_size(64)
 fn hemera_derive_key_material(@builtin(global_invocation_id) gid: vec3<u32>) {
     let chunk_idx = gid.x;
@@ -132,9 +132,9 @@ fn hemera_hash_node_nmt(@builtin(global_invocation_id) gid: vec3<u32>) {
     let ns_max = vec2<u32>(dp.ns_max_lo, dp.ns_max_hi);
 
     let in_base = pair_idx * (HASH_U32S * 2u);
-    var left: array<vec2<u32>, 8>;
-    var right: array<vec2<u32>, 8>;
-    for (var i = 0u; i < 8u; i++) {
+    var left: array<vec2<u32>, 4>;
+    var right: array<vec2<u32>, 4>;
+    for (var i = 0u; i < 4u; i++) {
         left[i] = load_aux_elem(in_base, i);
         right[i] = load_aux_elem(in_base + HASH_U32S, i);
     }

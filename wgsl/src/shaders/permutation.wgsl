@@ -75,7 +75,7 @@ fn matmul_internal(s: ptr<function, array<vec2<u32>, 16>>) {
     }
 }
 
-// Full permutation: initial MDS → 4 full → 64 partial → 4 full
+// Full permutation: initial MDS → 4 full → 16 partial → 4 full
 fn permute_state(s: ptr<function, array<vec2<u32>, 16>>) {
     mds_external(s);
 
@@ -94,7 +94,7 @@ fn permute_state(s: ptr<function, array<vec2<u32>, 16>>) {
     for (var r = 0u; r < ROUNDS_P; r++) {
         let rc = load_rc(internal_rc_offset + r);
         (*s)[0] = gl_add((*s)[0].x, (*s)[0].y, rc.x, rc.y);
-        (*s)[0] = gl_pow7((*s)[0].x, (*s)[0].y);
+        (*s)[0] = gl_inv((*s)[0].x, (*s)[0].y);
         matmul_internal(s);
     }
 

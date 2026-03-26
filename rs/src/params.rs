@@ -14,22 +14,24 @@
 //! │  HEMERA — Complete Specification                         │
 //! │                                                          │
 //! │  Field:           p = 2⁶⁴ − 2³² + 1 (Goldilocks)       │
-//! │  S-box:           d = 7  (x → x⁷, minimum for field)    │
+//! │  Full-round S-box: d = 7  (x → x⁷)                     │
+//! │  Partial S-box:   x⁻¹    (field inversion)              │
 //! │  State width:     t = 16                      = 2⁴       │
 //! │  Full rounds:     R_F = 8  (4 + 4)            = 2³       │
-//! │  Partial rounds:  R_P = 64                    = 2⁶       │
-//! │  Rate:            r = 8  elements (56 bytes)  = 2³       │
-//! │  Capacity:        c = 8  elements (64 bytes)  = 2³       │
-//! │  Output:          8  elements (64 bytes)      = 2³       │
+//! │  Partial rounds:  R_P = 16                    = 2⁴       │
+//! │  Rate:            r = 8  elements              = 2³       │
+//! │  Input rate:      56 bytes/block (7 B/element) = 7 × 2³   │
+//! │  Capacity:        c = 8  elements (64 bytes)   = 2³       │
+//! │  Output:          4  elements (32 bytes)       = 2²       │
 //! │                                                          │
 //! │  Full round constants:    8 × 16 = 128        = 2⁷       │
-//! │  Partial round constants: 64                  = 2⁶       │
-//! │  Total constants:         192                 = 3 × 2⁶   │
-//! │  Total rounds:            72                  = 9 × 2³   │
+//! │  Partial round constants: 16                  = 2⁴       │
+//! │  Total constants:         144                 = 9 × 2⁴   │
+//! │  Total rounds:            24                  = 3 × 2³   │
 //! │                                                          │
 //! │  Classical collision resistance:  256 bits     = 2⁸       │
 //! │  Quantum collision resistance:   170 bits                │
-//! │  Algebraic degree:               2¹⁸⁰                    │
+//! │  Algebraic degree:               2¹⁰⁴⁶                   │
 //! │                                                          │
 //! │  Every parameter that appears in code is a power of 2.   │
 //! └──────────────────────────────────────────────────────────┘
@@ -46,9 +48,9 @@ pub const WIDTH: usize = 16;
 pub const ROUNDS_F: usize = 8;
 
 /// Number of partial (internal) rounds.
-pub const ROUNDS_P: usize = 64;
+pub const ROUNDS_P: usize = 16;
 
-/// S-box degree (x → x^d).
+/// Full-round S-box degree (x → x^d).
 pub const SBOX_DEGREE: usize = 7;
 
 // ── Sponge parameters ───────────────────────────────────────────────
@@ -78,11 +80,11 @@ pub const OUTPUT_BYTES_PER_ELEMENT: usize = 8;
 /// Number of input bytes that fill one rate block (8 elements × 7 bytes).
 pub const RATE_BYTES: usize = RATE * INPUT_BYTES_PER_ELEMENT; // 56
 
-/// Number of output elements extracted per squeeze (= rate).
-pub const OUTPUT_ELEMENTS: usize = RATE; // 8
+/// Number of output elements extracted per squeeze (4 elements = 32 bytes).
+pub const OUTPUT_ELEMENTS: usize = 4;
 
-/// Number of output bytes per squeeze (8 elements × 8 bytes).
-pub const OUTPUT_BYTES: usize = OUTPUT_ELEMENTS * OUTPUT_BYTES_PER_ELEMENT; // 64
+/// Number of output bytes per squeeze (4 elements × 8 bytes).
+pub const OUTPUT_BYTES: usize = OUTPUT_ELEMENTS * OUTPUT_BYTES_PER_ELEMENT; // 32
 
 // ── Tree parameters ─────────────────────────────────────────────────
 
@@ -143,7 +145,7 @@ mod tests {
     fn sponge_geometry() {
         assert_eq!(WIDTH, RATE + CAPACITY);
         assert_eq!(RATE_BYTES, 56);
-        assert_eq!(OUTPUT_BYTES, 64);
-        assert_eq!(OUTPUT_ELEMENTS, 8);
+        assert_eq!(OUTPUT_BYTES, 32);
+        assert_eq!(OUTPUT_ELEMENTS, 4);
     }
 }

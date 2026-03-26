@@ -131,3 +131,37 @@ fn gl_pow7(x_lo: u32, x_hi: u32) -> vec2<u32> {
     let x7 = gl_mul(x3.x, x3.y, x4.x, x4.y);
     return x7;
 }
+
+// Field inversion: x^(p-2) via square-and-multiply.
+// p-2 = 0xFFFFFFFEFFFFFFFF. Convention: 0^(-1) = 0.
+fn gl_inv(x_lo: u32, x_hi: u32) -> vec2<u32> {
+    // Check for zero: 0^(-1) = 0
+    if x_lo == 0u && x_hi == 0u {
+        return vec2<u32>(0u, 0u);
+    }
+
+    // exp = p - 2 = 0xFFFFFFFEFFFFFFFF
+    // exp_lo = 0xFFFFFFFF, exp_hi = 0xFFFFFFFE
+    var result = vec2<u32>(1u, 0u); // 1 in Goldilocks
+    var base = vec2<u32>(x_lo, x_hi);
+
+    // Process low 32 bits of exponent (0xFFFFFFFF = all ones)
+    for (var i = 0u; i < 32u; i++) {
+        // All bits are 1 in the low word
+        result = gl_mul(result.x, result.y, base.x, base.y);
+        base = gl_mul(base.x, base.y, base.x, base.y);
+    }
+
+    // Process high 32 bits of exponent (0xFFFFFFFE = all ones except bit 0)
+    for (var i = 0u; i < 32u; i++) {
+        let bit = (0xFFFFFFFEu >> i) & 1u;
+        if bit == 1u {
+            result = gl_mul(result.x, result.y, base.x, base.y);
+        }
+        if i < 31u {
+            base = gl_mul(base.x, base.y, base.x, base.y);
+        }
+    }
+
+    return result;
+}

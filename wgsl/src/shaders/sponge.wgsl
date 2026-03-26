@@ -2,8 +2,9 @@
 //
 // Full sponge hash: absorb rate blocks + pad + finalize.
 // Matches rs/src/sponge.rs (Hasher::new + update + finalize).
+// Output is 4 Goldilocks elements (32 bytes).
 
-fn sponge_hash_domain(chunk_start: u32, chunk_len: u32, domain: u32) -> array<vec2<u32>, 8> {
+fn sponge_hash_domain(chunk_start: u32, chunk_len: u32, domain: u32) -> array<vec2<u32>, 4> {
     var state: array<vec2<u32>, 16>;
     for (var i = 0u; i < 16u; i++) {
         state[i] = vec2<u32>(0u, 0u);
@@ -31,20 +32,20 @@ fn sponge_hash_domain(chunk_start: u32, chunk_len: u32, domain: u32) -> array<ve
     state[CAP_LENGTH] = vec2<u32>(chunk_len, 0u);
     permute_state(&state);
 
-    var output: array<vec2<u32>, 8>;
-    for (var i = 0u; i < 8u; i++) {
+    var output: array<vec2<u32>, 4>;
+    for (var i = 0u; i < 4u; i++) {
         output[i] = reduce(state[i].x, state[i].y);
     }
     return output;
 }
 
-fn sponge_hash(chunk_start: u32, chunk_len: u32) -> array<vec2<u32>, 8> {
+fn sponge_hash(chunk_start: u32, chunk_len: u32) -> array<vec2<u32>, 4> {
     return sponge_hash_domain(chunk_start, chunk_len, DOMAIN_HASH);
 }
 
-// Keyed sponge: key at aux[0..64), chunk data at aux[data_start..).
-// Virtual stream = key(64B) || chunk_data(data_len B).
-fn sponge_hash_keyed(data_start: u32, data_len: u32) -> array<vec2<u32>, 8> {
+// Keyed sponge: key at aux[0..32), chunk data at aux[data_start..).
+// Virtual stream = key(32B) || chunk_data(data_len B).
+fn sponge_hash_keyed(data_start: u32, data_len: u32) -> array<vec2<u32>, 4> {
     var state: array<vec2<u32>, 16>;
     for (var i = 0u; i < 16u; i++) {
         state[i] = vec2<u32>(0u, 0u);
@@ -74,23 +75,23 @@ fn sponge_hash_keyed(data_start: u32, data_len: u32) -> array<vec2<u32>, 8> {
     state[CAP_LENGTH] = vec2<u32>(total_len, 0u);
     permute_state(&state);
 
-    var output: array<vec2<u32>, 8>;
-    for (var i = 0u; i < 8u; i++) {
+    var output: array<vec2<u32>, 4>;
+    for (var i = 0u; i < 4u; i++) {
         output[i] = reduce(state[i].x, state[i].y);
     }
     return output;
 }
 
 // Derive key material sponge: seed state with context hash, then absorb material.
-// cv_base: offset in aux_data (u32 index) where the 16 u32s of context hash start.
-fn sponge_hash_derive_material(cv_base: u32, data_start: u32, data_len: u32) -> array<vec2<u32>, 8> {
+// cv_base: offset in aux_data (u32 index) where the 8 u32s of context hash start.
+fn sponge_hash_derive_material(cv_base: u32, data_start: u32, data_len: u32) -> array<vec2<u32>, 4> {
     var state: array<vec2<u32>, 16>;
     for (var i = 0u; i < 16u; i++) {
         state[i] = vec2<u32>(0u, 0u);
     }
     state[CAP_DOMAIN] = vec2<u32>(DOMAIN_DERIVE_KEY_MATERIAL, 0u);
 
-    for (var i = 0u; i < 8u; i++) {
+    for (var i = 0u; i < 4u; i++) {
         state[i] = load_aux_elem(cv_base, i);
     }
     permute_state(&state);
@@ -115,8 +116,8 @@ fn sponge_hash_derive_material(cv_base: u32, data_start: u32, data_len: u32) -> 
 
     permute_state(&state);
 
-    var output: array<vec2<u32>, 8>;
-    for (var i = 0u; i < 8u; i++) {
+    var output: array<vec2<u32>, 4>;
+    for (var i = 0u; i < 4u; i++) {
         output[i] = reduce(state[i].x, state[i].y);
     }
     return output;

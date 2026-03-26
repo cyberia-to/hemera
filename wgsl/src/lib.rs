@@ -30,7 +30,7 @@ use std::num::NonZeroU64;
 use cyber_hemera::field::Goldilocks;
 use cyber_hemera::sparse::CompressedSparseProof;
 use cyber_hemera::tree::{InclusionProof, Sibling};
-use cyber_hemera::{Hash, CHUNK_SIZE, OUTPUT_BYTES, WIDTH};
+use cyber_hemera::{Hash, CHUNK_SIZE, OUTPUT_BYTES, OUTPUT_ELEMENTS, WIDTH};
 use wgpu::util::DeviceExt;
 
 /// Pre-compiled GPU compute pipelines and device handles.
@@ -690,7 +690,7 @@ impl GpuContext {
                 let sibling = if has_real {
                     if cursors[i] >= proof.siblings.len() {
                         // Invalid proof — mark with sentinel to fail later.
-                        current_hashes[i] = Hash::from_bytes([0xFF; 64]);
+                        current_hashes[i] = Hash::from_bytes([0xFF; cyber_hemera::OUTPUT_BYTES]);
                         continue;
                     }
                     let s = proof.siblings[cursors[i]];
@@ -738,7 +738,7 @@ impl GpuContext {
     }
 
     /// Batch XOF squeeze: given finalized sponge states, produce `count`
-    /// output blocks (64 bytes each) per state using GPU permutations.
+    /// output blocks (OUTPUT_BYTES bytes each) per state using GPU permutations.
     pub async fn batch_squeeze(
         &self,
         states: &[[Goldilocks; WIDTH]],
@@ -812,7 +812,7 @@ fn unflatten_states(u32s: &[u32], count: usize) -> Vec<[Goldilocks; WIDTH]> {
 }
 
 fn push_hash_u32s(out: &mut Vec<u32>, hash: &Hash) {
-    for i in 0..8 {
+    for i in 0..OUTPUT_ELEMENTS {
         let v = u64::from_le_bytes(hash.as_bytes()[i * 8..(i + 1) * 8].try_into().unwrap());
         out.push(v as u32);
         out.push((v >> 32) as u32);
@@ -820,7 +820,7 @@ fn push_hash_u32s(out: &mut Vec<u32>, hash: &Hash) {
 }
 
 fn flatten_pairs(pairs: &[(Hash, Hash)]) -> Vec<u8> {
-    let mut u32s = Vec::with_capacity(pairs.len() * 32);
+    let mut u32s = Vec::with_capacity(pairs.len() * OUTPUT_ELEMENTS * 4);
     for (l, r) in pairs {
         push_hash_u32s(&mut u32s, l);
         push_hash_u32s(&mut u32s, r);
@@ -829,11 +829,12 @@ fn flatten_pairs(pairs: &[(Hash, Hash)]) -> Vec<u8> {
 }
 
 fn u32s_to_hashes(u32s: &[u32], count: usize) -> Vec<Hash> {
+    let hash_u32s = OUTPUT_ELEMENTS * 2; // 2 u32s per Goldilocks element
     (0..count)
         .map(|idx| {
             let mut bytes = [0u8; OUTPUT_BYTES];
-            for i in 0..8 {
-                let off = idx * 16 + i * 2;
+            for i in 0..OUTPUT_ELEMENTS {
+                let off = idx * hash_u32s + i * 2;
                 let v = u32s[off] as u64 | ((u32s[off + 1] as u64) << 32);
                 bytes[i * 8..(i + 1) * 8].copy_from_slice(&v.to_le_bytes());
             }
@@ -861,7 +862,7 @@ fn generate_matrix_diag_u32() -> Vec<u32> {
 
 fn extract_output(state: &[Goldilocks; WIDTH]) -> [u8; OUTPUT_BYTES] {
     let mut out = [0u8; OUTPUT_BYTES];
-    for i in 0..8 {
+    for i in 0..OUTPUT_ELEMENTS {
         out[i * 8..(i + 1) * 8].copy_from_slice(&state[i].as_canonical_u64().to_le_bytes());
     }
     out

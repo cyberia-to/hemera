@@ -1050,7 +1050,7 @@ fn print_usage() {
 \x1b[0m\x1b[37m    the hash for superintelligence\x1b[0m
 \x1b[90m
     Poseidon2 · Goldilocks field · p = 2^64 - 2^32 + 1
-    t=16  R_F=8  R_P=64  d=7  rate=8  output=64B
+    t=16  R_F=8  R_P=16  d=7/x^-1  rate=8  output=32B
     genesis: [0x63, 0x79, 0x62, 0x65, 0x72]
 \x1b[0m
   hemera file1.txt file2.txt         Hash files
