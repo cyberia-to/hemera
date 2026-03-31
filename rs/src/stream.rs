@@ -32,10 +32,10 @@ use crate::sponge::Hash;
 use crate::tree::{hash_leaf, hash_node, num_chunks};
 
 /// Size of a serialized hash pair (left ‖ right).
-const PAIR_SIZE: usize = OUTPUT_BYTES * 2;
+pub const PAIR_SIZE: usize = OUTPUT_BYTES * 2;
 
 /// Header size: 8-byte LE data length.
-const HEADER_SIZE: usize = 8;
+pub const HEADER_SIZE: usize = 8;
 
 /// Errors during verified decoding.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -324,7 +324,7 @@ fn verify_outboard_subtree(
 // ── Helpers ─────────────────────────────────────────────────────
 
 /// Left subtree size for a left-balanced binary tree with `count` leaves.
-fn left_subtree_chunks(count: usize) -> usize {
+pub fn left_subtree_chunks(count: usize) -> usize {
     debug_assert!(count > 1);
     1 << (usize::BITS - (count - 1).leading_zeros() - 1)
 }
