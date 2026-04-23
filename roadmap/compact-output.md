@@ -2,7 +2,7 @@
 tags: cyber, cip
 crystal-type: process
 crystal-domain: cyber
-status: draft
+status: implemented
 date: 2026-03-17
 diffusion: 0.00010722364868599256
 springs: 0.0007414137239001096

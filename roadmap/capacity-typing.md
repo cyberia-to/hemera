@@ -1,5 +1,6 @@
 ---
 status: draft
+breaks_hash: no
 tags: hemera, roadmap
 crystal-type: entity
 crystal-domain: crypto

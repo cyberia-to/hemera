@@ -3,6 +3,7 @@ tags: cyber, cip
 crystal-type: process
 crystal-domain: cyber
 status: draft
+breaks_hash: no
 date: 2026-03-20
 diffusion: 0.00010722364868599256
 springs: 0.00007019991600688145
