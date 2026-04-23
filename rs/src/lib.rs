@@ -66,6 +66,8 @@ mod sponge;
 pub mod sparse;
 pub mod tree;
 #[cfg(feature = "async")]
+pub mod async_io;
+#[cfg(feature = "async")]
 pub mod stream_async;
 
 // Re-export all Hemera parameters so downstream crates never hardcode them.

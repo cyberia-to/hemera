@@ -27,9 +27,8 @@ extern crate std;
 
 use alloc::vec;
 use alloc::vec::Vec;
-use alloc::string::String;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+use crate::async_io::{self, AsyncRead, AsyncWrite};
 use crate::params::{CHUNK_SIZE, OUTPUT_BYTES};
 use crate::sponge::Hash;
 use crate::stream::{left_subtree_chunks, HEADER_SIZE, PAIR_SIZE};
@@ -87,7 +86,7 @@ pub struct StreamDecoder<R> {
     done: bool,
 }
 
-impl<R: AsyncReadExt + Unpin> StreamDecoder<R> {
+impl<R: AsyncRead + Unpin> StreamDecoder<R> {
     /// Create a decoder for a combined pre-order stream.
     ///
     /// `root_hash`: expected root hash (from metadata/registry).
@@ -168,8 +167,7 @@ impl<R: AsyncReadExt + Unpin> StreamDecoder<R> {
 
     async fn read_header(&mut self) -> Result<(), StreamError> {
         let mut buf = [0u8; HEADER_SIZE];
-        self.reader
-            .read_exact(&mut buf)
+        async_io::read_exact(&mut self.reader, &mut buf)
             .await
             .map_err(|_| StreamError::Truncated)?;
         let declared_len = u64::from_le_bytes(buf);
@@ -182,7 +180,7 @@ impl<R: AsyncReadExt + Unpin> StreamDecoder<R> {
     async fn read_single_chunk(&mut self) -> StreamItem {
         let chunk_len = self.data_len as usize;
         let mut buf = vec![0u8; chunk_len];
-        if let Err(e) = self.reader.read_exact(&mut buf).await {
+        if let Err(e) = async_io::read_exact(&mut self.reader, &mut buf).await {
             self.done = true;
             return StreamItem::Error(StreamError::Io(e));
         }
@@ -209,8 +207,7 @@ impl<R: AsyncReadExt + Unpin> StreamDecoder<R> {
         expected: &Hash,
     ) -> Result<(), StreamError> {
         let mut pair_buf = [0u8; PAIR_SIZE];
-        self.reader
-            .read_exact(&mut pair_buf)
+        async_io::read_exact(&mut self.reader, &mut pair_buf)
             .await
             .map_err(|_| StreamError::Truncated)?;
 
@@ -245,7 +242,7 @@ impl<R: AsyncReadExt + Unpin> StreamDecoder<R> {
         let chunk_len = CHUNK_SIZE.min((self.data_len - byte_offset) as usize);
 
         let mut buf = vec![0u8; chunk_len];
-        if let Err(e) = self.reader.read_exact(&mut buf).await {
+        if let Err(e) = async_io::read_exact(&mut self.reader, &mut buf).await {
             self.done = true;
             return StreamItem::Error(StreamError::Io(e));
         }
@@ -296,12 +293,11 @@ pub async fn encode_stream<R, W>(
     mut writer: W,
 ) -> Result<Hash, StreamError>
 where
-    R: AsyncReadExt + Unpin,
-    W: AsyncWriteExt + Unpin,
+    R: AsyncRead + Unpin,
+    W: AsyncWrite + Unpin,
 {
     // Write header.
-    writer
-        .write_all(&data_len.to_le_bytes())
+    async_io::write_all(&mut writer, &data_len.to_le_bytes())
         .await
         .map_err(StreamError::Io)?;
 
@@ -313,12 +309,11 @@ where
 
     if n <= 1 {
         let mut buf = vec![0u8; data_len as usize];
-        reader
-            .read_exact(&mut buf)
+        async_io::read_exact(&mut reader, &mut buf)
             .await
             .map_err(StreamError::Io)?;
-        writer.write_all(&buf).await.map_err(StreamError::Io)?;
-        writer.flush().await.map_err(StreamError::Io)?;
+        async_io::write_all(&mut writer, &buf).await.map_err(StreamError::Io)?;
+        async_io::flush(&mut writer).await.map_err(StreamError::Io)?;
         return Ok(hash_leaf(&buf, 0, true));
     }
 
@@ -326,18 +321,16 @@ where
     // for pre-order layout). TODO: streaming pre-order encode without buffering
     // requires two passes or a different layout.
     let mut data = vec![0u8; data_len as usize];
-    reader
-        .read_exact(&mut data)
+    async_io::read_exact(&mut reader, &mut data)
         .await
         .map_err(StreamError::Io)?;
 
     let (root, encoded) = crate::stream::encode(&data);
     // Skip header (already written).
-    writer
-        .write_all(&encoded[HEADER_SIZE..])
+    async_io::write_all(&mut writer, &encoded[HEADER_SIZE..])
         .await
         .map_err(StreamError::Io)?;
-    writer.flush().await.map_err(StreamError::Io)?;
+    async_io::flush(&mut writer).await.map_err(StreamError::Io)?;
 
     Ok(root)
 }
@@ -430,7 +423,7 @@ mod tests {
             .unwrap();
 
         // Verify: decode what we encoded.
-        let (expected_root, expected_encoded) = crate::stream::encode(data);
+        let (expected_root, _expected_encoded) = crate::stream::encode(data);
         assert_eq!(root, expected_root);
 
         // Decode via streaming decoder.
