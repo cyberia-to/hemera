@@ -960,14 +960,14 @@ fn cmd_sparse_verify(proof_path: &str, root_hex: &str, value_path: Option<&str>,
                 eprintln!("hemera: invalid bitmask in proof: {rest}");
                 return 1;
             }
-        } else if line.starts_with('[') {
-            if let Some((_idx_part, hash_part)) = line.split_once("] ") {
-                match parse_hash(hash_part.trim()) {
-                    Some(h) => siblings.push(h),
-                    None => {
-                        eprintln!("hemera: invalid sibling hash: {hash_part}");
-                        return 1;
-                    }
+        } else if line.starts_with('[')
+            && let Some((_idx_part, hash_part)) = line.split_once("] ")
+        {
+            match parse_hash(hash_part.trim()) {
+                Some(h) => siblings.push(h),
+                None => {
+                    eprintln!("hemera: invalid sibling hash: {hash_part}");
+                    return 1;
                 }
             }
         }

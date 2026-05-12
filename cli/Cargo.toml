@@ -5,12 +5,17 @@
 # ---
 [package]
 name = "hemera-cli"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "CLI for Hemera — Poseidon2 hash over Goldilocks field"
 license-file = "../LICENSE"
 rust-version = "1.89"
 repository = "https://github.com/cyberia-to/hemera"
+homepage = "https://github.com/cyberia-to/hemera"
+documentation = "https://docs.rs/hemera-cli"
+keywords = ["poseidon2", "goldilocks", "hash", "cli", "crypto"]
+categories = ["cryptography", "command-line-utilities"]
+readme = "../README.md"
 
 [[bin]]
 name = "hemera"
@@ -20,6 +25,6 @@ path = "src/main.rs"
 workspace = true
 
 [dependencies]
-cyber-hemera = { path = "../rs" }
-cyber-hemera-wgsl = { path = "../wgsl" }
+cyber-hemera = { path = "../rs", version = "0.3.0" }
+cyber-hemera-wgsl = { path = "../wgsl", version = "0.3.0" }
 pollster = "0.4"

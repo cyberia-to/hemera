@@ -94,7 +94,7 @@ Poseidon2 (2023) — the optimized successor
 Hemera    (2026) — the Protogenoi: older, deeper, permanent
 ```
 
-See [reference](reference/) for the full decision record.
+See [specs](specs/) for the full decision record.
 
 ## License
 

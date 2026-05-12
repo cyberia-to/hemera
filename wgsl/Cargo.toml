@@ -5,18 +5,23 @@
 # ---
 [package]
 name = "cyber-hemera-wgsl"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "GPU backend for Hemera — Poseidon2 via wgpu compute shaders"
 license-file = "../LICENSE"
 rust-version = "1.89"
 repository = "https://github.com/cyberia-to/hemera"
+homepage = "https://github.com/cyberia-to/hemera"
+documentation = "https://docs.rs/cyber-hemera-wgsl"
+keywords = ["poseidon2", "goldilocks", "gpu", "wgpu", "crypto"]
+categories = ["cryptography", "rendering::graphics-api"]
+readme = "../README.md"
 
 [lints]
 workspace = true
 
 [dependencies]
-cyber-hemera = { path = "../rs" }
+cyber-hemera = { path = "../rs", version = "0.3.0" }
 wgpu = "28"
 bytemuck = { version = "1", features = ["derive"] }
 
