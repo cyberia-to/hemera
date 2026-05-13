@@ -259,6 +259,62 @@ impl Hasher {
         state
     }
 
+    /// Absorb `data`, calling `visitor` for each permutation triggered.
+    ///
+    /// Mirrors [`update`] exactly — use in place of `update` when building a trace.
+    pub fn update_traced<V: crate::trace::RoundVisitor>(
+        &mut self,
+        mut data: &[u8],
+        visitor: &mut V,
+    ) -> &mut Self {
+        self.absorbed += data.len() as u64;
+
+        while !data.is_empty() {
+            let space = RATE_BYTES - self.buf_len;
+            let n = space.min(data.len());
+            self.buf[self.buf_len..self.buf_len + n].copy_from_slice(&data[..n]);
+            self.buf_len += n;
+            data = &data[n..];
+
+            if self.buf_len == RATE_BYTES {
+                let mut rate_block = [Goldilocks::new(0); RATE];
+                bytes_to_rate_block(&self.buf, &mut rate_block);
+                for (i, elem) in rate_block.iter().enumerate() {
+                    self.state[i] = self.state[i] + *elem;
+                }
+                crate::permutation::permute_traced(&mut self.state, visitor);
+                self.buf_len = 0;
+            }
+        }
+
+        self
+    }
+
+    /// Finalize and return the hash, tracing the final permutation via `visitor`.
+    ///
+    /// If the input required absorb permutations, trace those via [`update_traced`];
+    /// this method traces only the padding+finalize permutation.
+    pub fn finalize_traced<V: crate::trace::RoundVisitor>(&self, visitor: &mut V) -> Hash {
+        let mut state = self.state;
+        let mut padded = [0u8; RATE_BYTES];
+        padded[..self.buf_len].copy_from_slice(&self.buf[..self.buf_len]);
+        padded[self.buf_len] = 0x01;
+
+        let mut rate_block = [Goldilocks::new(0); RATE];
+        bytes_to_rate_block(&padded, &mut rate_block);
+        for i in 0..RATE {
+            state[i] = state[i] + rate_block[i];
+        }
+        state[CAPACITY_START + 2] = Goldilocks::new(self.absorbed);
+
+        crate::permutation::permute_traced(&mut state, visitor);
+
+        let output: [Goldilocks; OUTPUT_ELEMENTS] = state[..OUTPUT_ELEMENTS]
+            .try_into()
+            .unwrap();
+        Hash(hash_to_bytes(&output))
+    }
+
     /// Finalize and return the hash.
     pub fn finalize(&self) -> Hash {
         let state = self.finalize_state();

@@ -64,6 +64,7 @@ mod params;
 pub mod permutation;
 mod sponge;
 pub mod sparse;
+pub mod trace;
 pub mod tree;
 #[cfg(feature = "async")]
 pub mod async_io;
