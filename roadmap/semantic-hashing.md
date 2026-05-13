@@ -120,18 +120,20 @@ valid range: element_size ∈ [1, 64].
 - element_size > 64 is forbidden (rotation formula loses uniqueness at k=64)
 - len(section_bytes) must be an exact multiple of element_size. if not, the file is malformed for the declared element_size — implementations must reject, not silently fall back. authors must not declare `element` for sections with non-uniform encodings; such sections use element_size=1.
 
-canonical element sizes:
+recommended element sizes for authors writing explicit `element` declarations on uniform-encoding sections. not a dispatch table — implementations never use this to infer element_size:
 
 | encoding | element_size | atomic unit |
 |----------|-------------|-------------|
-| text, TOML, frontmatter, unknown | 1 byte | byte |
-| u16 | 2 bytes | one value |
-| u32 | 4 bytes | one value |
-| ternary | 1 byte | one packed byte (4 values) |
-| q4 | 18 bytes | one quant block (scale + 32 nibbles) |
-| q8 | 34 bytes | one quant block (scale + 32 i8s) |
+| text, TOML, frontmatter, unknown | 1 | byte |
+| u16 | 2 | one value |
+| u32 | 4 | one value |
+| q4 | 18 | one quant block (scale + 32 nibbles) |
+| q8 | 34 | one quant block (scale + 32 i8s) |
+| mixed / unknown encoding | 1 | byte (use this when in doubt) |
 
 declared in `[[files]]` as optional `element` field. absent → element_size=1. frontmatter always element_size=1.
+
+**no inference.** when `element` is absent, implementations use element_size=1 unconditionally. implementations must not infer element_size from the `format` field, file extension, or any content inspection. incorrect inference silently misaligns boundaries and destroys deduplication without error.
 
 ### element fingerprint
 
