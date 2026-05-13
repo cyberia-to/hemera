@@ -120,20 +120,9 @@ valid range: element_size ∈ [1, 64].
 - element_size > 64 is forbidden (rotation formula loses uniqueness at k=64)
 - len(section_bytes) must be an exact multiple of element_size. if not, the file is malformed for the declared element_size — implementations must reject, not silently fall back. authors must not declare `element` for sections with non-uniform encodings; such sections use element_size=1.
 
-recommended element sizes for authors writing explicit `element` declarations on uniform-encoding sections. not a dispatch table — implementations never use this to infer element_size:
+declared in `[[files]]` as optional `element` field. the value is the byte size of the atomic unit for that section — the smallest indivisible chunk that CDC must not split. absent → element_size=1. frontmatter always element_size=1.
 
-| encoding | element_size | atomic unit |
-|----------|-------------|-------------|
-| text, TOML, frontmatter, unknown | 1 | byte |
-| u16 | 2 | one value |
-| u32 | 4 | one value |
-| mixed / unknown encoding | 1 | byte (use this when in doubt) |
-
-quantization formats (q4, q8, and variants) are not listed. block size varies by specific format variant — Q4_0 is 18 bytes, Q4_1 is 20 bytes, Q8_0 is 34 bytes, Q8_1 is 36 bytes, etc. the author who knows their exact block layout declares the correct `element` value directly. the spec cannot enumerate these — declaring the wrong value causes section length rejection.
-
-declared in `[[files]]` as optional `element` field. absent → element_size=1. frontmatter always element_size=1.
-
-**no inference.** when `element` is absent, implementations use element_size=1 unconditionally. implementations must not infer element_size from the `format` field, file extension, or any content inspection. incorrect inference silently misaligns boundaries and destroys deduplication without error.
+**no inference.** implementations use element_size=1 unconditionally when `element` is absent. inferring element_size from `format`, file extension, or content inspection is forbidden — incorrect inference silently misaligns boundaries without error.
 
 ### element fingerprint
 
