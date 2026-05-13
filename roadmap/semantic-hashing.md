@@ -127,9 +127,9 @@ recommended element sizes for authors writing explicit `element` declarations on
 | text, TOML, frontmatter, unknown | 1 | byte |
 | u16 | 2 | one value |
 | u32 | 4 | one value |
-| q4 | 18 | one quant block (scale + 32 nibbles) |
-| q8 | 34 | one quant block (scale + 32 i8s) |
 | mixed / unknown encoding | 1 | byte (use this when in doubt) |
+
+quantization formats (q4, q8, and variants) are not listed. block size varies by specific format variant — Q4_0 is 18 bytes, Q4_1 is 20 bytes, Q8_0 is 34 bytes, Q8_1 is 36 bytes, etc. the author who knows their exact block layout declares the correct `element` value directly. the spec cannot enumerate these — declaring the wrong value causes section length rejection.
 
 declared in `[[files]]` as optional `element` field. absent → element_size=1. frontmatter always element_size=1.
 
