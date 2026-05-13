@@ -87,6 +87,7 @@ if M == 1:
     particle_id = section_cdc_tree(section[0], element_size=1, is_root=true)
 
 else:
+    // element_size[i]: i=0 → 1 (frontmatter); i≥1 → files[i-1].element ?? 1
     root[i] = section_cdc_tree(section[i], element_size[i], is_root=false)
               for i in 0..M
     particle_id = left_balanced_tree(root[0..M], is_root=true on the final node)
@@ -208,20 +209,26 @@ degenerate case: all fp values in [lo, hi] are equal (e.g., zero-padded data). t
 for section bytes `data` with element_size S, n elements, and computed boundaries:
 
 ```
-for chunk k with element range [boundaries[k], boundaries[k+1]):
-    chunk_bytes = data[ boundaries[k]×S .. boundaries[k+1]×S ]
-    leaf[k] = hash_leaf(chunk_bytes, counter=k, is_root=false)
-
 section_cdc_tree(data, S, is_root):
-    compute boundaries
-    compute leaf[0..M] as above
-    if M == 1:
+    n ← len(data) / S
+
+    if n == 0:
+        return hash_leaf([], counter=0, is_root=is_root)   // pre-check: empty section
+
+    compute boundaries using the boundary rule above
+    // boundaries[0]=0, boundaries[-1]=n, K = len(boundaries)-1 chunks
+
+    for chunk k in 0..K:
+        chunk_bytes = data[ boundaries[k]×S .. boundaries[k+1]×S ]
+        leaf[k] = hash_leaf(chunk_bytes, counter=k, is_root=false)
+
+    if K == 1:
         return hash_leaf(data, counter=0, is_root=is_root)
     else:
-        return left_balanced_tree(leaf[0..M], is_root=is_root)
+        return left_balanced_tree(leaf[0..K], is_root=is_root)
 ```
 
-empty section (len=0): `hash_leaf([], counter=0, is_root=is_root)`.
+K is the number of CDC chunks (len(boundaries)-1). K ≥ 1 for all non-empty sections.
 
 the `is_root` flag threads from the outer particle_id construction into the topmost node of each section tree. for M > 1 outer sections, every section tree uses is_root=false and the outer tree's root node uses is_root=true. for M=1, the single section tree uses is_root=true.
 
@@ -244,7 +251,7 @@ exactly one node in the entire computation carries FLAG_ROOT: the top node of th
 | chunk reordering | counter in state[8] binds chunk to its position within section |
 | leaf/node confusion | FLAG_CHUNK (0x04) vs FLAG_PARENT (0x02) |
 | root uniqueness | FLAG_ROOT (0x01) on exactly the particle_id root |
-| boundary stability | CDC boundaries content-defined; N-byte insertion shifts boundaries within next max_chunk elements (~8KB), then re-synchronizes |
+| boundary stability | CDC boundaries content-defined; insertion shifts boundaries within next max_chunk elements (max_chunk × element_size bytes), then re-synchronizes |
 | degenerate resistance | max_chunk bounds maximum chunk size; forced min_chunk boundary for uniform data |
 | element alignment | CDC never splits a quant block; fingerprint computed over whole elements |
 | gear table integrity | derived from hemera::hash outputs; security reduces to permutation security |
@@ -256,7 +263,7 @@ exactly one node in the entire computation carries FLAG_ROOT: the top node of th
 | gear table precomputation | 256 × 1 hemera call, once at startup |
 | CDC boundary scan | 1 fp computation per element; O(D/S) total; negligible vs permutations |
 | leaf hashing | K × 75 permutations (74 absorb + 1 bind, 4KB chunk) |
-| section tree internal nodes | K − M permutations |
+| section tree internal nodes | K − 1 permutations (per section) |
 | outer tree | M − 1 permutations (≤ 6 for typical .model with 7 sections) |
 
 total: within 1% of fixed-4KB tree hash for large files.
@@ -266,7 +273,7 @@ total: within 1% of fixed-4KB tree hash for large files.
 | case | quality | mechanism |
 |------|---------|-----------|
 | identical sections across files | perfect | same bytes → same CDC → same section_root |
-| one tensor changed, rest identical | ~99% | CDC re-synchronizes within max_chunk (~8KB) |
+| one tensor changed, rest identical | ~99% | CDC re-synchronizes within max_chunk × element_size bytes |
 | frontmatter differs, sections identical | perfect on sections | section[0] differs, section[1..N] roots unchanged |
 | zero-padded / abliterated weights | perfect | degenerate fallback → fixed-size chunks → identical chunk hashes |
 | random bytes | none | nothing to deduplicate; expected |
