@@ -50,6 +50,9 @@ pub const ROUNDS_F: usize = 8;
 /// Number of partial (internal) rounds.
 pub const ROUNDS_P: usize = 16;
 
+/// Total number of rounds per permutation (R_F + R_P).
+pub const ROUNDS_TOTAL: usize = ROUNDS_F + ROUNDS_P; // 24
+
 /// Full-round S-box degree (x → x^d).
 pub const SBOX_DEGREE: usize = 7;
 

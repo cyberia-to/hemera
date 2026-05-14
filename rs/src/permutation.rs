@@ -64,6 +64,42 @@ pub fn permute_with_constants(state: &mut [Goldilocks; 16], constants: &[Goldilo
     }
 }
 
+/// Execute one round of the permutation in-place.
+///
+/// `round` is 0-indexed over all 24 rounds:
+/// - 0..4:  initial full rounds (after the initial MDS, which is applied separately)
+/// - 4..20: partial rounds
+/// - 20..24: terminal full rounds
+///
+/// The initial MDS step must be applied once before `permute_one_round(state, 0)`.
+/// See `StepSponge::absorb`, which handles this.
+pub(crate) fn permute_one_round(state: &mut [Goldilocks; 16], round: usize) {
+    let (external, internal) = ROUND_CONSTANTS.split_at(NUM_EXTERNAL);
+    let (initial_rc, terminal_rc) = external.split_at(NUM_EXTERNAL / 2);
+
+    if round < 4 {
+        let rc = &initial_rc[round * 16..(round + 1) * 16];
+        for i in 0..16 {
+            state[i] += rc[i];
+            state[i] = state[i].pow7();
+        }
+        mds_light_permutation(state);
+    } else if round < 20 {
+        let pr = round - 4;
+        state[0] += internal[pr];
+        state[0] = state[0].inv();
+        matmul_internal(state);
+    } else {
+        let tr = round - 20;
+        let rc = &terminal_rc[tr * 16..(tr + 1) * 16];
+        for i in 0..16 {
+            state[i] += rc[i];
+            state[i] = state[i].pow7();
+        }
+        mds_light_permutation(state);
+    }
+}
+
 /// Apply the Poseidon2 permutation in-place, calling `visitor` once per round.
 ///
 /// Emits 24 callbacks total in order: full_round 0–3, partial_round 0–15, full_round 4–7.

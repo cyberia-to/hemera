@@ -65,6 +65,7 @@ mod params;
 pub mod permutation;
 mod sponge;
 pub mod sparse;
+pub mod step_sponge;
 pub mod trace;
 pub mod tree;
 #[cfg(feature = "async")]
@@ -75,8 +76,9 @@ pub mod stream_async;
 // Re-export all Hemera parameters so downstream crates never hardcode them.
 pub use params::{
     CAPACITY, CHUNK_SIZE, COLLISION_BITS, OUTPUT_BYTES, OUTPUT_ELEMENTS, RATE, RATE_BYTES,
-    ROUNDS_F, ROUNDS_P, SBOX_DEGREE, WIDTH,
+    ROUNDS_F, ROUNDS_P, ROUNDS_TOTAL, SBOX_DEGREE, WIDTH,
 };
+pub use step_sponge::StepSponge;
 pub use sponge::{Hash, Hasher, OutputReader};
 
 /// Hash the input bytes and return a 32-byte digest.
