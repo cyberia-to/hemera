@@ -178,7 +178,7 @@ Hemera tree hashing (the recursive construction below) remains available for leg
 | Content tree | Binary Merkle | File addressing (particle hash) | Particle addressing layer |
 | MMR | Merkle Mountain Range | Append-only commitment list (AOCL) | BBG Layer 4 |
 | NMT | Namespace Merkle Tree | Data availability sampling | DA layer |
-| WHIR commitment | Binary Merkle | Polynomial commitment ([[WHIR]]) | Proof system |
+| Brakedown commitment | expander codes | Polynomial commitment ([[Brakedown]]) | Proof system |
 
 The relationship:
 
@@ -187,7 +187,7 @@ The relationship:
                                     │
               ┌─────────────┬───────┴───────┬──────────────┐
               │             │               │              │
-         Content tree      MMR             NMT       WHIR commit
+         Content tree      MMR             NMT       Brakedown commit
          (file hash)    (append log)    (DA proofs)  (poly commit)
               │             │               │              │
               └─────────────┴───────┬───────┴──────────────┘
@@ -197,7 +197,7 @@ The relationship:
                             Same security proof
 ```
 
-All four tree types share the same internal node construction. The content tree and WHIR commitment use `hash_node` directly. The MMR uses `hash_node` with `is_root=true` at each peak. The NMT uses `hash_node_nmt` with namespace bounds in state[12..13].
+All four tree types share the same internal node construction. The content tree and Brakedown commitment use `hash_node` directly. The MMR uses `hash_node` with `is_root=true` at each peak. The NMT uses `hash_node_nmt` with namespace bounds in state[12..13].
 
 Constraint cost in a STARK circuit:
 

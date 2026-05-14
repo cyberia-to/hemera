@@ -89,14 +89,14 @@ every entity in [[nox]] — particle, edge, neuron, commitment, proof — has a 
 
 ## unity
 
-one permutation. one sponge mode. one tree primitive. every hash — particle content, Merkle leaves, Merkle internal nodes, cyberlink edges, key derivation, polynomial commitments — passes through the same permutation, the same absorption, the same squeezing. every tree — content, MMR, NMT, WHIR — passes through the same `hash_node`.
+one permutation. one sponge mode. one tree primitive. every hash — particle content, Merkle leaves, Merkle internal nodes, cyberlink edges, key derivation, polynomial commitments — passes through the same permutation, the same absorption, the same squeezing. every tree — content, MMR, NMT, Brakedown — passes through the same `hash_node`.
 
 ```
                     hash_node(left, right, is_root)
                                 │
           ┌─────────────┬───────┴───────┬──────────────┐
           │             │               │              │
-     Content tree      MMR             NMT       WHIR commit
+     Content tree      MMR             NMT       Brakedown commit
      (file hash)    (append log)    (DA proofs)  (poly commit)
 ```
 
@@ -118,9 +118,9 @@ but unity extends beyond hashing. Hemera's Goldilocks field is the same field th
                         Goldilocks field (p = 2⁶⁴ − 2³² + 1)
 ```
 
-BLAKE3 hashes bytes. to enter a STARK circuit, its output must be decomposed into field elements — ~50,000-100,000 constraints per hash. Hemera's output IS field elements. the hash feeds directly into the prover, the polynomial commitment, the WHIR query, the consensus check. no conversion. no impedance mismatch. the hash is arithmetic. the proof is arithmetic. they share the same arithmetic.
+BLAKE3 hashes bytes. to enter a STARK circuit, its output must be decomposed into field elements — ~50,000-100,000 constraints per hash. Hemera's output IS field elements. the hash feeds directly into the prover, the polynomial commitment, the Brakedown query, the consensus check. no conversion. no impedance mismatch. the hash is arithmetic. the proof is arithmetic. they share the same arithmetic.
 
-[[trident]] demonstrates this with [[Trinity]]: five computational domains — neural inference, homomorphic encryption, cryptographic hashing, programmable bootstrapping, quantum circuits — executing inside one STARK trace, all over the Goldilocks field. LWE ciphertexts are Goldilocks vectors. neural weights are Goldilocks elements. Hemera round constants are Goldilocks elements. WHIR commitments are Hemera hashes. the field is the universal substrate. Hemera is its hash function.
+[[trident]] demonstrates this with [[Trinity]]: five computational domains — neural inference, homomorphic encryption, cryptographic hashing, programmable bootstrapping, quantum circuits — executing inside one STARK trace, all over the Goldilocks field. LWE ciphertexts are Goldilocks vectors. neural weights are Goldilocks elements. Hemera round constants are Goldilocks elements. Brakedown commitments are Hemera hashes. the field is the universal substrate. Hemera is its hash function.
 
 this is why Poseidon2 and not BLAKE3, not Keccak, not SHA-256. those are faster on CPUs. Hemera is faster in proofs — by a factor of 68-136×. when every particle address, every cyberlink, every state commitment must be proven, the proof cost dominates. the field-native hash is the only hash that makes planetary-scale proving feasible.
 

@@ -50,7 +50,7 @@ every hash in the system halves:
 | neuron identity | 64 bytes | 32 bytes | 2× |
 | Merkle node | 128 bytes | 64 bytes | 2× |
 | NMT node | 192 bytes | 128 bytes | 1.5× |
-| WHIR commitment | 64 bytes | 32 bytes | 2× |
+| Brakedown commitment | 64 bytes | 32 bytes | 2× |
 | nox noun identity | 64 bytes | 32 bytes | 2× |
 
 planetary scale (10^24 particles): ~64 PB saved.
@@ -70,7 +70,7 @@ nox identity = 32 bytes. computation key = 64 bytes. Rs Address (32 bytes) = hem
 
 ## impact on zheng
 
-WHIR commitments, transcript digests, Merkle path nodes all shrink to 32 bytes. proof size reduction: ~30% (Merkle paths dominate proof bulk).
+Brakedown commitments, transcript digests, Merkle path nodes all shrink to 32 bytes. proof size reduction: ~30% (Merkle paths dominate proof bulk).
 
 ## impact on bbg
 

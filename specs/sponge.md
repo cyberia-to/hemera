@@ -47,7 +47,7 @@ every use of the sponge in the Hemera stack:
 
 - **NMT commitments.** Namespace Merkle Trees store namespace bounds in the capacity region (state[12..14]). internal nodes propagate min/max namespace from children. the sponge absorbs child hashes while the capacity carries namespace metadata.
 
-- **WHIR polynomial commitments.** [[cyber]] uses [[WHIR]] for polynomial commitments. the sponge serves as the Fiat-Shamir transcript and builds the commitment Merkle trees. the field-native property eliminates the conversion overhead between hash output and field elements.
+- **Brakedown polynomial commitments.** [[cyber]] uses [[Brakedown]] for polynomial commitments. the sponge serves as the Fiat-Shamir transcript. the field-native property eliminates the conversion overhead between hash output and field elements.
 
 - **field-native computation.** the Poseidon2 sponge operates directly over the Goldilocks field, requiring ~736 constraints per hash in a STARK circuit (24 rounds, x⁻¹ partial S-box). BLAKE3 requires ~50,000-100,000 constraints for the same role.
 

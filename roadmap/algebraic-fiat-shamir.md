@@ -22,7 +22,7 @@ this is a significant fraction of the total recursive verification cost (~50,000
 
 ## the construction
 
-the zheng-2 IOP (SuperSpartan + sumcheck) commits round polynomials via Lens (WHIR/Brakedown). the commitment is binding. an algebraic challenge can be derived from the commitment itself:
+the zheng-2 IOP (SuperSpartan + sumcheck) commits round polynomials via Lens (Brakedown). the commitment is binding. an algebraic challenge can be derived from the commitment itself:
 
 ```
 initial seed: hemera(instance)                    ~736 constraints (one-time)
@@ -43,7 +43,7 @@ improvement:            8.7×
 ## security argument
 
 algebraic Fiat-Shamir requires:
-1. **binding commitment**: WHIR/Brakedown are computationally binding Lens schemes — the prover cannot change the committed polynomial after seeing the challenge
+1. **binding commitment**: Brakedown are computationally binding Lens schemes — the prover cannot change the committed polynomial after seeing the challenge
 2. **unpredictable evaluation point**: derived from the hemera-seeded random oracle — the prover cannot predict seed_i before committing
 3. **algebraic independence**: evaluating a committed polynomial at an unpredictable point produces an unpredictable value (Schwartz-Zippel over Goldilocks: probability of collision ≤ degree / p)
 
@@ -82,7 +82,7 @@ combined with algebraic extraction ([[algebraic-extraction]]) which eliminates M
 
 ## open questions
 
-1. **formal security proof**: the hybrid Fiat-Shamir (hemera seed + algebraic derivation) needs a formal security reduction. the argument is standard but the concrete instantiation with WHIR/Brakedown commitments over Goldilocks needs verification
+1. **formal security proof**: the hybrid Fiat-Shamir (hemera seed + algebraic derivation) needs a formal security reduction. the argument is standard but the concrete instantiation with Brakedown commitments over Goldilocks needs verification
 2. **round-by-round vs batch**: can all 19 algebraic challenges be derived in one batch polynomial evaluation? if so: 1 poly_eval call instead of 19
 3. **transcript dependency**: each challenge depends on the previous commitment. the algebraic derivation must preserve this sequential dependency. seed_i must incorporate all prior commitments, not just the i-th
 
