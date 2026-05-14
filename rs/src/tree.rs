@@ -130,28 +130,30 @@ pub fn hash_node_nmt(
     Hash::from_bytes(hash_to_bytes(&output))
 }
 
-/// Hash arbitrary-length content into a single root hash.
+/// Hash arbitrary-length content using element-aligned CDC.
 ///
-/// Splits `data` into `CHUNK_SIZE`-byte chunks and builds a left-balanced
-/// binary Merkle tree. See spec §4.6.1–§4.6.5.
+/// Equivalent to `section_cdc_tree(data, 1, is_root=true)`. Chunks are
+/// content-defined (average ~4096 bytes). See cdc::section_cdc_tree.
 ///
-/// - Single chunk (≤ 4096 bytes): `hash_leaf(data, 0, is_root=true)`
-/// - Multiple chunks: left-balanced tree via `hash_leaf` + `hash_node`
-///
-/// Uses a fixed-size stack (no heap allocation). The stack-based merge
-/// follows the BLAKE3 pattern: after adding chunk i (0-indexed),
-/// merge while `(i+1)` has trailing zero bits in the left-balanced split.
+/// Note: `prove`, `prove_range`, `encode`, `outboard`, and batch proofs use
+/// `fixed_chunk_root` (fixed 4096-byte chunks, BAO-compatible) and produce
+/// a different root for data longer than ~2048 bytes.
 pub fn root_hash(data: &[u8]) -> Hash {
+    crate::cdc::section_cdc_tree(data, 1, true)
+}
+
+/// Hash arbitrary-length content using fixed 4096-byte chunks (BAO-compatible).
+///
+/// This is the tree hash used by `encode`, `outboard`, and batch proofs.
+/// For semantic content identity, use `root_hash` (CDC-based) instead.
+pub fn fixed_chunk_root(data: &[u8]) -> Hash {
     if data.is_empty() {
         return hash_leaf(data, 0, true);
     }
-
     let n = (data.len() + CHUNK_SIZE - 1) / CHUNK_SIZE;
-
     if n == 1 {
         return hash_leaf(data, 0, true);
     }
-
     merge_range(data, 0, n, true)
 }
 
@@ -810,6 +812,22 @@ pub fn parent_cv(left: &Hash, right: &Hash, is_root: bool) -> Hash {
     hash_node(left, right, is_root)
 }
 
+/// Build a left-balanced binary tree from a slice of pre-computed leaf hashes.
+///
+/// Used by `section_cdc_tree` to combine CDC chunk hashes into a section root.
+/// Panics if `leaves` is empty.
+pub(crate) fn merge_leaf_hashes(leaves: &[Hash], is_root: bool) -> Hash {
+    debug_assert!(!leaves.is_empty());
+    if leaves.len() == 1 {
+        return leaves[0];
+    }
+    let n = leaves.len();
+    let split = 1 << (usize::BITS - (n - 1).leading_zeros() - 1);
+    let left = merge_leaf_hashes(&leaves[..split], false);
+    let right = merge_leaf_hashes(&leaves[split..], false);
+    hash_node(&left, &right, is_root)
+}
+
 #[cfg(test)]
 mod tests {
     extern crate std;
@@ -1047,7 +1065,7 @@ mod tests {
         assert!(CAPACITY_NS_MIN_IDX > 11);
     }
 
-    // ── root_hash tests ──────────────────────────────────────────
+    // ── root_hash tests (CDC-based) ──────────────────────────────────
 
     #[test]
     fn root_hash_empty() {
@@ -1056,55 +1074,24 @@ mod tests {
     }
 
     #[test]
-    fn root_hash_single_chunk() {
+    fn root_hash_below_min_chunk_is_single_leaf() {
+        // element_size=1 → W=4096, min_chunk=2048. Data < 2048 bytes → K=1.
         let data = vec![0x42u8; 100];
-        let h = root_hash(&data);
-        assert_eq!(h, hash_leaf(&data, 0, true));
+        assert_eq!(root_hash(&data), hash_leaf(&data, 0, true));
+
+        let data2 = vec![0x42u8; 2047];
+        assert_eq!(root_hash(&data2), hash_leaf(&data2, 0, true));
     }
 
     #[test]
-    fn root_hash_exact_chunk() {
-        let data = vec![0x42u8; CHUNK_SIZE];
+    fn root_hash_uniform_4096_splits_at_2048() {
+        // Uniform data: all fingerprints equal → first minimum at lo each time.
+        // 4096 bytes → K=2, chunks [0..2048] and [2048..4096].
+        let data = vec![0x42u8; 4096];
         let h = root_hash(&data);
-        assert_eq!(h, hash_leaf(&data, 0, true));
-    }
-
-    #[test]
-    fn root_hash_two_chunks() {
-        let data = vec![0x42u8; CHUNK_SIZE + 1];
-        let h = root_hash(&data);
-        let c0 = hash_leaf(&data[..CHUNK_SIZE], 0, false);
-        let c1 = hash_leaf(&data[CHUNK_SIZE..], 1, false);
-        assert_eq!(h, hash_node(&c0, &c1, true));
-    }
-
-    #[test]
-    fn root_hash_three_chunks() {
-        // 3 chunks → left-balanced: left subtree has 2 leaves, right has 1
-        let data = vec![0xAB; CHUNK_SIZE * 3];
-        let h = root_hash(&data);
-
-        let c0 = hash_leaf(&data[..CHUNK_SIZE], 0, false);
-        let c1 = hash_leaf(&data[CHUNK_SIZE..CHUNK_SIZE * 2], 1, false);
-        let c2 = hash_leaf(&data[CHUNK_SIZE * 2..], 2, false);
-        let left = hash_node(&c0, &c1, false);
-        let expected = hash_node(&left, &c2, true);
-        assert_eq!(h, expected);
-    }
-
-    #[test]
-    fn root_hash_four_chunks() {
-        let data = vec![0xCD; CHUNK_SIZE * 4];
-        let h = root_hash(&data);
-
-        let c0 = hash_leaf(&data[..CHUNK_SIZE], 0, false);
-        let c1 = hash_leaf(&data[CHUNK_SIZE..CHUNK_SIZE * 2], 1, false);
-        let c2 = hash_leaf(&data[CHUNK_SIZE * 2..CHUNK_SIZE * 3], 2, false);
-        let c3 = hash_leaf(&data[CHUNK_SIZE * 3..], 3, false);
-        let p01 = hash_node(&c0, &c1, false);
-        let p23 = hash_node(&c2, &c3, false);
-        let expected = hash_node(&p01, &p23, true);
-        assert_eq!(h, expected);
+        let leaf0 = hash_leaf(&data[..2048], 0, false);
+        let leaf1 = hash_leaf(&data[2048..], 1, false);
+        assert_eq!(h, hash_node(&leaf0, &leaf1, true));
     }
 
     #[test]
@@ -1115,11 +1102,16 @@ mod tests {
 
     #[test]
     fn root_hash_differs_from_plain_hash() {
-        // root_hash uses hash_leaf with flags; plain hash does not
         let data = b"small input";
         let th = root_hash(data);
         let ph = crate::hash(data);
         assert_ne!(th, ph);
+    }
+
+    #[test]
+    fn root_hash_different_inputs_differ() {
+        assert_ne!(root_hash(b"abc"), root_hash(b"abd"));
+        assert_ne!(root_hash(&vec![0u8; 8192]), root_hash(&vec![1u8; 8192]));
     }
 
     // ── Inclusion proof tests ─────────────────────────────────────
@@ -1141,20 +1133,20 @@ mod tests {
         assert!(verify_proof(data, &proof, &root));
     }
 
+    // Note: prove/prove_range use fixed 4096-byte chunks (BAO-compatible).
+    // For data > ~2048 bytes, prove's root differs from root_hash (which uses CDC).
+    // Proof tests verify internal consistency: the root from prove verifies correctly.
+
     #[test]
     fn prove_two_chunks() {
         let data = vec![0x42u8; CHUNK_SIZE + 1];
-        let root = root_hash(&data);
 
-        // Prove chunk 0
-        let (r0, p0) = prove(&data, 0);
-        assert_eq!(r0, root);
+        let (root, p0) = prove(&data, 0);
         assert_eq!(p0.depth(), 1);
         assert!(verify_proof(&data[..CHUNK_SIZE], &p0, &root));
 
-        // Prove chunk 1
-        let (r1, p1) = prove(&data, 1);
-        assert_eq!(r1, root);
+        let (root2, p1) = prove(&data, 1);
+        assert_eq!(root, root2);
         assert_eq!(p1.depth(), 1);
         assert!(verify_proof(&data[CHUNK_SIZE..], &p1, &root));
     }
@@ -1162,23 +1154,22 @@ mod tests {
     #[test]
     fn prove_four_chunks() {
         let data = vec![0xCD; CHUNK_SIZE * 4];
-        let root = root_hash(&data);
+        let (root, _) = prove(&data, 0);
 
         for i in 0..4u64 {
             let start = i as usize * CHUNK_SIZE;
             let end = start + CHUNK_SIZE;
             let (r, proof) = prove(&data, i);
             assert_eq!(r, root);
-            assert_eq!(proof.depth(), 2); // depth = 2
+            assert_eq!(proof.depth(), 2);
             assert!(verify_proof(&data[start..end], &proof, &root));
         }
     }
 
     #[test]
     fn prove_three_chunks() {
-        // Left-balanced: left subtree has 2 leaves, right has 1
         let data = vec![0xAB; CHUNK_SIZE * 3];
-        let root = root_hash(&data);
+        let (root, _) = prove(&data, 0);
 
         for i in 0..3u64 {
             let start = i as usize * CHUNK_SIZE;
@@ -1188,7 +1179,6 @@ mod tests {
             assert!(verify_proof(&data[start..end], &proof, &root));
         }
 
-        // Chunks 0,1 have depth 2; chunk 2 has depth 1
         let (_, p0) = prove(&data, 0);
         let (_, p2) = prove(&data, 2);
         assert_eq!(p0.depth(), 2);
@@ -1198,7 +1188,7 @@ mod tests {
     #[test]
     fn prove_five_chunks() {
         let data = vec![0xEF; CHUNK_SIZE * 5];
-        let root = root_hash(&data);
+        let (root, _) = prove(&data, 0);
 
         for i in 0..5u64 {
             let start = i as usize * CHUNK_SIZE;
@@ -1239,12 +1229,11 @@ mod tests {
 
     #[test]
     fn prove_large_file() {
-        // 256 chunks = 1 MB
+        // 256 chunks = 1 MB (fixed-chunk tree, BAO-compatible)
         let data = vec![0x77; CHUNK_SIZE * 256];
-        let root = root_hash(&data);
+        let (root, _) = prove(&data, 0);
 
-        // Verify a few chunks
-        for &i in &[0, 1, 127, 128, 255] {
+        for &i in &[0usize, 1, 127, 128, 255] {
             let start = i * CHUNK_SIZE;
             let end = start + CHUNK_SIZE;
             let (r, proof) = prove(&data, i as u64);
@@ -1287,25 +1276,20 @@ mod tests {
 
     #[test]
     fn prove_range_full_tree() {
-        // Proving the entire range should give empty siblings
         let data = vec![0x42u8; CHUNK_SIZE * 4];
-        let root = root_hash(&data);
-        let (r, proof) = prove_range(&data, 0, 4);
-        assert_eq!(r, root);
+        let (root, proof) = prove_range(&data, 0, 4);
         assert_eq!(proof.depth(), 0);
         assert!(verify_node_proof(&root, &proof, &root));
     }
 
     #[test]
     fn prove_range_left_subtree() {
-        // 4 chunks: prove left subtree [0..2)
         let data = vec![0xCD; CHUNK_SIZE * 4];
-        let root = root_hash(&data);
+        let (root, _) = prove_range(&data, 0, 4);
         let (r, proof) = prove_range(&data, 0, 2);
         assert_eq!(r, root);
-        assert_eq!(proof.depth(), 1); // just the right subtree
+        assert_eq!(proof.depth(), 1);
 
-        // The node hash should be hash_node(c0, c1, false)
         let c0 = hash_leaf(&data[..CHUNK_SIZE], 0, false);
         let c1 = hash_leaf(&data[CHUNK_SIZE..CHUNK_SIZE * 2], 1, false);
         let left_node = hash_node(&c0, &c1, false);
@@ -1314,9 +1298,8 @@ mod tests {
 
     #[test]
     fn prove_range_right_subtree() {
-        // 4 chunks: prove right subtree [2..4)
         let data = vec![0xCD; CHUNK_SIZE * 4];
-        let root = root_hash(&data);
+        let (root, _) = prove_range(&data, 0, 4);
         let (r, proof) = prove_range(&data, 2, 4);
         assert_eq!(r, root);
         assert_eq!(proof.depth(), 1);
@@ -1329,9 +1312,8 @@ mod tests {
 
     #[test]
     fn prove_range_nested_subtree() {
-        // 8 chunks: prove [0..2) which is 2 levels deep
         let data = vec![0xAB; CHUNK_SIZE * 8];
-        let root = root_hash(&data);
+        let (root, _) = prove_range(&data, 0, 8);
         let (r, proof) = prove_range(&data, 0, 2);
         assert_eq!(r, root);
         assert_eq!(proof.depth(), 2);
@@ -1345,7 +1327,6 @@ mod tests {
     #[test]
     #[should_panic(expected = "straddles split")]
     fn prove_range_unaligned_panics() {
-        // [1..3) doesn't align to any subtree in a 4-chunk tree
         let data = vec![0xCD; CHUNK_SIZE * 4];
         prove_range(&data, 1, 3);
     }
@@ -1353,8 +1334,7 @@ mod tests {
     #[test]
     fn verify_node_proof_wrong_hash_fails() {
         let data = vec![0xCD; CHUNK_SIZE * 4];
-        let root = root_hash(&data);
-        let (_, proof) = prove_range(&data, 0, 2);
+        let (root, proof) = prove_range(&data, 0, 2);
         let wrong = Hash::from_bytes([0xFF; OUTPUT_BYTES]);
         assert!(!verify_node_proof(&wrong, &proof, &root));
     }

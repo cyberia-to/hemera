@@ -57,6 +57,7 @@ extern crate std;
 pub mod batch;
 pub mod stream;
 pub mod bootstrap;
+pub mod cdc;
 pub mod constants;
 mod encoding;
 pub mod field;

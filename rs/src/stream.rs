@@ -342,7 +342,7 @@ mod tests {
     extern crate std;
     use std::vec;
     use super::*;
-    use crate::tree::root_hash;
+    use crate::tree::fixed_chunk_root as root_hash;
 
     #[test]
     fn encode_decode_empty() {
