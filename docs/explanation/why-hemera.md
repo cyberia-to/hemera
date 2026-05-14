@@ -83,7 +83,7 @@ importing an external PRNG couples two independent security assumptions: "the PR
 
 the 32-byte Hemera output IS the particle address. not a representation of it. not a pointer to it. not an encoding that must be decoded. the tree is what makes this work at scale — a 1 TB file and a 5 byte message both resolve to the same type: 32 raw bytes.
 
-no version prefix. no multicodec header. no length indicator. no framing of any kind. a content identifier identifies content — it does not identify itself. every byte spent saying "this is a Hemera hash" is a byte replicated 10²⁴ times, a byte not spent on security, and a byte that implies the system might one day be something other than what it is.
+no version prefix. no multicodec header. no length indicator. no framing of any kind. a particle identifier identifies content — it does not identify itself. every byte spent saying "this is a Hemera hash" is a byte replicated 10²⁴ times, a byte not spent on security, and a byte that implies the system might one day be something other than what it is.
 
 every entity in [[nox]] — particle, edge, neuron, commitment, proof — has a 32-byte address in one flat namespace. no type tags. no interpretation hints. the same function produces all identifiers. domain separation lives in the hash input (different serialization, different capacity flags), not in type prefixes on the output. the output is pure, untagged, universal.
 

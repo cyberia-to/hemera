@@ -11,7 +11,7 @@ hemera has two reserved capacity slots (`state[14]`, `state[15]`). the protocol 
 
 ## motivation
 
-every particle in the cybergraph has a type. currently type is external metadata — stored alongside the hash, not inside it. this means two particles with identical content but different types produce identical hashes. type confusion is possible: the same bytes interpreted as "image" and "executable" share a CID.
+every particle in the cybergraph has a type. currently type is external metadata — stored alongside the hash, not inside it. this means two particles with identical content but different types produce identical hashes. type confusion is possible: the same bytes interpreted as "image" and "executable" share a particle.
 
 integrating type into capacity makes type intrinsic to identity. same content, different type → different hash. type becomes part of what the content IS, not a label attached after.
 

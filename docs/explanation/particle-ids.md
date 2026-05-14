@@ -2,7 +2,7 @@
 tags: cyber, cip
 crystal-type: entity
 crystal-domain: cyber
-alias: Hemera content identifiers, raw CIDs, no headers, particle identity
+alias: Hemera particle identifiers, raw particles, no headers, particle identity
 ---
 
 # particle identifiers: raw bytes, no headers
@@ -60,4 +60,4 @@ the translation is stateless and lossless. gateways add it. gateways strip it. t
 
 ## principle
 
-a content identifier identifies content. it does not identify itself. the 32 bytes ARE the identity — complete, self-sufficient, and universal. any byte spent saying "this is a Hemera hash" is a byte replicated 10²⁴ times, a byte not spent on security, and a byte that implies the system might one day be something other than what it is.
+a particle identifier identifies content. it does not identify itself. the 32 bytes ARE the identity — complete, self-sufficient, and universal. any byte spent saying "this is a Hemera hash" is a byte replicated 10²⁴ times, a byte not spent on security, and a byte that implies the system might one day be something other than what it is.
