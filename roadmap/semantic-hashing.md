@@ -110,14 +110,14 @@ gear_table[i] = u64::from_le_bytes(hemera::hash(&[i as u8])[0..8])
 
 `hemera::hash(data)` is the standard plain sponge call: `Hasher::new()` with domain_tag=0x00, absorb data, finalize — identical to the existing `hash()` API in specs/api.md. no tree flags, no counter.
 
-gear_table is precomputed once. it is deterministic and frozen alongside the permutation parameters.
+gear_table is precomputed once. it is deterministic and frozen alongside the complete hemera sponge construction — permutation constants, padding scheme (0x01 || 0x00\*), domain tag (0x00), capacity encoding, rate/capacity split, and output extraction. any change to any of these invalidates the gear table and all particle_id values.
 
 ### element_size constraints
 
 valid range: element_size ∈ [1, 64].
 
 - element_size=0 is forbidden (division in W formula undefined)
-- element_size > 64 is forbidden (rotation formula loses uniqueness at k=64)
+- element_size > 64 is forbidden (rotation formula loses uniqueness at k=64). this ceiling is a permanent architectural constraint — the rotation modulus is 64 because gear table entries are u64. raising the ceiling requires redesigning the fingerprint construction and breaks all hashes. formats with atomic units larger than 64 bytes must use element_size=1.
 - len(section_bytes) must be an exact multiple of element_size. if not, the file is malformed for the declared element_size — implementations must reject, not silently fall back. authors must not declare `element` for sections with non-uniform encodings; such sections use element_size=1.
 
 declared in `[[files]]` as optional `element` field. the value is the byte size of the atomic unit for that section — the smallest indivisible chunk that CDC must not split. absent → element_size=1. frontmatter always element_size=1.
@@ -133,7 +133,7 @@ fp(e) = XOR of  rotate_left(gear_table[e[k]], (k * 11) % 64)
          for k in 0..S
 ```
 
-rotation increment 11 is odd and coprime to 64 → full 64-cycle before any rotation repeats. for S ≤ 64 every byte position has a distinct rotation weight. no cancellation between byte positions for any canonical format (max S = 34).
+rotation increment 11 is odd and coprime to 64 → full 64-cycle before any rotation repeats. for S ≤ 64 every byte position has a distinct rotation weight.
 
 for S=1: `fp(e) = gear_table[e[0]]` (single table lookup, no rotation).
 
@@ -148,8 +148,9 @@ W = next_power_of_two(max(64, floor(4096 / element_size)))
 | 1 | 4096 | ~4096 B |
 | 2 | 2048 | ~4096 B |
 | 4 | 1024 | ~4096 B |
-| 18 | 256 | ~4608 B |
-| 34 | 128 | ~4352 B |
+| 16 | 256 | ~4096 B |
+| 32 | 128 | ~4096 B |
+| 64 | 64 | ~4096 B |
 
 ```
 min_chunk = W / 2    elements
@@ -204,19 +205,19 @@ section_cdc_tree(data, S, is_root):
     n ← len(data) / S
 
     if n == 0:
-        return hash_leaf([], counter=0, is_root=is_root)   // pre-check: empty section
+        return hash_leaf([], counter=0, is_root=is_root)
 
     compute boundaries using the boundary rule above
     // boundaries[0]=0, boundaries[-1]=n, K = len(boundaries)-1 chunks
+
+    if K == 1:
+        return hash_leaf(data, counter=0, is_root=is_root)
 
     for chunk k in 0..K:
         chunk_bytes = data[ boundaries[k]×S .. boundaries[k+1]×S ]
         leaf[k] = hash_leaf(chunk_bytes, counter=k, is_root=false)
 
-    if K == 1:
-        return hash_leaf(data, counter=0, is_root=is_root)
-    else:
-        return left_balanced_tree(leaf[0..K], is_root=is_root)
+    return left_balanced_tree(leaf[0..K], is_root=is_root)
 ```
 
 K is the number of CDC chunks (len(boundaries)-1). K ≥ 1 for all non-empty sections.
@@ -253,7 +254,7 @@ exactly one node in the entire computation carries FLAG_ROOT: the top node of th
 |---|---|
 | gear table precomputation | 256 × 1 hemera call, once at startup |
 | CDC boundary scan | 1 fp computation per element; O(D/S) total; negligible vs permutations |
-| leaf hashing | K × 75 permutations (74 absorb + 1 bind, 4KB chunk) |
+| leaf hashing | K × (⌈chunk_bytes / 56⌉ + 1) permutations; ~75 for 4KB chunks at element_size=1 |
 | section tree internal nodes | K − 1 permutations (per section) |
 | outer tree | M − 1 permutations (≤ 6 for typical .model with 7 sections) |
 
