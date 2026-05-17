@@ -26,6 +26,7 @@ use crate::permutation::permute_one_round;
 /// Call `absorb` to initialize, then iterate (or call `step` in a loop)
 /// to advance one round at a time. After all 24 rounds, `done()` is true
 /// and `squeeze()` returns `state[0]`.
+#[derive(Debug)]
 pub struct StepSponge {
     state: [Goldilocks; WIDTH],
     round: usize,
