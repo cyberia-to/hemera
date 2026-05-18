@@ -61,6 +61,7 @@ pub mod cdc;
 pub mod constants;
 mod encoding;
 pub mod field;
+pub mod merkle;
 mod params;
 pub mod permutation;
 mod sponge;
@@ -78,6 +79,7 @@ pub use params::{
     CAPACITY, CHUNK_SIZE, COLLISION_BITS, OUTPUT_BYTES, OUTPUT_ELEMENTS, RATE, RATE_BYTES,
     ROUNDS_F, ROUNDS_P, ROUNDS_TOTAL, SBOX_DEGREE, WIDTH,
 };
+pub use merkle::{merkle_verify_path, Side};
 pub use step_sponge::StepSponge;
 pub use sponge::{Hash, Hasher, OutputReader};
 
