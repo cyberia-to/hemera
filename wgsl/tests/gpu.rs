@@ -365,7 +365,7 @@ fn gpu_root_hash_single_chunk() {
 fn gpu_root_hash_two_chunks() {
     require_gpu!(gpu);
     let data = vec![0xAB; CHUNK_SIZE + 1];
-    let cpu = cyber_hemera::tree::root_hash(&data);
+    let cpu = cyber_hemera::tree::fixed_chunk_root(&data);
     let gpu_hash = pollster::block_on(gpu.root_hash(&data));
     assert_eq!(gpu_hash, cpu);
 }
@@ -374,7 +374,7 @@ fn gpu_root_hash_two_chunks() {
 fn gpu_root_hash_three_chunks() {
     require_gpu!(gpu);
     let data = vec![0xCD; CHUNK_SIZE * 3];
-    let cpu = cyber_hemera::tree::root_hash(&data);
+    let cpu = cyber_hemera::tree::fixed_chunk_root(&data);
     let gpu_hash = pollster::block_on(gpu.root_hash(&data));
     assert_eq!(gpu_hash, cpu);
 }
@@ -383,7 +383,7 @@ fn gpu_root_hash_three_chunks() {
 fn gpu_root_hash_five_chunks() {
     require_gpu!(gpu);
     let data = vec![0xEF; CHUNK_SIZE * 4 + 500];
-    let cpu = cyber_hemera::tree::root_hash(&data);
+    let cpu = cyber_hemera::tree::fixed_chunk_root(&data);
     let gpu_hash = pollster::block_on(gpu.root_hash(&data));
     assert_eq!(gpu_hash, cpu);
 }
@@ -392,7 +392,7 @@ fn gpu_root_hash_five_chunks() {
 fn gpu_root_hash_power_of_two() {
     require_gpu!(gpu);
     let data = vec![0x42; CHUNK_SIZE * 8];
-    let cpu = cyber_hemera::tree::root_hash(&data);
+    let cpu = cyber_hemera::tree::fixed_chunk_root(&data);
     let gpu_hash = pollster::block_on(gpu.root_hash(&data));
     assert_eq!(gpu_hash, cpu);
 }
@@ -401,7 +401,7 @@ fn gpu_root_hash_power_of_two() {
 fn gpu_root_hash_many_chunks() {
     require_gpu!(gpu);
     let data = vec![0x77; CHUNK_SIZE * 17 + 999];
-    let cpu = cyber_hemera::tree::root_hash(&data);
+    let cpu = cyber_hemera::tree::fixed_chunk_root(&data);
     let gpu_hash = pollster::block_on(gpu.root_hash(&data));
     assert_eq!(gpu_hash, cpu);
 }
@@ -462,7 +462,7 @@ fn gpu_outboard_verifiable() {
 fn gpu_verify_single_proof() {
     require_gpu!(gpu);
     let data = vec![0x42; CHUNK_SIZE * 4];
-    let root = cyber_hemera::tree::root_hash(&data);
+    let root = cyber_hemera::tree::fixed_chunk_root(&data);
     let (_, proof) = cyber_hemera::tree::prove(&data, 1);
     let chunk = &data[CHUNK_SIZE..CHUNK_SIZE * 2];
 
@@ -474,7 +474,7 @@ fn gpu_verify_single_proof() {
 fn gpu_verify_multiple_proofs() {
     require_gpu!(gpu);
     let data = vec![0xAB; CHUNK_SIZE * 8];
-    let root = cyber_hemera::tree::root_hash(&data);
+    let root = cyber_hemera::tree::fixed_chunk_root(&data);
 
     let mut entries = Vec::new();
     let mut proofs = Vec::new();
@@ -499,7 +499,7 @@ fn gpu_verify_multiple_proofs() {
 fn gpu_verify_wrong_data_fails() {
     require_gpu!(gpu);
     let data = vec![0x42; CHUNK_SIZE * 4];
-    let root = cyber_hemera::tree::root_hash(&data);
+    let root = cyber_hemera::tree::fixed_chunk_root(&data);
     let (_, proof) = cyber_hemera::tree::prove(&data, 0);
     let wrong_chunk = vec![0xFF; CHUNK_SIZE];
 
