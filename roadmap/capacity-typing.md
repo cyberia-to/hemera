@@ -1,11 +1,18 @@
 ---
-status: draft
+status: superseded
 breaks_hash: no
 tags: hemera, roadmap
 crystal-type: entity
 crystal-domain: crypto
 ---
 # capacity typing — type integration into the hash
+
+superseded by [[one-pure-hash]] and `soft3/specs/types.md`. the goal here
+— distinct identity for distinct referents — is right, but the mechanism
+(content type in `state[14]`, a frozen genesis registry) is the one the
+type theory rejects: type is a refinement (identity-neutral) or a nominal
+type expressed as structure (`pair(domain, value)`), never a capacity
+lane. kept for rationale. `state[14]` stays unused.
 
 hemera has two reserved capacity slots (`state[14]`, `state[15]`). the protocol is frozen — permutation parameters, round constants, S-box are permanent. but capacity slots are protocol-level metadata, not cryptographic parameters. using reserved slots for type information is a compatible extension.
 
