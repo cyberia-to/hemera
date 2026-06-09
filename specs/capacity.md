@@ -18,7 +18,7 @@ state[8..16]  capacity   structural context, never touched by input
 state[8]      counter    chunk position in file (0-based, u64)
 state[9]      flags      structural role (bitfield)
 state[10]     msg_length total input byte count (sponge finalization)
-state[11]     domain_tag API mode selector
+state[11]     domain_tag   API mode selector (PLANNED FOR REMOVAL — see roadmap/one-pure-hash.md)
 state[12]     ns_min     namespace lower bound (NMT only, zero otherwise)
 state[13]     ns_max     namespace upper bound (NMT only, zero otherwise)
 state[14]     reserved   must be zero
@@ -47,16 +47,13 @@ valid combinations:
 
 flags encode what the hash IS, not what it contains. a flag combination that does not appear in the table is invalid.
 
-## domain tags (state[11])
+## domain tags (state[11]) — planned for removal
 
-```
-DOMAIN_HASH             = 0x00    plain hash (default)
-DOMAIN_KEYED            = 0x01    keyed hash (MAC)
-DOMAIN_DERIVE_KEY_CTX   = 0x02    key derivation — context phase
-DOMAIN_DERIVE_KEY_MAT   = 0x03    key derivation — material phase
-```
+state[11] carries BLAKE3-style hash modes (DOMAIN_HASH=0x00, DOMAIN_KEYED=0x01, DOMAIN_DERIVE_KEY_CTX=0x02, DOMAIN_DERIVE_KEY_MAT=0x03). these were ported from BLAKE3 as a convenience library feature and are not a substrate invariant.
 
-domain tags are set before the first absorption and never modified. they are orthogonal to flags — a keyed hash of a Merkle leaf would have `state[9] = FLAG_CHUNK` and `state[11] = DOMAIN_KEYED`.
+per `roadmap/one-pure-hash.md`, state[11] will be freed: keyed hash and derive_key move to mudra (the KDF/MAC module). once that migration completes, state[11] stays empty — capacity is governance-scarce and an empty lane is correct until a real substrate invariant needs it.
+
+until the migration, DOMAIN_HASH = 0x00 is the only value the plain `hash()` API produces. the keyed and derive variants remain in the code but are deprecated for new use.
 
 ## counter (state[8])
 
@@ -80,7 +77,7 @@ different contexts produce different hashes because different capacity values en
 
 ```
 plain hash:      state[9] = 0x00, state[11] = 0x00
-keyed hash:      state[9] = 0x00, state[11] = 0x01
+keyed hash:      state[9] = 0x00, state[11] = 0x01  (deprecated — moving to mudra)
 leaf chunk:      state[8] = counter, state[9] = 0x04
 root chunk:      state[8] = counter, state[9] = 0x05
 internal node:   state[9] = 0x02
