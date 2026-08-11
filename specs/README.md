@@ -18,7 +18,7 @@ alias: Hemera reference, Hemera specification, Hemera spec, Hemera_Hash_Primitiv
 
 Hemera is the cryptographic hash primitive for [[cyber]], a knowledge graph for planetary-scale collective intelligence. It instantiates the [[Poseidon2]] permutation over the [[Goldilocks field]] (p = 2^64 - 2^32 + 1) with state width t = 16, full-round S-box x⁷, partial-round S-box x⁻¹ (field inversion), and 16 partial rounds (R_P = 16).
 
-The construction provides 256-bit classical collision resistance and 170-bit quantum collision resistance. Algebraic degree 7⁸ × (p−2)¹⁶ ≈ 2^1046 places the permutation far beyond any foreseeable attack capability — 2^918 bits of margin over 128-bit security. Every [[particles|particle]] address in the network, every node in every proof tree, and every commitment in every [[STARK]] derives from the same permutation.
+The construction provides 256-bit classical collision resistance and 170-bit quantum collision resistance. Algebraic degree 7⁸ × (p−2)¹⁶ ≈ 2^1046 places the permutation far beyond any foreseeable attack capability — 2^918 bits of margin over 128-bit security. Every [[particles|particle]] address in the network, every node in every proof tree, and every commitment in every [[zheng]] proof derives from the same permutation.
 
 Hemera is the domain separation layer and trust anchor. Lens (Brakedown) handles bulk commitment — polynomial evaluation, batch openings, erasure coding. Hemera wraps Lens commitments with domain tags, providing identity binding and Fiat-Shamir seeding. Per execution, hemera is called ~3 times: (a) domain separation wrapper: hemera(Lens.commit(noun) ‖ tag) — one call per noun identity. (b) Fiat-Shamir seed — one call per proof. (c) Brakedown binding — one call per Lens commit (internal to Lens). The heavy work is polynomial arithmetic; hemera is the thin trust layer on top.
 
@@ -88,7 +88,7 @@ One function. One mode (sponge). 32 bytes output. ~736 constraints per permutati
 - [[cybergraph]] — the graph Hemera addresses
 - [[nox]] — the VM where Hemera executes as a jet
 - [[tri-kernel]] — probability engine consuming Hemera outputs
-- [[cyber/proofs]] — [[STARK]] proof system built on Hemera
+- [[cyber/proofs]] — [[zheng]] proof system built on Hemera
 - [[BBG]] — authenticated state whose Lens commitment uses Hemera for binding
 - [[Brakedown]] — Lens (polynomial commitment scheme), one Hemera call for binding hash
 - [[cyber/whitepaper]] — section 4 Hemera chapter

@@ -9,7 +9,7 @@ alias: Why Hemera, permanence constraint, design philosophy
 
 Hemera is a particle-addressing primitive: a permutation and a tree, fused into one construction. the permutation provides cryptographic strength. the tree provides scale, streaming, and structure. together they form a closed system — from raw bytes to permanent identity to verifiable proof — with nothing else in the dependency chain.
 
-Hemera uses Poseidon2 because it operates directly over the [[Goldilocks field]] — the same field that runs the STARK prover, the FHE encryption, the neural inference, and the quantum circuits in [[cyber]]. no field conversion at any boundary. ~736 constraints per hash in a STARK circuit vs ~50,000-100,000 for BLAKE3. the hash is native to the field. the field is native to the proof system. the proof system is native to the execution layer. one algebraic substrate from content to commitment to proof to consensus.
+Hemera uses Poseidon2 because it operates directly over the [[Goldilocks field]] — the same field that runs the [[zheng]] prover, the FHE encryption, the neural inference, and the quantum circuits in [[cyber]]. no field conversion at any boundary. ~736 constraints per hash in a STARK circuit vs ~50,000-100,000 for BLAKE3. the hash is native to the field. the field is native to the proof system. the proof system is native to the execution layer. one algebraic substrate from content to commitment to proof to consensus.
 
 eight design principles shape every decision. each is a deliberate departure from how the ZK ecosystem builds hash primitives today.
 
@@ -111,7 +111,7 @@ but unity extends beyond hashing. Hemera's Goldilocks field is the same field th
 ```
          ┌──────────┬──────────┬──────────┬──────────┬──────────┐
          │  Hashing │  Proving │    FHE   │  Neural  │ Quantum  │
-         │ (Hemera) │  (STARK) │   (LWE)  │(inference)│(circuits)│
+         │ (Hemera) │  (zheng) │   (LWE)  │(inference)│(circuits)│
          └────┬─────┴────┬─────┴────┬─────┴────┬─────┴────┬─────┘
               │          │          │          │          │
               └──────────┴──────────┴──────────┴──────────┘
@@ -120,7 +120,7 @@ but unity extends beyond hashing. Hemera's Goldilocks field is the same field th
 
 BLAKE3 hashes bytes. to enter a STARK circuit, its output must be decomposed into field elements — ~50,000-100,000 constraints per hash. Hemera's output IS field elements. the hash feeds directly into the prover, the polynomial commitment, the Brakedown query, the consensus check. no conversion. no impedance mismatch. the hash is arithmetic. the proof is arithmetic. they share the same arithmetic.
 
-[[trident]] demonstrates this with [[Trinity]]: five computational domains — neural inference, homomorphic encryption, cryptographic hashing, programmable bootstrapping, quantum circuits — executing inside one STARK trace, all over the Goldilocks field. LWE ciphertexts are Goldilocks vectors. neural weights are Goldilocks elements. Hemera round constants are Goldilocks elements. Brakedown commitments are Hemera hashes. the field is the universal substrate. Hemera is its hash function.
+[[trident]] demonstrates this with [[Trinity]]: five computational domains — neural inference, homomorphic encryption, cryptographic hashing, programmable bootstrapping, quantum circuits — executing inside one [[zheng]] trace, all over the Goldilocks field. LWE ciphertexts are Goldilocks vectors. neural weights are Goldilocks elements. Hemera round constants are Goldilocks elements. Brakedown commitments are Hemera hashes. the field is the universal substrate. Hemera is its hash function.
 
 this is why Poseidon2 and not BLAKE3, not Keccak, not SHA-256. those are faster on CPUs. Hemera is faster in proofs — by a factor of 68-136×. when every particle address, every cyberlink, every state commitment must be proven, the proof cost dominates. the field-native hash is the only hash that makes planetary-scale proving feasible.
 

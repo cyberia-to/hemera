@@ -30,7 +30,7 @@ increases cache pressure. 16 KB exceeds L1 on most
 microarchitectures. Processing a chunk without evicting working
 set from L1 is a hard performance boundary.
 
-## 4. STARK proof granularity
+## 4. zheng proof granularity
 
 75 permutations x ~736 constraints = ~55,200 constraints per
 leaf. Large enough to amortize proof overhead, small enough to
