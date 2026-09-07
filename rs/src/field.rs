@@ -65,34 +65,52 @@ impl Goldilocks {
     /// Convention: 0^(-1) = 0 (permutation over F_p).
     #[inline]
     pub fn inv(self) -> Self {
+        // x^(p-2) by the 75-multiply addition chain (acpu gl_inv) instead
+        // of naive square-and-multiply (~125 serial muls). The partial
+        // rounds of the Poseidon2 permutation call this once each, and the
+        // permutation is the single hottest primitive in the stack — every
+        // saved serial multiply here is felt from Brakedown to the graph.
+        // Bit-identical result: same Fermat exponent, better chain.
         if self.as_canonical_u64() == 0 {
             return Self::ZERO;
         }
-        // p - 2 = 0xFFFF_FFFE_FFFF_FFFF
-        // Binary: 63 ones, then a zero at bit 32, then 32 ones
-        // Square-and-multiply for x^(p-2)
-        //
-        // p-2 = 2^64 - 2^32 - 1
-        //     = (2^32 - 1) * 2^32 + (2^32 - 1) - 2^32
-        //     = 0xFFFF_FFFE_FFFF_FFFF
-        //
-        // Efficient addition chain:
-        // We compute x^(p-2) via repeated squaring.
-        let mut result = Self::new(1);
-        let mut base = self;
-        let exp: u64 = P - 2; // 0xFFFF_FFFE_FFFF_FFFF
-
-        let mut e = exp;
-        while e > 0 {
-            if e & 1 == 1 {
-                result = result * base;
-            }
-            e >>= 1;
-            if e > 0 {
-                base = base.square();
-            }
+        let x = self;
+        // chain of 2^k-1 powers up to x^(2^31-1)
+        let x2 = x * x;
+        let x3 = x2 * x;
+        let x4 = x2 * x2;
+        let x7 = x3 * x4;
+        let x6 = x3 * x3;
+        let x12 = x6 * x6;
+        let x15 = x12 * x3; // 2^4-1
+        let x30 = x15 * x15;
+        let x60 = x30 * x30;
+        let x120 = x60 * x60;
+        let x127 = x120 * x7; // 2^7-1
+        let x254 = x127 * x127;
+        let x255 = x254 * x; // 2^8-1
+        let mut t = x255;
+        for _ in 0..7 {
+            t = t * t;
         }
-        result
+        let x_2p15m1 = t * x127; // 2^15-1
+        let x_2p16m2 = x_2p15m1 * x_2p15m1;
+        let x_2p16m1 = x_2p16m2 * x; // 2^16-1
+        t = x_2p16m1;
+        for _ in 0..15 {
+            t = t * t;
+        }
+        let x_2p31m1 = t * x_2p15m1; // 2^31-1
+        // x^(2^32-1)
+        let x_2p32m2 = x_2p31m1 * x_2p31m1;
+        let x_epsilon = x_2p32m2 * x;
+        // x^((2^31-1)*2^33)
+        t = x_2p31m1;
+        for _ in 0..33 {
+            t = t * t;
+        }
+        // p-2 = (2^31-1)*2^33 + 2^32-1
+        t * x_epsilon
     }
 
     /// Double this element.
@@ -274,6 +292,33 @@ pub fn matmul_internal(state: &mut [Goldilocks; 16]) {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    /// The addition chain must equal naive x^(p-2) everywhere — checked
+    /// against x*inv(x)==1 over a spread of values including edge cases.
+    #[test]
+    fn inv_chain_matches_fermat() {
+        let mut v = [0u64; 72];
+        v[..8].copy_from_slice(&[1, 2, 3, P - 1, P - 2, 0xFFFF_FFFF, 1 << 32, u64::MAX % P]);
+        let mut x = 0x9e3779b97f4a7c15u64;
+        for slot in v[8..].iter_mut() {
+            x = x.wrapping_mul(0xbf58476d1ce4e5b9).rotate_left(31);
+            *slot = x % P;
+        }
+        for &raw in &v {
+            if raw == 0 {
+                continue;
+            }
+            let a = Goldilocks::new(raw);
+            assert_eq!(
+                (a * a.inv()).as_canonical_u64(),
+                1,
+                "inv broken at {raw}"
+            );
+        }
+        assert_eq!(Goldilocks::ZERO.inv().as_canonical_u64(), 0);
+    }
+
     use super::*;
 
     #[test]
