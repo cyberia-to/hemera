@@ -14,6 +14,32 @@ use alloc::vec::Vec;
 use crate::sponge::Hash;
 use crate::tree::{hash_leaf, merge_leaf_hashes};
 
+/// Malformed element layout; checked in release builds as well as debug.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CdcError { ElementSize, MisalignedLength }
+
+/// Bounded-lookahead CDC iterator. It retains a borrowed slice and offsets.
+#[derive(Debug, Clone)]
+pub struct ChunkRanges<'a> { data: &'a [u8], element_size: usize, next: usize }
+
+/// Element-aligned byte ranges; no allocation and no invalid-layout fallback.
+pub fn chunk_ranges(data: &[u8], element_size: usize) -> Result<ChunkRanges<'_>, CdcError> {
+    if !(1..=64).contains(&element_size) { return Err(CdcError::ElementSize); }
+    if !data.len().is_multiple_of(element_size) { return Err(CdcError::MisalignedLength); }
+    Ok(ChunkRanges { data, element_size, next: 0 })
+}
+
+impl Iterator for ChunkRanges<'_> {
+    type Item = core::ops::Range<usize>;
+    fn next(&mut self) -> Option<Self::Item> {
+        let n = self.data.len() / self.element_size;
+        if self.next == n { return None; }
+        let start = self.next;
+        self.next = next_boundary(self.data, self.element_size, start, n);
+        Some(start*self.element_size..self.next*self.element_size)
+    }
+}
+
 // ── Gear table ───────────────────────────────────────────────────────
 
 /// Gear table: GEAR_TABLE[i] = u64::from_le_bytes(hemera::hash(&[i])[0..8]).
@@ -125,45 +151,29 @@ pub(crate) fn window_size(element_size: usize) -> usize {
 /// The number of chunks K = boundaries.len() - 1.
 #[allow(unknown_lints, rs_no_vec)]
 fn cdc_boundaries(data: &[u8], element_size: usize, n: usize) -> Vec<usize> {
-    let w = window_size(element_size);
-    let min_chunk = w / 2;
-    let max_chunk = w * 2;
-
     let mut boundaries = Vec::new();
-    boundaries.push(0usize);
-    let mut last = 0usize;
-
-    while last < n {
-        let chunk_start = last;
-        // lo = first candidate index for the last element of this chunk
-        let lo = chunk_start + min_chunk - 1;
-        let hi = (chunk_start + max_chunk - 1).min(n - 1);
-
-        if lo > n - 1 {
-            // Fewer than min_chunk elements remain → final partial chunk.
-            boundaries.push(n);
-            break;
-        }
-
-        // Scan [lo, hi] for the first occurrence of the minimum fingerprint.
-        let lo_elem = &data[lo * element_size..(lo + 1) * element_size];
-        let mut min_fp = element_fingerprint(lo_elem);
-        let mut min_pos = lo;
-
-        for i in (lo + 1)..=hi {
-            let elem = &data[i * element_size..(i + 1) * element_size];
-            let fp = element_fingerprint(elem);
-            if fp < min_fp {
-                min_fp = fp;
-                min_pos = i;
-            }
-        }
-
-        boundaries.push(min_pos + 1);
-        last = min_pos + 1;
+    boundaries.push(0);
+    let mut start = 0;
+    while start < n {
+        start = next_boundary(data, element_size, start, n);
+        boundaries.push(start);
     }
-
     boundaries
+}
+
+// Shared boundary rule for the legacy tree and the allocation-free adapter.
+fn next_boundary(data: &[u8], element_size: usize, start: usize, n: usize) -> usize {
+    let w = window_size(element_size);
+    let lo = start + w/2 - 1;
+    let hi = (start + 2*w - 1).min(n-1);
+    if lo >= n { return n; }
+    let mut min_pos = lo;
+    let mut min_fp = element_fingerprint(&data[lo*element_size..(lo+1)*element_size]);
+    for i in lo+1..=hi {
+        let fp = element_fingerprint(&data[i*element_size..(i+1)*element_size]);
+        if fp < min_fp { min_fp = fp; min_pos = i; }
+    }
+    min_pos+1
 }
 
 // ── Section CDC tree ─────────────────────────────────────────────────

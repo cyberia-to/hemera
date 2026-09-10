@@ -58,6 +58,8 @@ pub mod batch;
 pub mod stream;
 pub mod bootstrap;
 pub mod cdc;
+pub mod commitment;
+pub mod cyb_commitment;
 pub mod constants;
 mod encoding;
 pub mod field;

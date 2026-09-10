@@ -32,8 +32,13 @@ batched-proving and folded-sponge removed — polynomial nouns reduce hemera to 
 | proposal | in reference? | breaks hash? | target |
 |----------|--------------|:------------:|--------|
 | [[erasure-coding]] | no | no | Reed-Solomon erasure coding over Goldilocks: same field, same NTT, data availability codec |
-| [[capacity-typing]] | no | no | type tags in reserved capacity slot state[14]: type-integrated hashing, type confusion prevention |
-| [[semantic-hashing]] | no | **yes** | section tree identity for .cyb containers: flat hash → section tree, changes particle_id for structured files |
+| [[one-pure-hash]] | partial | yes (proposal flag) | draft: one identity hash, move keyed modes to Mudra; capacity-typing superseded |
+| [[semantic-hashing]] | experimental structural spec + code | **yes on migration** | accepted direction: position-independent content IDs, sequences, records, `.cyb` extraction adapter |
+
+The inverse-round security rationale is under investigation; see
+`research/inverse-sbox-assessment.md`. Constraint totals below are historical
+estimates, not measured circuit costs. Capacity typing is superseded; nominal
+types are represented structurally.
 
 ## targets
 
@@ -45,11 +50,11 @@ FS calls (20-round):    20 × 736 = 14,720    1 × 736 + 19 × 50 = 1,686
 
 ## endgame role
 
-hemera becomes the identity layer: content identity (hash), content typing (capacity), content availability (erasure). polynomial commitments ([[Brakedown]]) handle the high-volume proof work — proof binding and state verification with ZERO hemera calls.
+hemera becomes the identity layer: content identity (hash), nominal typing (structure), content availability (erasure). polynomial commitments ([[Brakedown]]) handle the high-volume proof work — proof binding and state verification with ZERO hemera calls.
 
 ```
 always hemera:     H(particle) identity, H(cyberlink), Fiat-Shamir seed
-                   type-integrated hashing (capacity slot → type IS identity)
+                   nominal records (kind and ordered fields are committed structure)
                    erasure encoding (RS over Goldilocks → availability codec)
 algebraic:         proof challenges (algebraic FS), state verification (polynomial)
 eliminated:        tree hashing (Brakedown is Merkle-free), DAS proofs (Lens openings)
