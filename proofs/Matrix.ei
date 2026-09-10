@@ -1,0 +1,104 @@
+-- Optimized apply_mat4 versus the specified coefficient matrix.
+-- Addition is abstract; associativity and commutativity are explicit inputs.
+-- No Goldilocks arithmetic law or cryptographic property is assumed silently.
+
+-- M_I rows (0,1), columns (2,3) are all one. M_E rows (0,4),
+-- columns (8,12) are all two. Neither 16x16 matrix has every minor nonzero.
+-- This determinant lemma applies to both minors in any field/ring.
+theorem constant_minor_zero (F : Type) (mul sub : F -> F -> F)
+  (zero : F) (sub_self : forall (x : F), Eq F (sub x x) zero) (entry : F) :
+  Eq F (sub (mul entry entry) (mul entry entry)) zero := by {
+  exact (sub_self (mul entry entry))
+}
+
+theorem swap_tail (F : Type) (add : F -> F -> F)
+  (assoc : forall (a b c : F), Eq F (add (add a b) c) (add a (add b c)))
+  (comm : forall (a b : F), Eq F (add a b) (add b a)) (a b c : F) :
+  Eq F (add a (add b c)) (add b (add a c)) := by {
+  rewrite [← assoc a b c]
+  rewrite [comm a b]
+  rewrite [assoc b a c]
+  rfl
+}
+
+def mat4_row0 (F : Type) (add : F -> F -> F) (a b c d : F) : F :=
+  (add (add (add (add a b) (add c d)) b) (add a b))
+
+theorem mat4_row0_matches_spec (F : Type) (add : F -> F -> F)
+  (assoc : forall (a b c : F), Eq F (add (add a b) c) (add a (add b c)))
+  (comm : forall (a b : F), Eq F (add a b) (add b a)) (a b c d : F) :
+  Eq F (mat4_row0 F add a b c d)
+       (add a (add a (add b (add b (add b (add c d)))))) := by {
+  rewrite [assoc (add (add a b) (add c d)) b (add a b)]
+  rewrite [assoc (add a b) (add c d) (add b (add a b))]
+  rewrite [assoc a b (add (add c d) (add b (add a b)))]
+  rewrite [assoc c d (add b (add a b))]
+  rewrite [swap_tail F add assoc comm d b (add a b)]
+  rewrite [swap_tail F add assoc comm d a b]
+  rewrite [comm d b]
+  rewrite [swap_tail F add assoc comm c b (add a (add b d))]
+  rewrite [swap_tail F add assoc comm c a (add b d)]
+  rewrite [swap_tail F add assoc comm c b d]
+  rewrite [swap_tail F add assoc comm b a (add b (add c d))]
+  rewrite [swap_tail F add assoc comm b a (add b (add b (add c d)))]
+  rfl
+}
+
+def mat4_row1 (F : Type) (add : F -> F -> F) (a b c d : F) : F :=
+  (add (add (add (add a b) (add c d)) b) (add c c))
+
+theorem mat4_row1_matches_spec (F : Type) (add : F -> F -> F)
+  (assoc : forall (a b c : F), Eq F (add (add a b) c) (add a (add b c)))
+  (comm : forall (a b : F), Eq F (add a b) (add b a)) (a b c d : F) :
+  Eq F (mat4_row1 F add a b c d)
+       (add a (add b (add b (add c (add c (add c d)))))) := by {
+  rewrite [assoc (add (add a b) (add c d)) b (add c c)]
+  rewrite [assoc (add a b) (add c d) (add b (add c c))]
+  rewrite [assoc a b (add (add c d) (add b (add c c)))]
+  rewrite [assoc c d (add b (add c c))]
+  rewrite [swap_tail F add assoc comm d b (add c c)]
+  rewrite [swap_tail F add assoc comm d c c]
+  rewrite [comm d c]
+  rewrite [swap_tail F add assoc comm c b (add c (add c d))]
+  rfl
+}
+
+def mat4_row2 (F : Type) (add : F -> F -> F) (a b c d : F) : F :=
+  (add (add (add (add a b) (add c d)) d) (add c d))
+
+theorem mat4_row2_matches_spec (F : Type) (add : F -> F -> F)
+  (assoc : forall (a b c : F), Eq F (add (add a b) c) (add a (add b c)))
+  (comm : forall (a b : F), Eq F (add a b) (add b a)) (a b c d : F) :
+  Eq F (mat4_row2 F add a b c d)
+       (add a (add b (add c (add c (add d (add d d)))))) := by {
+  rewrite [assoc (add (add a b) (add c d)) d (add c d)]
+  rewrite [assoc (add a b) (add c d) (add d (add c d))]
+  rewrite [assoc a b (add (add c d) (add d (add c d)))]
+  rewrite [assoc c d (add d (add c d))]
+  rewrite [swap_tail F add assoc comm d c d]
+  rewrite [swap_tail F add assoc comm d c (add d d)]
+  rfl
+}
+
+def mat4_row3 (F : Type) (add : F -> F -> F) (a b c d : F) : F :=
+  (add (add (add (add a b) (add c d)) d) (add a a))
+
+theorem mat4_row3_matches_spec (F : Type) (add : F -> F -> F)
+  (assoc : forall (a b c : F), Eq F (add (add a b) c) (add a (add b c)))
+  (comm : forall (a b : F), Eq F (add a b) (add b a)) (a b c d : F) :
+  Eq F (mat4_row3 F add a b c d)
+       (add a (add a (add a (add b (add c (add d d)))))) := by {
+  rewrite [assoc (add (add a b) (add c d)) d (add a a)]
+  rewrite [assoc (add a b) (add c d) (add d (add a a))]
+  rewrite [assoc a b (add (add c d) (add d (add a a)))]
+  rewrite [assoc c d (add d (add a a))]
+  rewrite [swap_tail F add assoc comm d a a]
+  rewrite [comm d a]
+  rewrite [swap_tail F add assoc comm d a (add a d)]
+  rewrite [swap_tail F add assoc comm d a d]
+  rewrite [swap_tail F add assoc comm c a (add a (add d d))]
+  rewrite [swap_tail F add assoc comm c a (add d d)]
+  rewrite [swap_tail F add assoc comm b a (add a (add c (add d d)))]
+  rewrite [swap_tail F add assoc comm b a (add c (add d d))]
+  rfl
+}

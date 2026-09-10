@@ -79,6 +79,7 @@ One function. One mode (sponge). 32 bytes output. ~736 constraints per permutati
 - [[constants]] — all 144 round constants (hex values)
 - [[bootstrap]] — round constant self-generation via Hemera₀
 - [[matrices]] — MDS and diagonal matrices for the linear layer
+- [[formal-proofs]] — Eidos theorem scope, explicit assumptions, and executable checks
 - [[api]] — public API surface: `hash`, `hash_node`, `absorb`, `squeeze`
 
 ## See also

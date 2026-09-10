@@ -84,4 +84,18 @@ all values are canonical Goldilocks elements (< p = 0xFFFFFFFF00000001). follows
 
 ## verification
 
-both matrices are verified for MDS property: every square sub-matrix has non-zero determinant over the Goldilocks field. this guarantees maximum branch number and optimal diffusion.
+The two 16×16 matrices do not have the MDS property (every square
+submatrix having nonzero determinant):
+
+- `M_I` rows `[0,1]`, columns `[2,3]` form `[[1,1],[1,1]]`.
+- `M_E` rows `[0,4]`, columns `[8,12]` form `[[2,2],[2,2]]`.
+
+Both minors have determinant zero over Goldilocks. This refutes the former
+claim that all square minors were verified nonzero; it does not establish
+singularity of either full matrix or a cryptographic attack.
+
+The Eidos proofs in [formal-proofs](formal-proofs.md) establish that the
+optimized M4 rows equal the coefficients specified above, conditional on
+associative and commutative addition. The proof checker also reconstructs
+the two zero minors from the actual Rust transformations. Full diffusion
+and security claims require separate arguments.
