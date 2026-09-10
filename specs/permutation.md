@@ -55,17 +55,23 @@ STARK cost: 4 degree-2 constraints per element (decomposition through intermedia
 
 ### partial-round S-box: x⁻¹
 
-field inversion x → x⁻¹ = x^(p-2) applied to state[0] only. algebraic degree p-2 ≈ 2^64 per application — versus 2.8 (log₂ 7) for x⁷. each partial round contributes 2^64 to the algebraic degree.
+field inversion x → x⁻¹ = x^(p-2) applied to state[0] only, with 0⁻¹ = 0.
+This is a bijection of F_p. The degree p-2 representation does not establish
+security of the mixed permutation or justify reducing the partial-round count.
+See `research/inverse-sbox-assessment.md` for reproducible checks and prior art.
 
-computation: ~64 multiplications via Fermat's little theorem (square-and-multiply chain for x^(p-2)).
-
-zero handling: 0⁻¹ = 0 (permutation over F_p). STARK verification:
+For input x and witness y, require:
 
 ```
-x × y × (x × y - 1) = 0    AND    (1 - x × y) × y = 0
+x × (x × y - 1) = 0
+y × (x × y - 1) = 0
 ```
 
-enforces y = x⁻¹ when x ≠ 0 and y = 0 when x = 0. total: 2 degree-2 constraints (vs 4 for x⁷).
+These are two degree-3 constraints. For x≠0 the first forces xy=1; for x=0
+the second forces y=0. A quadratic backend needs an intermediate z and three
+constraints: xy=z, x(z-1)=0, y(z-1)=0. The old xy(xy-1)=0 equation was
+underconstrained: it admitted y=0 for nonzero x. `trace::inverse_residuals`
+implements the corrected local relation; full-round circuit wiring is separate.
 
 ### application
 
@@ -198,14 +204,16 @@ function permute(state: [GoldilocksField; 16]):
 
 ## security properties
 
-| property | value | derivation |
-|---|---|---|
-| algebraic degree | 7⁸ × (p-2)¹⁶ ≈ 2¹⁰⁴⁶ | 8 full rounds (x⁷) + 16 partial rounds (x⁻¹) |
-| diffusion | full after 2 rounds | MDS matrices guarantee maximum branch number |
-| S-box differential uniformity | ≤ 6/p ≈ 0 | power map x⁷ over prime field |
-| invertibility | guaranteed | gcd(7, p−1) = 1 |
+The x⁷ S-box is bijective because gcd(7,p−1)=1. Total inversion is bijective,
+including zero. For nonzero differences, the x⁷ S-box has differential
+uniformity at most 6; total inversion over Goldilocks has uniformity exactly 4.
+These are local S-box properties, not full-permutation security bounds.
 
-the algebraic degree 2¹⁰⁴⁶ places the permutation far beyond the reach of Grobner basis attacks, interpolation attacks, and all known algebraic cryptanalysis methods. the x⁻¹ S-box provides 2^896 bits of margin over 2^128 security — 17× more margin in log-space than the original 64 × x⁷ design.
+RF=8/RP=16 is the implemented experimental parameter set. Its security is not
+established by the unreduced expression 7⁸×(p−2)¹⁶. Neither 2^918 margin nor
+immunity to algebraic attacks is claimed. The matrices do not both have the
+all-minors-nonzero property; see matrices.md. Current checks, references and
+remaining cryptanalysis are recorded in `research/inverse-sbox-assessment.md`.
 
 ## references
 

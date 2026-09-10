@@ -7,13 +7,15 @@ python3 proofs/check.py
 ```
 
 The command checks the reviewed Rust source fingerprints, builds the local
-Eidos kernel and Hemera library, checks nine theorems, rejects seven negative
+Eidos kernel and Hemera library, checks eleven theorems, rejects nine negative
 controls, and runs the separately labeled implementation/model checks.
 No network, certificate service, nox or zheng is needed by the checker;
 its two Rust dependencies are local path dependencies.
 
 ## Proofs
 
+- [Inverse.ei](Inverse.ei): conditional sufficiency of the corrected inverse
+  equations for the zero and cancellable-input cases.
 - [Sbox.ei](Sbox.ei): trace/plain equivalence, seventh-power schedule,
   and sufficiency of the S-box witness equations.
 - [Matrix.ei](Matrix.ei): four M4 row equivalences, the supporting
@@ -26,20 +28,19 @@ that is an outstanding premise when instantiating the abstract theorem.
 
 ## What is checked
 
-`checker/` rejects `axiom`, `sorry`, imports, new inductive declarations,
-opaque constants and unresolved metavariables. After elaboration it rechecks
-every closed definition and proof in a fresh standard environment; theorem
-types must be propositions. The allowed inductive fragment is Nat/Bool/Eq.
+`checker/` calls Eidos's public `check_strict_source` API. The strict checker
+rejects axioms, sorry, opaque constants, holes, user inductives and declaration
+shadowing; it rechecks closed terms against a fresh Nat/Bool/Eq environment.
+Eidos also provides `check --strict file.ei`, which checks transitive imports
+with cycle detection. See [Eidos strict policy](../../eidos/specs/strict-checking.md).
 
-This stricter wrapper is intentional: the current Eidos frontend accepts
-`sorry` and reports it as a theorem, and parts of its arithmetic surface
-library are placeholders. The suite neither invokes nor trusts those paths.
-It still trusts Eidos's Rust kernel and its standard inductive descriptors;
-the wrapper is not an independent implementation or a kernel soundness proof.
+The restricted prelude excludes unsupported arithmetic placeholders. Eidos now
+rejects `sorry` in ordinary checks too. The Rust kernel and fixed inductive
+descriptors remain trusted; this is not an independent kernel implementation.
 
 Negative controls check rejection of `0=1`, a missing proof, an axiom,
 an unresolved hole, a sixth-power S-box, an altered M4 coefficient, and
-a missing output constraint. These checks must fail for the run to succeed.
+a missing output constraint, and each missing inverse constraint. These checks must fail for the run to succeed.
 
 ## Connection to the implementation
 

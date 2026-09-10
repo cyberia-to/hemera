@@ -5,99 +5,48 @@ crystal-domain: cyber
 status: implemented
 date: 2026-03-17
 ---
-# inversion S-box — x⁻¹ partial rounds with reduced count
+# inversion S-box — implemented candidate, security hypothesis open
 
-replace x⁷ S-box in partial rounds with field inversion x⁻¹. reduce partial rounds from 64 to 16. the two changes are inseparable — x⁻¹ enables the round reduction.
+Hemera implements x⁷ in eight full rounds and total inverse (0→0) in sixteen
+partial rounds. Implementation status does not certify the parameter choice.
 
-## the insight
+## hypothesis
 
-field inversion x⁻¹ = x^(p-2) over Goldilocks has algebraic degree p-2 ≈ 2^64 per application. x⁷ has degree 7 ≈ 2^2.8. each x⁻¹ partial round provides what x⁷ needs ~23 rounds to match.
+A total inverse has a compact witness relation and good local differential
+behavior. Investigate whether a mixed x⁷/inverse permutation can offer a useful
+security/cost tradeoff. Neither increased full-permutation security nor the
+64→16 round reduction follows from the exponent p−2.
 
-```
-x⁷:   64 partial rounds → degree 7^64 ≈ 2^180
-x⁻¹:  16 partial rounds → degree (p-2)^16 ≈ 2^1024
+## results of the first investigation
 
-with x⁻¹ total: 7^8 × (p-2)^16 ≈ 2^1046 (full + partial)
-```
+See [assessment](../research/inverse-sbox-assessment.md),
+[executable analysis](../research/inverse_sbox.py) and
+[results](../research/inverse-sbox-results.json).
 
-2^896 bits of margin over 2^128 security. 17× more margin in log-space than with x⁷.
+- Correct witness relation: x(xy−1)=0 and y(xy−1)=0. Two cubic constraints,
+  or three quadratic constraints with intermediate z=xy. The previous relation
+  accepted y=0 for nonzero x; it was incorrect.
+- Differential uniformity of total inverse over Goldilocks is exactly 4.
+- Actual Rust inversion chain: 75 multiplications, exponent p−2, depth 71.
+- Actual internal matrix: rank 16, irreducible characteristic polynomial;
+  the first 16 coordinate-observability rows have full rank.
+- The old 2^1046 degree / 2^918 security margin argument is withdrawn.
+- Cheap verification does not establish one-multiplication inversion for
+  MPC/FHE. The old 5.4× depth claim requires a separate protocol and measurement.
 
-## native cost
+The original Poseidon authors discussed inverse S-boxes and warned about their
+slow degree growth. This prior art is linked in the assessment. A 32-byte output
+has an approximately 128-bit generic classical collision ceiling independently
+of S-box choice; [[compact-output]] is a separate decision.
 
-```
-                    before (x⁷, 64 rounds)      after (x⁻¹, 16 rounds)
-partial S-box:      64 × 3 = 192 muls            16 × 64 = 1,024 muls
-partial MDS (M_I):  64 × 17 = 1,088 muls         16 × 17 = 272 muls
-full rounds:        896 muls                      896 muls (unchanged)
-total:              ~2,208 muls                   ~2,224 muls
-throughput:         ~53 MB/s                      ~53 MB/s (unchanged)
-```
+## before a parameter freeze
 
-21× more expensive S-box × 4× fewer rounds = same total.
+Analyze the exact hybrid against algebraic/CICO/preimage and subspace attacks,
+including zero branches. Compare against power S-box configurations at matched
+cost and security targets. Derive circuit costs from concrete backend wiring.
+Obtain independent cryptographic review. No full-round attack or security proof
+was produced by the preliminary algebraic checks.
 
-## STARK constraints
-
-```
-                    before (x⁷, 64 rounds) after (x⁻¹, 16 rounds)
-full S-boxes:       8 × 16 × 4 = 512       512 (unchanged, x⁷)
-partial S-boxes:    64 × 4 = 256            16 × 2 = 32 (x⁻¹, verified as x×y=1)
-MDS constraints:    ~256                    ~192
-total:              ~1,152                  ~736
-improvement:        —                       36% fewer constraints
-```
-
-x⁻¹ verification: prover provides y = x⁻¹. verifier checks:
-
-```
-x × y × (x × y - 1) = 0    AND    (1 - x × y) × y = 0
-```
-
-2 constraints vs 4 for x⁷ decomposition. handles zero: 0⁻¹ = 0.
-
-## MPC depth
-
-```
-before (x⁷, 64 rounds): 216 sequential multiplications (8×3 full + 64×3 partial)
-after  (x⁻¹, 16 rounds): 40 sequential multiplications (8×3 full + 16×1 partial)
-improvement: 5.4×
-```
-
-at 10 ms network latency: 2.16 seconds → 0.40 seconds per hash.
-
-## FHE noise
-
-```
-before (x⁷, 64 rounds): noise ∝ 2^216
-after  (x⁻¹, 16 rounds): noise ∝ 2^40
-improvement: 5.4× depth reduction
-```
-
-practical encrypted computation over hemera becomes feasible.
-
-## fold steps (zheng)
-
-```
-before (x⁷, 64 rounds): 72 fold steps per hash × 30 ops = 2,160 ops
-after  (x⁻¹, 16 rounds): 24 fold steps per hash × 30 ops = 720 ops
-improvement: 3×
-```
-
-## the seven-and-inverse duality
-
-x⁷ (minimal forward permutation) and x⁻¹ (inverse permutation) are algebraic complements. x⁷ provides fast native nonlinearity in full rounds (all 16 elements). x⁻¹ provides cheap verified nonlinearity in partial rounds (one element). both are forced by the Goldilocks prime structure.
-
-## round constant generation
-
-```
-seed = [0x63, 0x79, 0x62, 0x65, 0x72, 0x32]    "cyber2"
-procedure: Hemera_0 (all constants = 0) → absorb seed → squeeze 192 elements
-only first 16 partial constants used
-```
-
-## open questions
-
-1. **mixed S-box formal analysis**: x⁷ full + x⁻¹ partial interaction via MDS needs formal verification beyond the degree argument
-2. **hardware acceleration**: GFP p2r pipeline needs field inversion support (maps to fma via square-and-multiply)
-3. **bounty program**: Poseidon2 bounties don't cover hybrid S-box design
-
-see [[compact-output]] for the output reduction, [[hemera]] for base specification
+Round constants are the current 144-element self-bootstrap from `cyber` in
+`specs/bootstrap.md`; do not use the obsolete `cyber2` seed from this proposal's
+initial text.

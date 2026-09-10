@@ -1,10 +1,9 @@
 //! Strict Eidos checking plus separately reported Rust/model checks.
 use cyber_eidos::{
     elab::ElabState,
-    kernel,
     reduce::nf,
     stdlib::{self, std_env},
-    surface::{DeclKind, Token, check_file, lex, parse_file},
+    surface::{DeclKind, check_strict_source},
     term::Term,
 };
 use cyber_hemera::{
@@ -14,84 +13,17 @@ use cyber_hemera::{
 use std::{fs, path::Path};
 
 fn checked(src: &str) -> Result<(ElabState, Vec<String>), String> {
-    let tokens = lex(src)?;
-    for token in &tokens {
-        if matches!(
-            token,
-            Token::KwAxiom | Token::KwSorry | Token::KwImport | Token::KwInductive | Token::Hash
-        ) {
-            return Err(format!("excluded declaration/token: {token:?}"));
-        }
-    }
-    let decls = parse_file(&tokens)?;
-    let mut state = ElabState::new();
-    state.add_stdlib();
-    let mut env = std_env();
-    let results = check_file(&decls, &mut state, &mut env)
-        .map_err(|(name, error)| format!("{name}: {error}"))?;
-
-    // Definitions and proofs are fully expanded by the frontend. Recheck
-    // closed terms against a fresh environment with no user declarations.
-    let fresh = std_env();
-    let mut theorems = Vec::new();
-    for result in results {
-        let (body, ty) = state.globals.get(&result.name).ok_or("missing body")?;
-        clean(body)?;
-        clean(ty)?;
-        let sort = kernel::infer(&fresh, &vec![], ty).map_err(|e| format!("type: {e:?}"))?;
-        kernel::check(&fresh, &vec![], body, ty)
-            .map_err(|e| format!("closed {}: {e:?}", result.name))?;
-        if result.kind == DeclKind::Theorem {
-            if nf(&fresh, &vec![], sort) != Term::Sort(0) {
-                return Err(format!("{} is not a proposition", result.name));
-            }
-            theorems.push(result.name);
-        }
-    }
+    let module = check_strict_source(src)?;
+    let theorems: Vec<String> = module
+        .declarations
+        .into_iter()
+        .filter(|d| d.kind == DeclKind::Theorem)
+        .map(|d| d.name)
+        .collect();
     if theorems.is_empty() {
         return Err("no theorems checked".into());
     }
-    Ok((state, theorems))
-}
-
-/// Exclude all opaque constants, metas and unused/axiomatic stdlib facilities.
-fn clean(t: &Term) -> Result<(), String> {
-    match t {
-        Term::Const(_) | Term::Meta(_) => return Err("constant or metavariable".into()),
-        Term::Var(_) | Term::Sort(_) => {}
-        Term::Pi(a, b) | Term::Lam(a, b) | Term::App(a, b) => {
-            clean(a)?;
-            clean(b)?;
-        }
-        Term::Let(a, b, c) | Term::EqSubst(a, b, c) => {
-            clean(a)?;
-            clean(b)?;
-            clean(c)?;
-        }
-        Term::Ind(id, xs) | Term::Ctor(id, _, xs) => {
-            allowed_ind(*id)?;
-            for x in xs {
-                clean(x)?;
-            }
-        }
-        Term::Elim(id, m, cs, t) => {
-            allowed_ind(*id)?;
-            clean(m)?;
-            clean(t)?;
-            for c in cs {
-                clean(c)?;
-            }
-        }
-    }
-    Ok(())
-}
-
-fn allowed_ind(id: u64) -> Result<(), String> {
-    if [stdlib::NAT_ID, stdlib::BOOL_ID, stdlib::EQ_ID].contains(&id) {
-        Ok(())
-    } else {
-        Err(format!("inductive outside proof fragment: {id}"))
-    }
+    Ok((module.state, theorems))
 }
 
 fn rejected(label: &str, source: &str) {
@@ -102,7 +34,19 @@ fn rejected(label: &str, source: &str) {
     println!("REJECT {label}");
 }
 
-fn negative_controls(sbox: &str, matrix: &str) {
+fn negative_controls(sbox: &str, matrix: &str, inverse: &str) {
+    let wrong = inverse.replace(
+        "(constraint : Eq F (mul x (mul x y)) x)",
+        "(constraint : Eq F x x)",
+    );
+    assert_ne!(wrong, inverse);
+    rejected("missing nonzero inverse constraint", &wrong);
+    let wrong = inverse.replace(
+        "(constraint : Eq F (mul y (mul zero y)) y)",
+        "(constraint : Eq F y y)",
+    );
+    assert_ne!(wrong, inverse);
+    rejected("missing zero inverse constraint", &wrong);
     rejected("false equality", "theorem bad : Eq Nat 0 1 := by { rfl }");
     rejected("sorry", "theorem bad : Eq Nat 0 1 := by { sorry }");
     rejected("axiom", "axiom bad : Eq Nat 0 1");
@@ -231,8 +175,13 @@ fn main() -> Result<(), String> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
     let sbox = fs::read_to_string(root.join("Sbox.ei")).map_err(|e| e.to_string())?;
     let matrix = fs::read_to_string(root.join("Matrix.ei")).map_err(|e| e.to_string())?;
+    let inverse = fs::read_to_string(root.join("Inverse.ei")).map_err(|e| e.to_string())?;
     let mut total = 0;
-    for (name, src) in [("Sbox.ei", &sbox), ("Matrix.ei", &matrix)] {
+    for (name, src) in [
+        ("Sbox.ei", &sbox),
+        ("Matrix.ei", &matrix),
+        ("Inverse.ei", &inverse),
+    ] {
         let (state, proofs) = checked(src)?;
         total += proofs.len();
         for theorem in proofs {
@@ -242,7 +191,7 @@ fn main() -> Result<(), String> {
             matrix_bridge(&state);
         }
     }
-    negative_controls(&sbox, &matrix);
+    negative_controls(&sbox, &matrix, &inverse);
     rust_checks();
     println!(
         "{total} theorems rechecked; assumptions are explicit parameters; Rust checks reported separately"

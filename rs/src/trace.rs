@@ -50,6 +50,16 @@ pub trait RoundVisitor {
     ///
     /// `index` ∈ 0..16.
     /// `sbox_out` is `state[0]^(−1)` captured *after* inversion and *before*
-    /// matmul_internal. Constraint: `(state[0] post-add_rc) · sbox_out = 1`.
+    /// matmul_internal. For x = state[0] post-add_rc and y = sbox_out,
+    /// require x*(x*y-1)=0 and y*(x*y-1)=0 (two cubic constraints).
+    /// The single equation x*y=1 excludes the valid zero-input case.
     fn partial_round(&mut self, index: u8, state: &[Goldilocks; 16], sbox_out: Goldilocks);
+}
+
+/// Residuals for the total inverse S-box, including 0 -> 0.
+/// Both must be zero in F_p. This checks the local witness only, not a round.
+/// A quadratic backend may introduce z=x*y and enforce x*(z-1)=y*(z-1)=0.
+pub fn inverse_residuals(x: Goldilocks, y: Goldilocks) -> [Goldilocks; 2] {
+    let product_minus_one = x * y - Goldilocks::new(1);
+    [x * product_minus_one, y * product_minus_one]
 }

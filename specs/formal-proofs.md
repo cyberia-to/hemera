@@ -7,13 +7,13 @@ status: partial
 # Eidos proof boundary
 
 `proofs/` contains executable Eidos models and kernel-checked theorems.
-The first slice covers the full-round S-box multiplication schedule,
-its witness equations, the four optimized M4 rows, and zero minors in
-the two 16-by-16 diffusion matrices.
+The suite covers the full-round S-box multiplication schedule,
+its witness equations, the four optimized M4 rows, zero minors in
+the two 16-by-16 diffusion matrices, and the corrected inverse witness cases.
 
 Acceptance requires actual proof terms: no `axiom`, `sorry`, unresolved
 metavariables, or opaque constants. Algebraic laws, when needed, are explicit
-theorem parameters. A separate checker rechecks closed terms with the Eidos
+theorem parameters. Eidos's public strict checker rechecks closed terms with the Eidos
 Rust kernel and rejects deliberately false variants.
 
 The models are manually related to `rs/src/field.rs` and `permutation.rs`.
@@ -34,10 +34,12 @@ collision resistance, preimage resistance, or soundness of zheng.
 | `sbox_is_seventh_power` | associative multiplication | schedule equals seven right-associated factors |
 | `full_round_witness_sound` | three witness/output multiplication equations | output equals the modeled S-box |
 | `mat4_row{0,1,2,3}_matches_spec` | associative, commutative addition | optimized row equals the specified linear combination |
+| `inverse_nonzero_product` | cancellation of multiplication by x, right identity, first cubic equation | xy=1 |
+| `inverse_zero_output` | left/right zero multiplication, second cubic equation with x=0 | y=0 |
 | `constant_minor_zero` | `sub x x = zero` | a constant 2-by-2 minor has zero determinant |
 
-`swap_tail` is an auxiliary reassociation/commutation lemma. Nine theorems
-are checked in total; seven concern positive implementation properties,
+`swap_tail` is an auxiliary reassociation/commutation lemma. Eleven theorems
+are checked in total; nine concern positive algebraic properties,
 one establishes the counterexample determinant, and one is auxiliary.
 
 ## Remaining work
@@ -50,3 +52,10 @@ one establishes the counterexample determinant, and one is auxiliary.
   numeral reduction; a checked binary arithmetic library is needed.
 - Prove full permutation, streaming and tree refinements, then state the
   cryptographic assumptions separately from implementation correctness.
+
+The inverse lemmas use expanded cubic equations x(xy)=x and y(xy)=y.
+Instantiation over the actual Goldilocks field still requires its algebraic
+laws and the equivalence to residual equations; the local Rust residual tests
+and small-field exhaustive checks are reported separately. The experimental
+structural commitment layer currently has Rust tests, not Eidos refinement
+proofs. See `structural-commitments.md` for its obligations.

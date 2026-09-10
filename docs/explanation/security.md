@@ -5,32 +5,27 @@ crystal-domain: cyber
 alias: "Hemera security, ecosystem context"
 ---
 
-# ecosystem context
+# security status
 
-## Poseidon2 deployment landscape
+Hemera currently uses a mixed x⁷ / total-inverse permutation over Goldilocks,
+width 16, RF=8 and RP=16. This is an experimental modification of Poseidon2.
+Security results and deployment experience for other permutations do not
+establish security of these parameters.
 
-| System | Field | t | R_F | R_P | Capacity | Status |
-|---|---|---|---|---|---|---|
-| Plonky3 | Goldilocks | 12 | 8 | 22 | 4 (128-bit) | Production |
-| SP1 | BabyBear | 16 | 8 | 13 | 8 (124-bit) | Production |
-| RISC Zero | BabyBear | 16 | 8 | 13 | 8 (124-bit) | Production |
-| Stwo/Starknet | M31 | 16 | 8 | 14 | 8 (124-bit) | Production (mainnet) |
-| Miden | Goldilocks | 12 | 8 | 22 | 4 (128-bit) | Production |
-| Aztec/Noir | BN254 | 4 | 8 | 56 | 1 (127-bit) | Production |
-| Hemera | Goldilocks | 16 | 8 | 64 | 8 (256-bit) | Genesis |
+The [inverse S-box assessment](../../research/inverse-sbox-assessment.md)
+contains reproducible algebraic checks and primary references. It distinguishes
+local S-box properties, circuit soundness, linear-layer checks and full-round
+cryptanalysis. No full-round security certification is claimed.
 
-## what is novel, what is not
+The 32-byte output imposes a generic classical collision ceiling near 128 bits.
+Capacity and digest length have different roles; an inverse S-box does not
+remove the output birthday bound.
 
-Not novel:
+The structural identity layer adds stable content IDs, ordered commitments and
+selective openings. Its binding arguments depend on the underlying hash and
+on correct format extraction. See [structural commitments](../../specs/structural-commitments.md).
 
-- Poseidon2 with t=16. SP1, RISC Zero, and Stwo all deploy t=16.
-- Poseidon2 on Goldilocks. Plonky3 and Miden use Goldilocks with t=12.
-- The security proof methodology. Hemera follows the same wide trail and algebraic degree analysis as all Poseidon2 instantiations.
-- MDS construction. The matrix design follows known techniques for Poseidon2.
-
-Novel:
-
-- Goldilocks + t=16 combination. No production system uses Goldilocks at width 16. Plonky3 and Miden use t=12. The systems that use t=16 (SP1, RISC Zero, Stwo) use 31-bit fields.
-- R_P=64. The highest partial round count in any deployed Poseidon2. The next highest is Aztec/Noir at R_P=56 (on BN254, a very different field). On small fields, the maximum deployed is R_P=22.
-
-Actual risk: a subtle error in the specific M_E or M_I matrix constructed for Goldilocks at t=16. The permutation structure, S-box, and round counts are conservative. The MDS matrices are the only component that must be validated specifically for this field-width combination.
+For implementation proof coverage and remaining assumptions, see
+[formal proofs](../../specs/formal-proofs.md). Kernel-checked algebraic lemmas
+and Rust tests do not by themselves certify cryptographic strength, constant-time
+behavior or a mission-critical deployed system.
