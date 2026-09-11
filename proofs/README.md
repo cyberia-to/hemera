@@ -70,7 +70,7 @@ columns `[2,3]`; the external one has a zero minor at rows `[0,4]`, columns
 in [matrices.md](../specs/matrices.md); a zero proper minor does not imply
 the full matrix is singular.
 
-Scope, assumptions and the next obligations: [formal-proofs.md](../specs/formal-proofs.md).
+Scope, assumptions and the next obligations: [formal-proofs.md](../audit/formal-proofs.md).
 
 The runner also kernel-checks quotient/remainder certificates for two concrete
 Rust multiplication outputs, including `(u64::MAX)^2`. These are per-input

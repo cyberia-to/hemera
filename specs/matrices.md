@@ -94,7 +94,7 @@ Both minors have determinant zero over Goldilocks. This refutes the former
 claim that all square minors were verified nonzero; it does not establish
 singularity of either full matrix or a cryptographic attack.
 
-The Eidos proofs in [formal-proofs](formal-proofs.md) establish that the
+The Eidos proofs in [formal-proofs](../audit/formal-proofs.md) establish that the
 optimized M4 rows equal the coefficients specified above, conditional on
 associative and commutative addition. The proof checker also reconstructs
 the two zero minors from the actual Rust transformations. Full diffusion

@@ -1,6 +1,6 @@
 ---
-tags: hemera, eidos, verification
-crystal-type: spec
+tags: hemera, eidos, verification, audit
+crystal-type: report
 crystal-domain: crypto
 status: partial
 ---
@@ -59,4 +59,4 @@ Instantiation over the actual Goldilocks field still requires its algebraic
 laws and the equivalence to residual equations; the local Rust residual tests
 and small-field exhaustive checks are reported separately. The experimental
 structural commitment layer currently has Rust tests, not Eidos refinement
-proofs. See `structural-commitments.md` for its obligations.
+proofs. See [structural commitments](../specs/structural-commitments.md) for its obligations.

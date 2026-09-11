@@ -96,10 +96,11 @@ for encoding, opening verification, parser obligations and migration gates.
 - [[constants]] — all 144 round constants (hex values)
 - [[bootstrap]] — round constant self-generation via Hemera₀
 - [[matrices]] — MDS and diagonal matrices for the linear layer
-- [[formal-proofs]] — Eidos theorem scope, explicit assumptions, and executable checks
 - [[api]] — public API surface: `hash`, `hash_node`, `absorb`, `squeeze`
 
 ## See also
+
+- [Eidos proof coverage report](../audit/formal-proofs.md) — checked theorems, explicit premises, validation boundary and remaining obligations
 
 - [[particles|particle]] — particle addressing with Hemera
 - [[cyberlinks|cyberlink]] — edges referencing particles by Hemera hash

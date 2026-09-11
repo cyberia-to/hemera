@@ -26,6 +26,6 @@ selective openings. Its binding arguments depend on the underlying hash and
 on correct format extraction. See [structural commitments](../../specs/structural-commitments.md).
 
 For implementation proof coverage and remaining assumptions, see
-[formal proofs](../../specs/formal-proofs.md). Kernel-checked algebraic lemmas
+[formal proofs](../../audit/formal-proofs.md). Kernel-checked algebraic lemmas
 and Rust tests do not by themselves certify cryptographic strength, constant-time
 behavior or a mission-critical deployed system.
