@@ -176,22 +176,45 @@ fn main() -> Result<(), String> {
     let sbox = fs::read_to_string(root.join("Sbox.ei")).map_err(|e| e.to_string())?;
     let matrix = fs::read_to_string(root.join("Matrix.ei")).map_err(|e| e.to_string())?;
     let inverse = fs::read_to_string(root.join("Inverse.ei")).map_err(|e| e.to_string())?;
+    let binary = fs::read_to_string(root.join("Binary.ei")).map_err(|e| e.to_string())?;
     let mut total = 0;
     for (name, src) in [
         ("Sbox.ei", &sbox),
         ("Matrix.ei", &matrix),
         ("Inverse.ei", &inverse),
+        ("Binary.ei", &binary),
     ] {
         let (state, proofs) = checked(src)?;
         total += proofs.len();
         for theorem in proofs {
             println!("PROVED {name}: {theorem}");
         }
+        if name == "Binary.ei" {
+            for (name, expected) in [
+                ("p", field::P as u128),
+                ("invExponent", field::P as u128 - 2),
+            ] {
+                assert_eq!(
+                    nf(&std_env(), &vec![], state.globals[name].0.clone()),
+                    stdlib::binary::literal(expected).unwrap()
+                );
+            }
+            println!("BRIDGE binary: modulus and inverse exponent match Rust field::P and P-2");
+        }
         if name == "Matrix.ei" {
             matrix_bridge(&state);
         }
     }
     negative_controls(&sbox, &matrix, &inverse);
+    let wrong = binary.replace("Pos.add p epsilon", "Pos.add p two32");
+    assert_ne!(wrong, binary);
+    rejected("wrong Goldilocks modulus", &wrong);
+    let wrong = binary.replace(
+        "Pos.add invExponent (Pos.bit0 Pos.one)",
+        "Pos.add invExponent Pos.one",
+    );
+    assert_ne!(wrong, binary);
+    rejected("wrong inverse exponent", &wrong);
     rust_checks();
     println!(
         "{total} theorems rechecked; assumptions are explicit parameters; Rust checks reported separately"

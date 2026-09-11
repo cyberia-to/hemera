@@ -7,12 +7,16 @@ python3 proofs/check.py
 ```
 
 The command checks the reviewed Rust source fingerprints, builds the local
-Eidos kernel and Hemera library, checks eleven theorems, rejects nine negative
+Eidos kernel and Hemera library, checks fifteen theorems, rejects eleven negative
 controls, and runs the separately labeled implementation/model checks.
 No network, certificate service, nox or zheng is needed by the checker;
 its two Rust dependencies are local path dependencies.
 
 ## Proofs
+
+- [Binary.ei](Binary.ei): concrete Goldilocks modulus/exponent identities and
+  universal binary successor/carry equations, reduced in the kernel. These
+  positives are unbounded integers; modular Rust refinement remains open.
 
 - [Inverse.ei](Inverse.ei): conditional sufficiency of the corrected inverse
   equations for the zero and cancellable-input cases.
@@ -30,7 +34,7 @@ that is an outstanding premise when instantiating the abstract theorem.
 
 `checker/` calls Eidos's public `check_strict_source` API. The strict checker
 rejects axioms, sorry, opaque constants, holes, user inductives and declaration
-shadowing; it rechecks closed terms against a fresh Nat/Bool/Eq environment.
+shadowing; it rechecks closed terms against a fresh Nat/Bool/Eq/Pos environment.
 Eidos also provides `check --strict file.ei`, which checks transitive imports
 with cycle detection. See [Eidos strict policy](../../eidos/specs/strict-checking.md).
 
@@ -53,6 +57,7 @@ either Rust file changes; changing the fingerprint alone establishes nothing.
 The runner evaluates each Eidos M4 row on all four basis vectors and compares
 all 16 coefficients with the actual Rust transform. It also compares Rust
 S-box/trace behavior on 128 inputs, including noncanonical representatives.
+Binary model values are also compared with Rust `field::P` and `P-2`.
 These are bridge tests, not universal proofs of Rust behavior.
 
 The actual internal 16×16 transform has a zero minor at rows `[0,1]`,
