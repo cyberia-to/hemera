@@ -7,12 +7,16 @@ python3 proofs/check.py
 ```
 
 The command checks the reviewed Rust source fingerprints, builds the local
-Eidos kernel and Hemera library, checks fifteen theorems, rejects eleven negative
+Eidos kernel and Hemera library, checks twenty-one theorems, rejects thirteen negative
 controls, and runs the separately labeled implementation/model checks.
 No network, certificate service, nox or zheng is needed by the checker;
 its two Rust dependencies are local path dependencies.
 
 ## Proofs
+
+- [Reduction.ei](Reduction.ei): reconstruction and canonical remainder range
+  for 0, 2^64 and 2^128-1. The kernel checks binary multiplication and comparison;
+  the host does not supply a trusted arithmetic answer.
 
 - [Binary.ei](Binary.ei): concrete Goldilocks modulus/exponent identities and
   universal binary successor/carry equations, reduced in the kernel. These
@@ -34,7 +38,7 @@ that is an outstanding premise when instantiating the abstract theorem.
 
 `checker/` calls Eidos's public `check_strict_source` API. The strict checker
 rejects axioms, sorry, opaque constants, holes, user inductives and declaration
-shadowing; it rechecks closed terms against a fresh Nat/Bool/Eq/Pos environment.
+shadowing; it rechecks closed terms against a fresh Nat/Bool/Eq/Pos/BNat environment.
 Eidos also provides `check --strict file.ei`, which checks transitive imports
 with cycle detection. See [Eidos strict policy](../../eidos/specs/strict-checking.md).
 
@@ -67,3 +71,7 @@ in [matrices.md](../specs/matrices.md); a zero proper minor does not imply
 the full matrix is singular.
 
 Scope, assumptions and the next obligations: [formal-proofs.md](../specs/formal-proofs.md).
+
+The runner also kernel-checks quotient/remainder certificates for two concrete
+Rust multiplication outputs, including `(u64::MAX)^2`. These are per-input
+certificates, not a universal theorem about `reduce128`.

@@ -1,8 +1,9 @@
 # Inverse S-box assessment — 2026-09-10
 
 Follow-up: [2026-09-11 production disposition, matched costs and concrete
-partial-layer restrictions](permutation-decision.md). Inverse-16 remains
-experimental; it is not selected as the production security profile.
+partial-layer restrictions](permutation-decision.md), followed by the
+[full-round investigation](full-round-status.md). Production finalization
+remains unresolved.
 
 The candidate remains x^7 full rounds and total inverse (0 -> 0) partial
 rounds, RF=8, RP=16, Goldilocks, width 16. No hash parameters were changed.

@@ -1,0 +1,24 @@
+{
+  "scope": "universal integer model of reduce128; manually translated Rust; Z3 trusted, not Eidos",
+  "field_source_sha256": "55ac29d64f11ae23a9f2461f7c7e6c329d3523a4b3c823248d8902cb18fb3efb",
+  "z3_version": "4.15.4",
+  "logic": "QF_LIA",
+  "negated_obligations": "unsat",
+  "obligations": [
+    "overflowing_sub_range",
+    "borrow_correction_does_not_underflow",
+    "constant_product_fits_u64",
+    "sum_fits_one_carry",
+    "overflowing_add_range",
+    "final_correction_does_not_overflow",
+    "canonical_range",
+    "nonnegative_quotient",
+    "exact_euclidean_identity"
+  ],
+  "wrong_quotient_counterexample": {
+    "lo": 0,
+    "hi_lo": 0,
+    "hi_hi": 1
+  },
+  "smt2_sha256": "97661536fcd36bce525ba448a2168b8b40a6a842d308de5a1a2331be6f127252"
+}

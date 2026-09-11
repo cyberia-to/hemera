@@ -38,9 +38,10 @@ collision resistance, preimage resistance, or soundness of zheng.
 | `inverse_zero_output` | left/right zero multiplication, second cubic equation with x=0 | y=0 |
 | `constant_minor_zero` | `sub x x = zero` | a constant 2-by-2 minor has zero determinant |
 
-`swap_tail` is an auxiliary reassociation/commutation lemma. Fifteen theorems are checked in total. `Binary.ei` adds two concrete
+`swap_tail` is an auxiliary reassociation/commutation lemma. Twenty-one theorems are checked in total. `Binary.ei` adds two concrete
 Goldilocks integer identities and two universal binary operation equations.
-These do not prove primality or Rust modular arithmetic.
+`Reduction.ei` adds six concrete reconstruction/range facts.
+These do not prove primality or universal Rust modular arithmetic.
 
 ## Remaining work
 
@@ -48,8 +49,8 @@ These do not prove primality or Rust modular arithmetic.
   including noncanonical representatives, overflow and `reduce128`.
 - Prove the exponent of the optimized inversion chain and the zero case.
 - Formalize seven-byte encoding, canonical output decoding and sponge padding.
-  Eidos now supports binary positives and kernel-reduced addition; zero,
-  modular reduction and machine-word semantics remain needed.
+  Eidos now supports binary nonnegative arithmetic and concrete modular
+  reduction certificates; universal modular/word semantics remain needed.
 - Prove full permutation, streaming and tree refinements, then state the
   cryptographic assumptions separately from implementation correctness.
 

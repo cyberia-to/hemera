@@ -177,12 +177,14 @@ fn main() -> Result<(), String> {
     let matrix = fs::read_to_string(root.join("Matrix.ei")).map_err(|e| e.to_string())?;
     let inverse = fs::read_to_string(root.join("Inverse.ei")).map_err(|e| e.to_string())?;
     let binary = fs::read_to_string(root.join("Binary.ei")).map_err(|e| e.to_string())?;
+    let reduction = fs::read_to_string(root.join("Reduction.ei")).map_err(|e| e.to_string())?;
     let mut total = 0;
     for (name, src) in [
         ("Sbox.ei", &sbox),
         ("Matrix.ei", &matrix),
         ("Inverse.ei", &inverse),
         ("Binary.ei", &binary),
+        ("Reduction.ei", &reduction),
     ] {
         let (state, proofs) = checked(src)?;
         total += proofs.len();
@@ -215,6 +217,29 @@ fn main() -> Result<(), String> {
     );
     assert_ne!(wrong, binary);
     rejected("wrong inverse exponent", &wrong);
+    rejected(
+        "noncanonical modular remainder",
+        "theorem bad : Eq Bool (BNat.lt (BNat.positive Pos.one) (BNat.positive Pos.one)) Bool.true := by { rfl }",
+    );
+    let wrong = reduction.replace(
+        "BNat.mul word_quotient modulus",
+        "BNat.mul BNat.zero modulus",
+    );
+    assert_ne!(wrong, reduction);
+    rejected("wrong modular quotient", &wrong);
+    for (a, b) in [(0u64, u64::MAX), (u64::MAX, u64::MAX)] {
+        let input = u128::from(a) * u128::from(b);
+        let actual = (Goldilocks::new(a) * Goldilocks::new(b)).as_canonical_u64();
+        stdlib::reduction_certificate::check_reduction(
+            input,
+            u128::from(field::P),
+            input / u128::from(field::P),
+            u128::from(actual),
+        )?;
+    }
+    println!(
+        "CERTIFICATE BRIDGE: two actual Rust products have kernel-checked reconstruction and remainder range"
+    );
     rust_checks();
     println!(
         "{total} theorems rechecked; assumptions are explicit parameters; Rust checks reported separately"

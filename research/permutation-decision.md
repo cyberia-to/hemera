@@ -1,11 +1,11 @@
 # Permutation decision — 2026-09-11
 
-**Engineering disposition: keep inverse-16 experimental; do not select it for
-the production security profile on the current evidence. Select an unmodified,
-reference-backed all-x^7 Poseidon2 as the next comparison candidate.** This is
-a decision under uncertainty, not a proof that inverse-16 is broken. The
-full-round security question remains unresolved. No live permutation constants,
-round counts, or hash outputs change in this work.
+**Superseded as an answer to the production-finalization request.** The user
+requires security to be established or a concrete insecurity result, rather
+than a recommendation based on uncertainty. Neither has been achieved. The
+cost comparison below remains evidence, not a production parameter decision.
+See [the continuing full-round investigation](full-round-status.md). No live
+permutation constants, round counts, or hash outputs change in this work.
 
 The original justification (huge polynomial degree implies superior security
 and permits sixteen partial rounds) fails. The smaller local inverse constraint
