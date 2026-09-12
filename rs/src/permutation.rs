@@ -24,6 +24,10 @@ pub fn permute(state: &mut [Goldilocks; 16]) {
 /// Apply the Poseidon2 permutation with caller-supplied round constants.
 ///
 /// Used by `bootstrap.rs` to run Hemera₀ (all-zero constants).
+/// Consumes the first 144 constants; trailing entries are ignored.
+///
+/// # Panics
+/// Panics if fewer than 144 constants are supplied.
 pub fn permute_with_constants(state: &mut [Goldilocks; 16], constants: &[Goldilocks]) {
     let (external, internal) = constants.split_at(NUM_EXTERNAL);
 
@@ -46,7 +50,7 @@ pub fn permute_with_constants(state: &mut [Goldilocks; 16], constants: &[Goldilo
 
     // ── Internal (partial) rounds ───────────────────────────────
     // 16 partial rounds: add_rc to state[0] + sbox state[0] (field inversion) + diffusion
-    for constant in internal {
+    for constant in &internal[..16] {
         state[0] += *constant;
         state[0] = state[0].inv();
         matmul_internal(state);
