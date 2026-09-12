@@ -5,7 +5,7 @@
 // ---
 //! Test that hemera-rs matches the pinned test vectors in vectors/hemera.json.
 
-use cyber_hemera::{hash, derive_key, tree::root_hash};
+use cyber_hemera::{derive_key, hash, tree::root_hash};
 
 #[test]
 fn hash_empty() {

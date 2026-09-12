@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reduced-round one-coordinate preimage search over the actual Goldilocks field.
+"""Reduced-round coordinate-preimage search over the actual Goldilocks field.
 
 Uses actual matrices/constants, seven-byte input encoding and explicit zero-branch
 recovery. It is NOT a full-digest or full-round attack. python-flint 0.9.0.
@@ -91,7 +91,7 @@ def search(half, partial, degree_limit, coordinates=4):
         for i, value in enumerate(evaluate(x, half, partial)):
             assert int(exceptional(x))*(int(den(x))*value-int(nums[i](x))) % P == 0
     finished = time.monotonic()
-    return {'half_full_rounds': half, 'partial_rounds': partial, 'status': 'solved_one_coordinate',
+    return {'half_full_rounds': half, 'partial_rounds': partial, 'status': 'solved_coordinates',
             'coordinates': coordinates, 'degree_bound': bound, 'numerator_degree': nums[0].degree(),
             'denominator_degree': den.degree(), 'equation_degrees': [equation.degree() for equation in equations],
             'common_gcd_degree': common.degree(),
@@ -127,12 +127,14 @@ def main():
     parser.add_argument('--worker', nargs=2, type=int, metavar=('HALF_FULL', 'PARTIAL'))
     parser.add_argument('--degree-limit', type=int, default=100000)
     parser.add_argument('--wall-seconds', type=int, default=45)
+    parser.add_argument('--coordinates', type=int, choices=range(1, 5), default=4,
+                        help='output coordinates to constrain (default: all four)')
     args = parser.parse_args()
     if args.worker:
         half, partial = args.worker
         if not (0 <= half <= 4 and 0 <= partial <= 16):
             parser.error('outside the implemented round ranges')
-        print(json.dumps(search(half, partial, args.degree_limit)))
+        print(json.dumps(search(half, partial, args.degree_limit, args.coordinates)))
         return
     # Numerical full-profile bridge before doing any reduced-round search.
     vectors = json.loads((ROOT/'research/full-round-system-results.json').read_text())['vectors']
@@ -144,7 +146,8 @@ def main():
     for half, partial in [(1, 0), (1, 2), (1, 4), (1, 8), (1, 10), (2, 0), (2, 4), (4, 16)]:
         try:
             run = subprocess.run([sys.executable, '-B', __file__, '--worker', str(half), str(partial),
-                '--degree-limit', str(args.degree_limit)], capture_output=True, text=True, timeout=args.wall_seconds)
+                '--degree-limit', str(args.degree_limit), '--coordinates', str(args.coordinates)],
+                capture_output=True, text=True, timeout=args.wall_seconds)
         except subprocess.TimeoutExpired:
             result = {'half_full_rounds': half, 'partial_rounds': partial, 'status': 'wall_timeout'}
         else:
@@ -153,7 +156,8 @@ def main():
             result = json.loads(run.stdout)
         results.append(result)
         print(f'RF={2*half} RP={partial}: {result["status"]}', file=sys.stderr, flush=True)
-    print(json.dumps({'scope': 'reduced-round four-coordinate digest preimages over the seven-byte domain',
+    print(json.dumps({'scope': 'reduced-round coordinate preimages over the seven-byte domain',
+        'coordinates': args.coordinates,
         'source_manifest_sha256': hashlib.sha256((ROOT/'research/model-sources.json').read_bytes()).hexdigest(),
         'degree_limit': args.degree_limit, 'wall_seconds_per_profile': args.wall_seconds,
         'full_profile_numerical_bridge': True, 'zero_branch_control': zero_control, 'results': results}, indent=2))

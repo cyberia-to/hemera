@@ -46,8 +46,8 @@ pub fn permute_with_constants(state: &mut [Goldilocks; 16], constants: &[Goldilo
 
     // ── Internal (partial) rounds ───────────────────────────────
     // 16 partial rounds: add_rc to state[0] + sbox state[0] (field inversion) + diffusion
-    for round in 0..16 {
-        state[0] += internal[round];
+    for constant in internal {
+        state[0] += *constant;
         state[0] = state[0].inv();
         matmul_internal(state);
     }
@@ -171,7 +171,10 @@ mod tests {
     fn traced_matches_plain() {
         let mut state_plain = [Goldilocks::new(42); 16];
         let mut state_traced = state_plain;
-        let mut counter = RoundCounter { full: 0, partial: 0 };
+        let mut counter = RoundCounter {
+            full: 0,
+            partial: 0,
+        };
 
         permute(&mut state_plain);
         permute_traced(&mut state_traced, &mut counter);
@@ -213,7 +216,10 @@ mod tests {
             assert_eq!(rec.full_indices[i as usize], i, "full round index {i}");
         }
         for i in 0..16u8 {
-            assert_eq!(rec.partial_indices[i as usize], i, "partial round index {i}");
+            assert_eq!(
+                rec.partial_indices[i as usize], i,
+                "partial round index {i}"
+            );
         }
     }
 

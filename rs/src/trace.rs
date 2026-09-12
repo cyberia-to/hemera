@@ -12,7 +12,7 @@
 //! ## Row count
 //!
 //! A plain sponge hashing N absorb blocks emits (N + 1) × 24 rows via
-//! [`Hasher::update_traced`] / [`Hasher::finalize_traced`].
+//! [`crate::Hasher::update_traced`] / [`crate::Hasher::finalize_traced`].
 
 use crate::field::Goldilocks;
 
@@ -39,18 +39,13 @@ pub trait RoundVisitor {
     ///
     /// `index` ∈ 0..8 — rounds 0–3 are the initial group; 4–7 are terminal.
     /// `witnesses[i] = [state_pre_sbox[i]², state_pre_sbox[i]³]`.
-    fn full_round(
-        &mut self,
-        index: u8,
-        state: &[Goldilocks; 16],
-        witnesses: &FullRoundWitnesses,
-    );
+    fn full_round(&mut self, index: u8, state: &[Goldilocks; 16], witnesses: &FullRoundWitnesses);
 
-    /// After a partial round: add_rc on state[0] + x^(−1) S-box + matmul_internal.
+    /// After a partial round: add_rc on `state[0]` + x^(−1) S-box + matmul_internal.
     ///
     /// `index` ∈ 0..16.
     /// `sbox_out` is `state[0]^(−1)` captured *after* inversion and *before*
-    /// matmul_internal. For x = state[0] post-add_rc and y = sbox_out,
+    /// matmul_internal. For `x = state[0]` post-add_rc and `y = sbox_out`,
     /// require x*(x*y-1)=0 and y*(x*y-1)=0 (two cubic constraints).
     /// The single equation x*y=1 excludes the valid zero-input case.
     fn partial_round(&mut self, index: u8, state: &[Goldilocks; 16], sbox_out: Goldilocks);

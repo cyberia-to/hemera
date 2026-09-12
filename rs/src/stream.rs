@@ -131,7 +131,11 @@ pub fn decode(encoded: &[u8], expected_root: &Hash) -> Result<Vec<u8>, DecodeErr
     }
 
     let data_len = u64::from_le_bytes(encoded[..HEADER_SIZE].try_into().unwrap()) as usize;
-    let n = if data_len == 0 { 1 } else { (data_len + CHUNK_SIZE - 1) / CHUNK_SIZE };
+    let n = if data_len == 0 {
+        1
+    } else {
+        data_len.div_ceil(CHUNK_SIZE)
+    };
     let mut pos = HEADER_SIZE;
 
     if n <= 1 {
@@ -148,7 +152,15 @@ pub fn decode(encoded: &[u8], expected_root: &Hash) -> Result<Vec<u8>, DecodeErr
     }
 
     let mut out = Vec::with_capacity(data_len);
-    decode_subtree(encoded, &mut pos, 0, n, true, expected_root, data_len, &mut out)?;
+    decode_subtree(
+        encoded,
+        &mut pos,
+        (0, n),
+        true,
+        expected_root,
+        data_len,
+        &mut out,
+    )?;
 
     Ok(out)
 }
@@ -157,13 +169,13 @@ pub fn decode(encoded: &[u8], expected_root: &Hash) -> Result<Vec<u8>, DecodeErr
 fn decode_subtree(
     encoded: &[u8],
     pos: &mut usize,
-    offset: usize,
-    count: usize,
+    subtree: (usize, usize),
     is_root: bool,
     expected: &Hash,
     data_len: usize,
     out: &mut Vec<u8>,
 ) -> Result<(), DecodeError> {
+    let (offset, count) = subtree;
     debug_assert!(count > 0);
 
     if count == 1 {
@@ -197,8 +209,24 @@ fn decode_subtree(
     }
 
     let split = left_subtree_chunks(count);
-    decode_subtree(encoded, pos, offset, split, false, &left_hash, data_len, out)?;
-    decode_subtree(encoded, pos, offset + split, count - split, false, &right_hash, data_len, out)?;
+    decode_subtree(
+        encoded,
+        pos,
+        (offset, split),
+        false,
+        &left_hash,
+        data_len,
+        out,
+    )?;
+    decode_subtree(
+        encoded,
+        pos,
+        (offset + split, count - split),
+        false,
+        &right_hash,
+        data_len,
+        out,
+    )?;
 
     Ok(())
 }
@@ -273,11 +301,19 @@ pub fn verify_outboard(data: &[u8], ob: &[u8], expected_root: &Hash) -> Result<(
         return Err(DecodeError::HashMismatch);
     }
 
-    let n = if data_len == 0 { 1 } else { (data_len + CHUNK_SIZE - 1) / CHUNK_SIZE };
+    let n = if data_len == 0 {
+        1
+    } else {
+        data_len.div_ceil(CHUNK_SIZE)
+    };
 
     if n <= 1 {
         let cv = hash_leaf(data, 0, true);
-        return if cv == *expected_root { Ok(()) } else { Err(DecodeError::HashMismatch) };
+        return if cv == *expected_root {
+            Ok(())
+        } else {
+            Err(DecodeError::HashMismatch)
+        };
     }
 
     let mut pos = HEADER_SIZE;
@@ -300,7 +336,11 @@ fn verify_outboard_subtree(
         let start = offset * CHUNK_SIZE;
         let end = (start + CHUNK_SIZE).min(data.len());
         let cv = hash_leaf(&data[start..end], offset as u64, false);
-        return if cv == *expected { Ok(()) } else { Err(DecodeError::HashMismatch) };
+        return if cv == *expected {
+            Ok(())
+        } else {
+            Err(DecodeError::HashMismatch)
+        };
     }
 
     if *pos + PAIR_SIZE > ob.len() {
@@ -316,7 +356,15 @@ fn verify_outboard_subtree(
 
     let split = left_subtree_chunks(count);
     verify_outboard_subtree(data, ob, pos, offset, split, false, &left_hash)?;
-    verify_outboard_subtree(data, ob, pos, offset + split, count - split, false, &right_hash)?;
+    verify_outboard_subtree(
+        data,
+        ob,
+        pos,
+        offset + split,
+        count - split,
+        false,
+        &right_hash,
+    )?;
 
     Ok(())
 }
@@ -340,9 +388,9 @@ fn read_hash(buf: &[u8], pos: &mut usize) -> Hash {
 #[cfg(test)]
 mod tests {
     extern crate std;
-    use std::vec;
     use super::*;
     use crate::tree::fixed_chunk_root as root_hash;
+    use std::vec;
 
     #[test]
     fn encode_decode_empty() {
@@ -407,7 +455,10 @@ mod tests {
 
     #[test]
     fn decode_truncated_header() {
-        assert_eq!(decode(b"short", &Hash::from_bytes([0; OUTPUT_BYTES])), Err(DecodeError::Truncated));
+        assert_eq!(
+            decode(b"short", &Hash::from_bytes([0; OUTPUT_BYTES])),
+            Err(DecodeError::Truncated)
+        );
     }
 
     #[test]
@@ -465,7 +516,10 @@ mod tests {
         let data = vec![0x42; CHUNK_SIZE * 2];
         let (root, ob) = outboard(&data);
         let wrong = vec![0xFF; CHUNK_SIZE * 2];
-        assert_eq!(verify_outboard(&wrong, &ob, &root), Err(DecodeError::HashMismatch));
+        assert_eq!(
+            verify_outboard(&wrong, &ob, &root),
+            Err(DecodeError::HashMismatch)
+        );
     }
 
     #[test]
@@ -473,7 +527,10 @@ mod tests {
         let data = vec![0x42; CHUNK_SIZE * 2];
         let (_, ob) = outboard(&data);
         let wrong = Hash::from_bytes([0xFF; OUTPUT_BYTES]);
-        assert_eq!(verify_outboard(&data, &ob, &wrong), Err(DecodeError::HashMismatch));
+        assert_eq!(
+            verify_outboard(&data, &ob, &wrong),
+            Err(DecodeError::HashMismatch)
+        );
     }
 
     #[test]
@@ -488,9 +545,18 @@ mod tests {
 
     #[test]
     fn encode_decode_roundtrip_sizes() {
-        for size in [0, 1, 100, CHUNK_SIZE - 1, CHUNK_SIZE, CHUNK_SIZE + 1,
-                     CHUNK_SIZE * 2, CHUNK_SIZE * 3 + 7, CHUNK_SIZE * 8,
-                     CHUNK_SIZE * 16 + 1] {
+        for size in [
+            0,
+            1,
+            100,
+            CHUNK_SIZE - 1,
+            CHUNK_SIZE,
+            CHUNK_SIZE + 1,
+            CHUNK_SIZE * 2,
+            CHUNK_SIZE * 3 + 7,
+            CHUNK_SIZE * 8,
+            CHUNK_SIZE * 16 + 1,
+        ] {
             let data = vec![0x77u8; size];
             let (root, encoded) = encode(&data);
             let decoded = decode(&encoded, &root).unwrap();
@@ -500,8 +566,15 @@ mod tests {
 
     #[test]
     fn outboard_verify_sizes() {
-        for size in [0, 1, 100, CHUNK_SIZE, CHUNK_SIZE + 1,
-                     CHUNK_SIZE * 5, CHUNK_SIZE * 16 + 1] {
+        for size in [
+            0,
+            1,
+            100,
+            CHUNK_SIZE,
+            CHUNK_SIZE + 1,
+            CHUNK_SIZE * 5,
+            CHUNK_SIZE * 16 + 1,
+        ] {
             let data = vec![0x88u8; size];
             let (root, ob) = outboard(&data);
             verify_outboard(&data, &ob, &root).unwrap();

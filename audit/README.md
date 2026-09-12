@@ -10,4 +10,6 @@ a separate track from [[specs]] and [[docs]]. specs are the law. docs are why. a
 
 | pass | against | status |
 |---|---|---|
-| [[0.3.1]] | crate v0.3.1, 2026-09-08 | findings open |
+| [[0.3.1]] | crate v0.3.1, 2026-09-08 | historical snapshot; partly superseded |
+| [formal proofs](formal-proofs.md) | explicit Eidos statements and model bridges | partial functional evidence |
+| [research release](release-2026-09-12.md) | research branch, 2026-09-12 | checked snapshot; security unresolved |

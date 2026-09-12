@@ -7,7 +7,9 @@ use core::fmt;
 
 use crate::encoding::{bytes_to_rate_block, hash_to_bytes};
 use crate::field::Goldilocks;
-use crate::params::{self, OUTPUT_BYTES, OUTPUT_BYTES_PER_ELEMENT, OUTPUT_ELEMENTS, RATE, RATE_BYTES, WIDTH};
+use crate::params::{
+    self, OUTPUT_BYTES, OUTPUT_BYTES_PER_ELEMENT, OUTPUT_ELEMENTS, RATE, RATE_BYTES, WIDTH,
+};
 
 /// Domain separation tags placed in `state[capacity_start + 3]` (i.e. `state[11]`).
 const DOMAIN_HASH: u64 = 0x00;
@@ -75,10 +77,7 @@ impl<'de> serde::Deserialize<'de> for Hash {
                 write!(formatter, "a byte array of length {OUTPUT_BYTES}")
             }
 
-            fn visit_seq<A: serde::de::SeqAccess<'de>>(
-                self,
-                mut seq: A,
-            ) -> Result<Hash, A::Error> {
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Hash, A::Error> {
                 let mut bytes = [0u8; OUTPUT_BYTES];
                 for (i, byte) in bytes.iter_mut().enumerate() {
                     *byte = seq
@@ -224,7 +223,7 @@ impl Hasher {
     /// Add a rate block into the state (Goldilocks field addition) and permute.
     fn absorb_block(&mut self, block: &[Goldilocks; RATE]) {
         for (i, block_elem) in block.iter().enumerate() {
-            self.state[i] = self.state[i] + *block_elem;
+            self.state[i] += *block_elem;
         }
         params::permute(&mut self.state);
     }
@@ -235,7 +234,7 @@ impl Hasher {
     /// 1. Append 0x01 byte to remaining buffer
     /// 2. Pad to RATE_BYTES with zeros
     /// 3. Encode as field elements and absorb
-    /// 4. Store total byte count in capacity[2]
+    /// 4. Store total byte count in `capacity[2]`
     pub fn finalize_state(&self) -> [Goldilocks; WIDTH] {
         let mut state = self.state;
         let mut padded = [0u8; RATE_BYTES];
@@ -249,7 +248,7 @@ impl Hasher {
         let mut rate_block = [Goldilocks::new(0); RATE];
         bytes_to_rate_block(&padded, &mut rate_block);
         for i in 0..RATE {
-            state[i] = state[i] + rate_block[i];
+            state[i] += rate_block[i];
         }
 
         // Encode total length in capacity.
@@ -261,7 +260,7 @@ impl Hasher {
 
     /// Absorb `data`, calling `visitor` for each permutation triggered.
     ///
-    /// Mirrors [`update`] exactly — use in place of `update` when building a trace.
+    /// Mirrors [`Self::update`] exactly — use in place of `update` when building a trace.
     pub fn update_traced<V: crate::trace::RoundVisitor>(
         &mut self,
         mut data: &[u8],
@@ -280,7 +279,7 @@ impl Hasher {
                 let mut rate_block = [Goldilocks::new(0); RATE];
                 bytes_to_rate_block(&self.buf, &mut rate_block);
                 for (i, elem) in rate_block.iter().enumerate() {
-                    self.state[i] = self.state[i] + *elem;
+                    self.state[i] += *elem;
                 }
                 crate::permutation::permute_traced(&mut self.state, visitor);
                 self.buf_len = 0;
@@ -292,7 +291,7 @@ impl Hasher {
 
     /// Finalize and return the hash, tracing the final permutation via `visitor`.
     ///
-    /// If the input required absorb permutations, trace those via [`update_traced`];
+    /// If the input required absorb permutations, trace those via [`Self::update_traced`];
     /// this method traces only the padding+finalize permutation.
     pub fn finalize_traced<V: crate::trace::RoundVisitor>(&self, visitor: &mut V) -> Hash {
         let mut state = self.state;
@@ -303,24 +302,20 @@ impl Hasher {
         let mut rate_block = [Goldilocks::new(0); RATE];
         bytes_to_rate_block(&padded, &mut rate_block);
         for i in 0..RATE {
-            state[i] = state[i] + rate_block[i];
+            state[i] += rate_block[i];
         }
         state[CAPACITY_START + 2] = Goldilocks::new(self.absorbed);
 
         crate::permutation::permute_traced(&mut state, visitor);
 
-        let output: [Goldilocks; OUTPUT_ELEMENTS] = state[..OUTPUT_ELEMENTS]
-            .try_into()
-            .unwrap();
+        let output: [Goldilocks; OUTPUT_ELEMENTS] = state[..OUTPUT_ELEMENTS].try_into().unwrap();
         Hash(hash_to_bytes(&output))
     }
 
     /// Finalize and return the hash.
     pub fn finalize(&self) -> Hash {
         let state = self.finalize_state();
-        let output: [Goldilocks; OUTPUT_ELEMENTS] = state[..OUTPUT_ELEMENTS]
-            .try_into()
-            .unwrap();
+        let output: [Goldilocks; OUTPUT_ELEMENTS] = state[..OUTPUT_ELEMENTS].try_into().unwrap();
         Hash(hash_to_bytes(&output))
     }
 
@@ -380,9 +375,8 @@ impl OutputReader {
 
     /// Squeeze one block of output from the sponge.
     fn squeeze(&mut self) {
-        let output_elems: [Goldilocks; OUTPUT_ELEMENTS] = self.state[..OUTPUT_ELEMENTS]
-            .try_into()
-            .unwrap();
+        let output_elems: [Goldilocks; OUTPUT_ELEMENTS] =
+            self.state[..OUTPUT_ELEMENTS].try_into().unwrap();
         self.buffer = hash_to_bytes(&output_elems);
         self.buffer_pos = 0;
         params::permute(&mut self.state);
@@ -406,8 +400,8 @@ impl fmt::Debug for OutputReader {
 #[cfg(test)]
 mod tests {
     extern crate std;
-    use std::{format, vec, vec::Vec};
     use super::*;
+    use std::{format, vec, vec::Vec};
 
     #[test]
     fn hash_display_is_hex() {
@@ -471,7 +465,9 @@ mod tests {
     fn domain_separation_hash_vs_keyed() {
         let data = b"test data";
         let plain = Hasher::new().update(data).finalize();
-        let keyed = Hasher::new_keyed(&[0u8; OUTPUT_BYTES]).update(data).finalize();
+        let keyed = Hasher::new_keyed(&[0u8; OUTPUT_BYTES])
+            .update(data)
+            .finalize();
         assert_ne!(plain, keyed);
     }
 
@@ -520,8 +516,12 @@ mod tests {
     #[test]
     fn keyed_hash_different_keys() {
         let data = b"same data";
-        let h1 = Hasher::new_keyed(&[0u8; OUTPUT_BYTES]).update(data).finalize();
-        let h2 = Hasher::new_keyed(&[1u8; OUTPUT_BYTES]).update(data).finalize();
+        let h1 = Hasher::new_keyed(&[0u8; OUTPUT_BYTES])
+            .update(data)
+            .finalize();
+        let h2 = Hasher::new_keyed(&[1u8; OUTPUT_BYTES])
+            .update(data)
+            .finalize();
         assert_ne!(h1, h2);
     }
 
@@ -550,7 +550,8 @@ mod tests {
         let h = Hasher::new().update(&data).finalize();
         let h_streamed = {
             let mut hasher = Hasher::new();
-            for chunk in data.chunks(17) { // odd chunk size
+            for chunk in data.chunks(17) {
+                // odd chunk size
                 hasher.update(chunk);
             }
             hasher.finalize()
@@ -732,9 +733,8 @@ mod tests {
             .update(data)
             .finalize();
 
-        let context_only = Hasher::new_derive_key_context(
-            core::str::from_utf8(data).unwrap()
-        ).finalize();
+        let context_only =
+            Hasher::new_derive_key_context(core::str::from_utf8(data).unwrap()).finalize();
 
         // All pairwise different
         let hashes = [plain, keyed, derived, context_only];

@@ -50,7 +50,7 @@ pub fn bootstrap_sponge_state() -> [Goldilocks; WIDTH] {
 
     // Absorb via Goldilocks field addition.
     for i in 0..RATE {
-        state[i] = state[i] + rate_block[i];
+        state[i] += rate_block[i];
     }
 
     // Store message length in capacity (state[10]), matching sponge convention.
@@ -71,18 +71,15 @@ pub fn bootstrap_constants_u64() -> [u64; NUM_CONSTANTS] {
 
     let mut constants = [0u64; NUM_CONSTANTS];
     let mut pos = RATE; // force initial squeeze
-    let mut filled = 0usize;
-
-    for i in 0..NUM_CONSTANTS {
+    for (filled, constant) in constants.iter_mut().enumerate() {
         if pos >= RATE {
             if filled > 0 {
                 permute_with_constants(&mut state, &ZERO_CONSTANTS);
             }
             pos = 0;
         }
-        constants[i] = state[pos].as_canonical_u64();
+        *constant = state[pos].as_canonical_u64();
         pos += 1;
-        filled += 1;
     }
 
     constants

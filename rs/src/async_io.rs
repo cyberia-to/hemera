@@ -37,10 +37,7 @@ pub trait AsyncWrite {
     ) -> Poll<std::io::Result<usize>>;
 
     /// Flush buffered output.
-    fn poll_flush(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<std::io::Result<()>>;
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>>;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────
@@ -52,10 +49,9 @@ pub async fn read_exact<R: AsyncRead + Unpin>(
 ) -> std::io::Result<()> {
     let mut filled = 0;
     while filled < buf.len() {
-        let n = core::future::poll_fn(|cx| {
-            Pin::new(&mut *reader).poll_read(cx, &mut buf[filled..])
-        })
-        .await?;
+        let n =
+            core::future::poll_fn(|cx| Pin::new(&mut *reader).poll_read(cx, &mut buf[filled..]))
+                .await?;
         if n == 0 {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::UnexpectedEof,
@@ -68,16 +64,11 @@ pub async fn read_exact<R: AsyncRead + Unpin>(
 }
 
 /// Write all bytes in `buf`.
-pub async fn write_all<W: AsyncWrite + Unpin>(
-    writer: &mut W,
-    buf: &[u8],
-) -> std::io::Result<()> {
+pub async fn write_all<W: AsyncWrite + Unpin>(writer: &mut W, buf: &[u8]) -> std::io::Result<()> {
     let mut written = 0;
     while written < buf.len() {
-        let n = core::future::poll_fn(|cx| {
-            Pin::new(&mut *writer).poll_write(cx, &buf[written..])
-        })
-        .await?;
+        let n = core::future::poll_fn(|cx| Pin::new(&mut *writer).poll_write(cx, &buf[written..]))
+            .await?;
         if n == 0 {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::WriteZero,
@@ -115,10 +106,7 @@ impl<W: AsyncWrite + Unpin + ?Sized> AsyncWrite for &mut W {
         Pin::new(&mut **self.get_mut()).poll_write(cx, buf)
     }
 
-    fn poll_flush(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<std::io::Result<()>> {
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         Pin::new(&mut **self.get_mut()).poll_flush(cx)
     }
 }
@@ -132,10 +120,7 @@ impl AsyncWrite for alloc::vec::Vec<u8> {
         Poll::Ready(std::io::Write::write(self.get_mut(), buf))
     }
 
-    fn poll_flush(
-        self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-    ) -> Poll<std::io::Result<()>> {
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         Poll::Ready(std::io::Write::flush(self.get_mut()))
     }
 }
