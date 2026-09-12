@@ -1,0 +1,34 @@
+{
+  "scope": "full 24-round hash on seven-byte inputs; witness validation only; no solver attack",
+  "sources_sha256": {
+    "rs/src/field.rs": "55ac29d64f11ae23a9f2461f7c7e6c329d3523a4b3c823248d8902cb18fb3efb",
+    "rs/src/constants.rs": "dbf8bf10ec173fd2aa6518281677ee4de3882b29b2f3912f712dcc361b20382a",
+    "rs/src/permutation.rs": "f551aa21aa64f42379e4ceb49e818bfeecf443c4f7d1977343849b2117802931",
+    "rs/src/sponge.rs": "a501267d70497766eb113674f2628962e8c66ba53c54d861813cd35c3bfa45b7",
+    "rs/src/encoding.rs": "4da69b468a5276a6ed32092e0ed6149b67bf16ded2e6aba2c405af805291701e"
+  },
+  "variables": 1161,
+  "equations": 1177,
+  "quadratic_equations": 616,
+  "inverse_rounds": 16,
+  "all_zero_message_inverse_inputs_nonzero": true,
+  "every_single_wire_perturbation_rejected": true,
+  "vectors": [
+    {
+      "input_hex": "00000000000000",
+      "digest_hex": "d842383cf88873e8600ea4a58db989b2322aac3c9af60ec7ec67fd07b3d5f2e7"
+    },
+    {
+      "input_hex": "ffffffffffffff",
+      "digest_hex": "65ca1462d0091459585c1961de504345d375ccf3f51fb9ded3513e89748855a0"
+    },
+    {
+      "input_hex": "68656d65726121",
+      "digest_hex": "d7ac3e746e92615bf572b7228b91d09d2470ccf0171ee11dc4f1472551f47db1"
+    },
+    {
+      "input_hex": "00010203040506",
+      "digest_hex": "673d69a8a054b361299a2ec063fa1342f2e3a32d5926ace18e3880b702f39b48"
+    }
+  ]
+}

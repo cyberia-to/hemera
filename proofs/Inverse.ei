@@ -1,0 +1,26 @@
+-- Cubic equations in expanded form: x*(x*y)=x and y*(x*y)=y.
+-- These are conditional algebraic lemmas, not proofs of the Rust field laws.
+
+theorem inverse_nonzero_product
+  (F : Type) (mul : F -> F -> F) (one x y : F)
+  (right_one : Eq F (mul x one) x)
+  (cancel_x : forall (a b : F), Eq F (mul x a) (mul x b) -> Eq F a b)
+  (constraint : Eq F (mul x (mul x y)) x)
+  : Eq F (mul x y) one := by {
+    have h : Eq F (mul x (mul x y)) (mul x one) := by {
+      rewrite [right_one]
+      exact constraint
+    }
+    exact cancel_x (mul x y) one h
+  }
+
+theorem inverse_zero_output
+  (F : Type) (mul : F -> F -> F) (zero y : F)
+  (left_zero : Eq F (mul zero y) zero)
+  (right_zero : Eq F (mul y zero) zero)
+  (constraint : Eq F (mul y (mul zero y)) y)
+  : Eq F y zero := by {
+    rewrite [← constraint]
+    rewrite [left_zero]
+    exact right_zero
+  }

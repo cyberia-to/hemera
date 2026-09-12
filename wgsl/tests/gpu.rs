@@ -6,7 +6,7 @@
 use cyber_hemera::field::Goldilocks;
 use cyber_hemera::permutation::permute;
 use cyber_hemera::sparse::SparseTree;
-use cyber_hemera::{Hash, CHUNK_SIZE, OUTPUT_BYTES, WIDTH};
+use cyber_hemera::{CHUNK_SIZE, Hash, OUTPUT_BYTES, WIDTH};
 use cyber_hemera_wgsl::GpuContext;
 
 fn gpu() -> Option<GpuContext> {
@@ -115,7 +115,11 @@ fn gpu_hash_multi_chunk() {
     let gpu_hashes = pollster::block_on(gpu.batch_hash(&data, chunk_size));
     assert_eq!(gpu_hashes.len(), 2);
     for (i, chunk) in data.chunks(chunk_size).enumerate() {
-        assert_eq!(gpu_hashes[i], cyber_hemera::hash(chunk), "chunk {i} mismatch");
+        assert_eq!(
+            gpu_hashes[i],
+            cyber_hemera::hash(chunk),
+            "chunk {i} mismatch"
+        );
     }
 }
 
@@ -309,8 +313,7 @@ fn gpu_hash_node_nmt_zero_ns_matches_hash_node() {
     let nmt_hash = cyber_hemera::tree::hash_node_nmt(&left, &right, 0, 0, false);
     assert_eq!(node_hash, nmt_hash);
 
-    let gpu_nmt =
-        pollster::block_on(gpu.batch_hash_nodes_nmt(&[(left, right)], 0, 0, false));
+    let gpu_nmt = pollster::block_on(gpu.batch_hash_nodes_nmt(&[(left, right)], 0, 0, false));
     assert_eq!(gpu_nmt[0], node_hash);
 }
 
@@ -521,7 +524,9 @@ fn gpu_squeeze_matches_cpu() {
     assert_eq!(gpu_blocks[0].len(), 3);
 
     // Compare with CPU XOF.
-    let mut xof = cyber_hemera::Hasher::new().update(b"xof test").finalize_xof();
+    let mut xof = cyber_hemera::Hasher::new()
+        .update(b"xof test")
+        .finalize_xof();
     for block in &gpu_blocks[0] {
         let mut cpu_block = [0u8; OUTPUT_BYTES];
         xof.fill(&mut cpu_block);
@@ -532,17 +537,21 @@ fn gpu_squeeze_matches_cpu() {
 #[test]
 fn gpu_squeeze_batch() {
     require_gpu!(gpu);
-    let states: Vec<[Goldilocks; WIDTH]> = (0..3).map(|i| {
-        let mut h = cyber_hemera::Hasher::new();
-        h.update(&[i as u8; 10]);
-        h.finalize_state()
-    }).collect();
+    let states: Vec<[Goldilocks; WIDTH]> = (0..3)
+        .map(|i| {
+            let mut h = cyber_hemera::Hasher::new();
+            h.update(&[i as u8; 10]);
+            h.finalize_state()
+        })
+        .collect();
 
     let gpu_blocks = pollster::block_on(gpu.batch_squeeze(&states, 2));
     assert_eq!(gpu_blocks.len(), 3);
 
     for (i, blocks) in gpu_blocks.iter().enumerate() {
-        let mut xof = cyber_hemera::Hasher::new().update(&[i as u8; 10]).finalize_xof();
+        let mut xof = cyber_hemera::Hasher::new()
+            .update(&[i as u8; 10])
+            .finalize_xof();
         for block in blocks {
             let mut cpu_block = [0u8; OUTPUT_BYTES];
             xof.fill(&mut cpu_block);
@@ -578,9 +587,7 @@ fn gpu_verify_sparse_non_inclusion() {
     let proof = tree.prove(&absent);
     let root = tree.root();
 
-    let results = pollster::block_on(
-        gpu.batch_verify_sparse_proofs(&[(&proof, None, &root)], 8),
-    );
+    let results = pollster::block_on(gpu.batch_verify_sparse_proofs(&[(&proof, None, &root)], 8));
     assert_eq!(results, vec![true]);
 }
 
@@ -629,11 +636,13 @@ fn gpu_verify_sparse_batch_multiple() {
 fn gpu_verify_sparse_matches_cpu() {
     require_gpu!(gpu);
     let mut tree = SparseTree::new(16);
-    let keys: Vec<[u8; 32]> = (0..5).map(|i| {
-        let mut k = [0u8; 32];
-        k[0] = i;
-        k
-    }).collect();
+    let keys: Vec<[u8; 32]> = (0..5)
+        .map(|i| {
+            let mut k = [0u8; 32];
+            k[0] = i;
+            k
+        })
+        .collect();
 
     for (i, key) in keys.iter().enumerate() {
         tree.insert(key, &[i as u8; 10]);
@@ -647,9 +656,11 @@ fn gpu_verify_sparse_matches_cpu() {
         assert!(SparseTree::verify(proof, Some(&values[i]), &root, 16));
     }
 
-    let entries: Vec<_> = proofs.iter().enumerate().map(|(i, p)| {
-        (p, Some(values[i].as_slice()), &root)
-    }).collect();
+    let entries: Vec<_> = proofs
+        .iter()
+        .enumerate()
+        .map(|(i, p)| (p, Some(values[i].as_slice()), &root))
+        .collect();
     let results = pollster::block_on(gpu.batch_verify_sparse_proofs(&entries, 16));
     assert_eq!(results, vec![true; 5]);
 }

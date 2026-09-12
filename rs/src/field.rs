@@ -246,9 +246,8 @@ pub fn mds_light_permutation(state: &mut [Goldilocks; 16]) {
     }
 
     // Compute column sums (one per M4 column position).
-    let sums: [Goldilocks; 4] = core::array::from_fn(|k| {
-        (0..16).step_by(4).map(|j| state[j + k]).sum()
-    });
+    let sums: [Goldilocks; 4] =
+        core::array::from_fn(|k| (0..16).step_by(4).map(|j| state[j + k]).sum());
 
     // Add the appropriate column sum to each element.
     for (i, elem) in state.iter_mut().enumerate() {
@@ -310,16 +309,10 @@ mod tests {
                 continue;
             }
             let a = Goldilocks::new(raw);
-            assert_eq!(
-                (a * a.inv()).as_canonical_u64(),
-                1,
-                "inv broken at {raw}"
-            );
+            assert_eq!((a * a.inv()).as_canonical_u64(), 1, "inv broken at {raw}");
         }
         assert_eq!(Goldilocks::ZERO.inv().as_canonical_u64(), 0);
     }
-
-    use super::*;
 
     #[test]
     fn field_add_basic() {

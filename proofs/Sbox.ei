@@ -1,0 +1,49 @@
+-- Models rs/src/field.rs::pow7 and permutation.rs::full_round_step.
+-- F and mul are universally quantified: no field laws assumed for trace parity.
+
+def square (F : Type) (mul : F -> F -> F) (x : F) : F := mul x x
+
+def pow7 (F : Type) (mul : F -> F -> F) (x : F) : F :=
+  let x2 : F := square F mul x in
+  let x3 : F := mul x2 x in
+  let x4 : F := square F mul x2 in
+  mul x3 x4
+
+def traced_pow7 (F : Type) (mul : F -> F -> F) (x : F) : F :=
+  let x2 : F := mul x x in
+  let x3 : F := mul x2 x in
+  let x4 : F := mul x2 x2 in
+  mul x3 x4
+
+theorem traced_sbox_matches_plain (F : Type) (mul : F -> F -> F) (x : F) :
+  Eq F (traced_pow7 F mul x) (pow7 F mul x) := by { rfl }
+
+-- Seven copies of x, right-associated. This is a conditional semigroup
+-- theorem: associativity must separately be established for Goldilocks mul.
+def power7 (F : Type) (mul : F -> F -> F) (x : F) : F :=
+  mul x (mul x (mul x (mul x (mul x (mul x x)))))
+
+theorem sbox_is_seventh_power (F : Type) (mul : F -> F -> F)
+  (assoc : forall (a b c : F),
+    Eq F (mul (mul a b) c) (mul a (mul b c))) (x : F) :
+  Eq F (pow7 F mul x) (power7 F mul x) := by {
+  rewrite [assoc (mul x x) x (mul (mul x x) (mul x x))]
+  rewrite [assoc x x (mul x (mul (mul x x) (mul x x)))]
+  rewrite [assoc x x (mul x x)]
+  rfl
+}
+
+-- A verifier enforcing these three multiplication constraints cannot accept
+-- a different S-box output. This is an algebraic contract, not a claim that
+-- a downstream circuit already enforces all three constraints.
+theorem full_round_witness_sound (F : Type) (mul : F -> F -> F)
+  (x x2 x3 y : F)
+  (h2 : Eq F x2 (mul x x))
+  (h3 : Eq F x3 (mul x2 x))
+  (hy : Eq F y (mul x3 (mul x2 x2))) :
+  Eq F y (pow7 F mul x) := by {
+  rewrite [hy]
+  rewrite [h3]
+  rewrite [h2]
+  rfl
+}

@@ -33,30 +33,24 @@ d=7 is the minimum invertible exponent. Multiplicative depth is 3 (computed as x
 
 ## state width: t=16, r=8, c=8
 
-The ecosystem standard t=12 gives exactly 128-bit collision resistance with capacity 4 — zero margin.
-
-BHT quantum collision search at cap=4 is 2^85, insufficient for a permanent system.
-
-Security comparison:
-
-| metric | cap=4 (t=12) | cap=8 (t=16) |
-|---|---|---|
-| classical collision | 2^128 | 2^256 |
-| BHT quantum collision | 2^85 | 2^171 |
-| classical preimage | 2^256 | 2^512 |
-| Grover quantum preimage | 2^128 | 2^256 |
-
-Throughput is identical: both have rate r=8 = 56 input bytes per permutation call.
+Eight Goldilocks capacity elements provide roughly 512 bits of internal
+state capacity. Four output elements provide roughly 256 output bits, so the
+generic classical collision ceiling of the actual digest is about 128 bits.
+A larger capacity does not increase that output birthday bound. The rate is
+eight elements / 56 input bytes; equal rates alone do not imply equal throughput
+for different state widths or permutations.
 
 ## round counts: R_F=8, R_P=16
 
-Full rounds (R_F=8): the wide trail strategy guarantees at least 8 active S-boxes across 4 full rounds. Differential probability per S-box is at most 6/2^64. Over 8 active S-boxes: (6/2^64)^8 ~ 2^-480. full rounds use x⁷ S-box.
+Eight full rounds use x⁷; sixteen partial rounds use total inverse (0→0).
+This is the current experimental configuration. Its full-round security and
+adequacy of the round count require analysis of the exact mixed construction.
+The former multiplication of p−2 degrees into a 2^918 security margin was
+incorrect as a security argument and is withdrawn.
 
-Partial rounds (R_P=16): use x⁻¹ (field inversion) instead of x⁷. algebraic degree per partial round is (p-2) ≈ 2^64. after 16 partial rounds: (p-2)^16 ≈ 2^1024. combined with full rounds (7^8): total degree ≈ 7^8 × (p-2)^16 ≈ 2^1046. the x⁻¹ S-box achieves far higher algebraic degree with far fewer rounds — 16 instead of 64.
-
-security margin: 2^1046 / 2^128 = 2^918 bits over 128-bit security target. no known or foreseeable algebraic attack comes close.
-
-context: the Ethereum Foundation bounty program has not produced attacks on Poseidon2 at standard round counts. Hemera's x⁻¹ partial S-box with R_P=16 provides 2^918 margin — more than any other Poseidon2 instantiation.
+The [inverse S-box assessment](../../research/inverse-sbox-assessment.md)
+records the corrected witness relation, exact local differential bound,
+actual addition-chain cost, matrix checks and remaining cryptanalysis.
 
 ## round structure: 8 + 16 = 24
 
@@ -68,7 +62,7 @@ Loop bounds and array sizes are powers of 2:
 - R_P = 16 (2^4)
 - half-full = 4 (2^2)
 
-R_P=16 provides 2^918 bits of security margin over the 128-bit target. the x⁻¹ partial S-box achieves far higher algebraic degree per round than x⁷, requiring fewer rounds for equivalent security.
+R_P=16 is an implemented choice, not a proved minimum or a certified security margin.
 
 ## computational elegance
 

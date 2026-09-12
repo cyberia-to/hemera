@@ -1,0 +1,182 @@
+{
+  "scope": "reduced-round ONE-coordinate preimages, not a four-coordinate digest attack",
+  "source_manifest_sha256": "9e77246cda341fcef8dea2914bb2488b0fda4e44b314424ee05597564f7c2f16",
+  "degree_limit": 100000,
+  "wall_seconds_per_profile": 45,
+  "full_profile_numerical_bridge": true,
+  "zero_branch_control": {
+    "status": "passed",
+    "field_input": 10958093323567072311,
+    "fits_seven_bytes": false,
+    "actual_output_coordinate": 7659499781116724130,
+    "rational_equation_misses_input": true,
+    "exceptional_root_recovers_input": true
+  },
+  "results": [
+    {
+      "half_full_rounds": 1,
+      "partial_rounds": 0,
+      "status": "solved_one_coordinate",
+      "degree_bound": 49,
+      "numerator_degree": 49,
+      "denominator_degree": 0,
+      "equation_degree": 49,
+      "exceptional_degree": 0,
+      "exceptional_roots": 0,
+      "field_preimages": [
+        31191268378290835
+      ],
+      "seven_byte_preimages_hex": [
+        "932ac8174bd06e"
+      ],
+      "target_coordinate": 10645931209567692391,
+      "build_seconds": 0.001,
+      "solve_and_check_seconds": 0.003,
+      "python_flint_version": "0.9.0",
+      "root_algorithm": "gcd(f, X^p-X), split only linear factors"
+    },
+    {
+      "half_full_rounds": 1,
+      "partial_rounds": 2,
+      "status": "solved_one_coordinate",
+      "degree_bound": 196,
+      "numerator_degree": 196,
+      "denominator_degree": 147,
+      "equation_degree": 196,
+      "exceptional_degree": 21,
+      "exceptional_roots": 4,
+      "field_preimages": [
+        31191268378290835
+      ],
+      "seven_byte_preimages_hex": [
+        "932ac8174bd06e"
+      ],
+      "target_coordinate": 10565421980748998408,
+      "build_seconds": 0.001,
+      "solve_and_check_seconds": 0.006,
+      "python_flint_version": "0.9.0",
+      "root_algorithm": "gcd(f, X^p-X), split only linear factors"
+    },
+    {
+      "half_full_rounds": 1,
+      "partial_rounds": 4,
+      "status": "solved_one_coordinate",
+      "degree_bound": 784,
+      "numerator_degree": 784,
+      "denominator_degree": 735,
+      "equation_degree": 784,
+      "exceptional_degree": 105,
+      "exceptional_roots": 7,
+      "field_preimages": [
+        31191268378290835,
+        10526365371695529378,
+        11044121476709741426
+      ],
+      "seven_byte_preimages_hex": [
+        "932ac8174bd06e"
+      ],
+      "target_coordinate": 6554819238252765495,
+      "build_seconds": 0.002,
+      "solve_and_check_seconds": 0.015,
+      "python_flint_version": "0.9.0",
+      "root_algorithm": "gcd(f, X^p-X), split only linear factors"
+    },
+    {
+      "half_full_rounds": 1,
+      "partial_rounds": 8,
+      "status": "solved_one_coordinate",
+      "degree_bound": 12544,
+      "numerator_degree": 12544,
+      "denominator_degree": 12495,
+      "equation_degree": 12544,
+      "exceptional_degree": 1785,
+      "exceptional_roots": 11,
+      "field_preimages": [
+        31191268378290835,
+        8592929763030143587
+      ],
+      "seven_byte_preimages_hex": [
+        "932ac8174bd06e"
+      ],
+      "target_coordinate": 418780605165863162,
+      "build_seconds": 0.02,
+      "solve_and_check_seconds": 0.198,
+      "python_flint_version": "0.9.0",
+      "root_algorithm": "gcd(f, X^p-X), split only linear factors"
+    },
+    {
+      "half_full_rounds": 1,
+      "partial_rounds": 10,
+      "status": "solved_one_coordinate",
+      "degree_bound": 50176,
+      "numerator_degree": 50176,
+      "denominator_degree": 50127,
+      "equation_degree": 50176,
+      "exceptional_degree": 7161,
+      "exceptional_roots": 12,
+      "field_preimages": [
+        31191268378290835
+      ],
+      "seven_byte_preimages_hex": [
+        "932ac8174bd06e"
+      ],
+      "target_coordinate": 962114021481488989,
+      "build_seconds": 0.084,
+      "solve_and_check_seconds": 0.888,
+      "python_flint_version": "0.9.0",
+      "root_algorithm": "gcd(f, X^p-X), split only linear factors"
+    },
+    {
+      "half_full_rounds": 2,
+      "partial_rounds": 0,
+      "status": "solved_one_coordinate",
+      "degree_bound": 2401,
+      "numerator_degree": 2401,
+      "denominator_degree": 0,
+      "equation_degree": 2401,
+      "exceptional_degree": 0,
+      "exceptional_roots": 0,
+      "field_preimages": [
+        31191268378290835,
+        4445260834415359431
+      ],
+      "seven_byte_preimages_hex": [
+        "932ac8174bd06e"
+      ],
+      "target_coordinate": 18309197814192663075,
+      "build_seconds": 0.005,
+      "solve_and_check_seconds": 0.031,
+      "python_flint_version": "0.9.0",
+      "root_algorithm": "gcd(f, X^p-X), split only linear factors"
+    },
+    {
+      "half_full_rounds": 2,
+      "partial_rounds": 4,
+      "status": "solved_one_coordinate",
+      "degree_bound": 38416,
+      "numerator_degree": 38416,
+      "denominator_degree": 36015,
+      "equation_degree": 38416,
+      "exceptional_degree": 735,
+      "exceptional_roots": 4,
+      "field_preimages": [
+        31191268378290835
+      ],
+      "seven_byte_preimages_hex": [
+        "932ac8174bd06e"
+      ],
+      "target_coordinate": 15249970440180178162,
+      "build_seconds": 0.065,
+      "solve_and_check_seconds": 0.619,
+      "python_flint_version": "0.9.0",
+      "root_algorithm": "gcd(f, X^p-X), split only linear factors"
+    },
+    {
+      "half_full_rounds": 4,
+      "partial_rounds": 16,
+      "status": "degree_limit",
+      "degree_bound": 377801998336,
+      "degree_limit": 100000
+    }
+  ]
+}

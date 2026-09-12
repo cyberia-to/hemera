@@ -7,7 +7,7 @@ date: 2026-03-17
 ---
 # compact output — 64-byte → 32-byte hash
 
-reduce hemera output from 8 field elements (64 bytes) to 4 field elements (32 bytes). sponge state unchanged (16 elements, 512 bits). only the squeeze extraction changes.
+reduce hemera output from 8 field elements (64 bytes) to 4 field elements (32 bytes). sponge state unchanged (16 elements, approximately 1024 bits; capacity approximately 512 bits). only the squeeze extraction changes.
 
 ## squeeze change
 
@@ -23,13 +23,13 @@ for multi-block output (XOF): squeeze 4 elements, permute, squeeze 4 more.
 | property | before (64-byte output) | after (32-byte output) |
 |---|---|---|
 | classical collision | 2^256 | 2^128 |
-| classical preimage | 2^256 | 2^256 (capacity = 256 bits) |
+| classical preimage | 2^256 | 2^256 (output ceiling) |
 | quantum collision (BHT) | 2^170 | 2^85 |
 | quantum preimage (Grover) | 2^128 | 2^128 (capacity-limited) |
 
-128-bit classical collision is the standard (SHA-256, BLAKE3, Keccak-256). preimage security governed by capacity (256 bits), not output.
+The generic output collision ceiling is approximately 128 bits. Concrete security depends on the permutation; output length and capacity both constrain possible guarantees.
 
-birthday probability among 2^80 particles (planetary scale): 2^{80} × (2^{80} - 1) / (2 × 2^{256}) ≈ 2^{-98}. negligible.
+birthday probability among 2^80 particles (planetary scale): 2^{80} × (2^{80} - 1) / (2 × 2^{256}) ≈ 2^{-97}. negligible.
 
 ## tree hashing: 2× faster
 
@@ -53,11 +53,11 @@ every hash in the system halves:
 | Brakedown commitment | 64 bytes | 32 bytes | 2× |
 | nox noun identity | 64 bytes | 32 bytes | 2× |
 
-planetary scale (10^24 particles): ~64 PB saved.
+At 10^24 stored digests, reducing each by 32 bytes saves 3.2×10^25 bytes (32 YB, decimal), before replication and metadata.
 
 ## endofunction property
 
-with 32-byte output, hemera is an endofunction over 32-byte space: hash(32 bytes) → 32 bytes. self-hashing is a fixed-point-free permutation over the reachable set.
+Hashing 32-byte inputs returns 32-byte outputs. Equal input/output lengths do not imply bijectivity or absence of fixed points; neither is claimed.
 
 ## impact on nox encoding
 

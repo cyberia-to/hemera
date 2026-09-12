@@ -1,0 +1,7 @@
+{
+  "rs/src/field.rs": "55ac29d64f11ae23a9f2461f7c7e6c329d3523a4b3c823248d8902cb18fb3efb",
+  "rs/src/constants.rs": "dbf8bf10ec173fd2aa6518281677ee4de3882b29b2f3912f712dcc361b20382a",
+  "rs/src/permutation.rs": "f551aa21aa64f42379e4ceb49e818bfeecf443c4f7d1977343849b2117802931",
+  "rs/src/sponge.rs": "a501267d70497766eb113674f2628962e8c66ba53c54d861813cd35c3bfa45b7",
+  "rs/src/encoding.rs": "4da69b468a5276a6ed32092e0ed6149b67bf16ded2e6aba2c405af805291701e"
+}

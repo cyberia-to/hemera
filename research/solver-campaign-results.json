@@ -1,0 +1,62 @@
+{
+  "scope": "full seven-byte hash searches; bounded solver, no security inference from unknown",
+  "timeout_ms_per_case": 10000,
+  "memory_limit_mb_per_worker": 512,
+  "results": [
+    {
+      "case": "inverse_zero_valid",
+      "status": "sat",
+      "expected_control": "sat",
+      "solver_seconds": 0.001,
+      "z3_version": "4.15.4"
+    },
+    {
+      "case": "inverse_zero_invalid",
+      "status": "unsat",
+      "expected_control": "unsat",
+      "solver_seconds": 0.001,
+      "z3_version": "4.15.4"
+    },
+    {
+      "case": "inverse_nonzero_invalid",
+      "status": "unsat",
+      "expected_control": "unsat",
+      "solver_seconds": 0.001,
+      "z3_version": "4.15.4"
+    },
+    {
+      "case": "full_witness_valid",
+      "status": "sat",
+      "expected_control": "sat",
+      "solver_seconds": 0.022,
+      "z3_version": "4.15.4",
+      "target_hex": "f7fc62a79dec54f218462de4f4d4ef65d4c7740748a525e5de4992c7932c3f7d",
+      "candidates": [
+        {
+          "input_hex": "932ac8174bd06e",
+          "digest_hex": "f7fc62a79dec54f218462de4f4d4ef65d4c7740748a525e5de4992c7932c3f7d"
+        }
+      ]
+    },
+    {
+      "case": "full_witness_wrong_digest",
+      "status": "unsat",
+      "expected_control": "unsat",
+      "solver_seconds": 0.013,
+      "z3_version": "4.15.4",
+      "target_hex": "f7fc62a79dec54f218462de4f4d4ef65d4c7740748a525e5de4992c7932c3f7d"
+    },
+    {
+      "case": "full_preimage",
+      "status": "resource_exhausted",
+      "reason": "Z3 memory limit",
+      "solver_seconds": 9.371,
+      "z3_version": "4.15.4",
+      "target_hex": "f7fc62a79dec54f218462de4f4d4ef65d4c7740748a525e5de4992c7932c3f7d"
+    },
+    {
+      "case": "full_collision",
+      "status": "wall_timeout"
+    }
+  ]
+}

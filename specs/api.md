@@ -62,3 +62,14 @@ pub fn derive_key(context: &str, key_material: &[u8]) -> [u8; 32];
 // ── Output type ───────────────────────────────────────────────
 pub struct Hash([u8; 32]);  // 4 Goldilocks elements, LE canonical
 ```
+## Experimental structural commitments
+
+`commitment::{blob, sequence, record, record_from_sequence, prove, verify,
+verify_record_field}` operates on `ContentId` and `SequenceId`. These are a new
+experimental encoding, distinct from the existing tree roots. Both ID types
+reject noncanonical field limbs when decoded from bytes.
+
+`cyb_commitment::{section, container}` commits extracted sections with runtime
+validation of element layouts and names. The adapter takes extracted data;
+it does not parse or validate a `.cyb` source file. See
+[structural commitments](structural-commitments.md) for encoding and proof scope.
