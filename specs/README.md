@@ -102,7 +102,7 @@ for encoding, opening verification, parser obligations and migration gates.
 
 - [Eidos proof coverage report](../audit/formal-proofs.md) — checked theorems, explicit premises, validation boundary and remaining obligations
 
-- [[files|file]] — the thing a particle names; its data is what Hemera hashes
+- [[files|file]] — the thing a particle identifies; its data is what Hemera hashes
 - [[particles|particle]] — particle addressing with Hemera
 - [[cyberlinks|cyberlink]] — edges referencing particles by Hemera hash
 - [[cybergraph]] — the graph Hemera addresses

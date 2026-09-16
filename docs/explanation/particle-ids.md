@@ -9,7 +9,7 @@ alias: Hemera particle identifiers, raw particles, no headers, particle identity
 
 ## what a particle is
 
-a [[particle]] in [[cyber]] is the name of a [[file]]: the Hemera hash of the file's data. any sequence of bytes, once hashed and linked in the [[cybergraph]], is a file; its particle is its permanent, unique identity. [[cyberlinks]] connect files by their particles into a knowledge graph. [[neurons]] rank these connections. the entire system — ranking, consensus, proofs, storage — operates on particles.
+a [[particle]] in [[cyber]] is the identity of a [[file]]: the Hemera hash of the file's data. a file's name is a different thing — a `~` label a neuron gives it by a naming [[cyberlink]]. any sequence of bytes, once hashed and linked in the [[cybergraph]], is a file; its particle is its permanent, unique identity. [[cyberlinks]] connect files by their particles into a knowledge graph. [[neurons]] rank these connections. the entire system — ranking, consensus, proofs, storage — operates on particles.
 
 a particle is 32 raw bytes. that is all. there is no wrapper, no envelope, no metadata frame. the 32 bytes ARE the file's identity in the graph.
 

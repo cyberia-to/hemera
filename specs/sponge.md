@@ -33,7 +33,7 @@ absorption uses Goldilocks field addition (mod p), not XOR and not wrapping addi
 
 every use of the sponge in the Hemera stack:
 
-- **particle addressing.** a particle is the hash of a file's data — the name of a file a cyberlink connects. small content (up to 4096 bytes) is hashed directly through the sponge. large content is split into 4096-byte chunks, each chunk produces a chaining value via the sponge, and the chaining values are combined in a binary Merkle tree whose root is the particle address.
+- **particle addressing.** a particle is the hash of a file's data — the identity of a file a cyberlink connects. small content (up to 4096 bytes) is hashed directly through the sponge. large content is split into 4096-byte chunks, each chunk produces a chaining value via the sponge, and the chaining values are combined in a binary Merkle tree whose root is the particle address.
 
 - **cyberlink identity.** a cyberlink is identified by the sponge hash of its canonical encoding. the hash commits to the link's source, destination, and tag particles.
 
