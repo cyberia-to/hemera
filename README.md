@@ -27,7 +27,7 @@ Every parameter that appears in code is a power of 2. The only non-power-of-2 va
 
 ## identity, not representation
 
-The 32-byte Hemera output IS the particle address. No version prefix, no multicodec header, no length byte. `Hemera(content)` — that is the identity. Two agents hashing the same content produce the same address. The first cyberlink to that address brings the particle into the cybergraph.
+The 32-byte Hemera output IS the particle address. No version prefix, no multicodec header, no length byte. `Hemera(content)` — that is the identity. Two agents hashing the same content produce the same address. The first cyberlink to that address brings the file into the cybergraph.
 
 ## permanence
 

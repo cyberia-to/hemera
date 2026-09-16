@@ -9,9 +9,9 @@ alias: Hemera particle identifiers, raw particles, no headers, particle identity
 
 ## what a particle is
 
-a [[particle]] in [[cyber]] is a standalone unit of knowledge. not a file, not a blob, not a document — a unit of knowledge. any sequence of bytes that has been hashed and addressed by the [[cybergraph]] becomes a particle. its Hemera hash is its permanent, unique identity. [[cyberlinks]] connect particles into a knowledge graph. [[neurons]] rank these connections. the entire system — ranking, consensus, proofs, storage — operates on particle addresses.
+a [[particle]] in [[cyber]] is the name of a [[file]]: the Hemera hash of the file's data. any sequence of bytes, once hashed and linked in the [[cybergraph]], is a file; its particle is its permanent, unique identity. [[cyberlinks]] connect files by their particles into a knowledge graph. [[neurons]] rank these connections. the entire system — ranking, consensus, proofs, storage — operates on particles.
 
-a particle's address is 32 raw bytes. that is all. there is no wrapper, no envelope, no metadata frame. the address IS the particle's identity in the graph.
+a particle is 32 raw bytes. that is all. there is no wrapper, no envelope, no metadata frame. the 32 bytes ARE the file's identity in the graph.
 
 ## why no headers
 
@@ -37,7 +37,7 @@ five reasons for no headers:
 
 4. **endofunction closure.** `Hemera(Hemera(x) ∥ Hemera(y))` must type-check. the output of one hash must be valid input to the next without transformation. headers break this — prepending metadata to a hash output before feeding it back means the input includes non-content bytes. every Merkle tree node, every proof chain, every nested composition would require strip/reattach at boundaries. raw 32 bytes compose cleanly. tagged values do not.
 
-5. **flat namespace.** every entity in [[nox]] — particle, edge, neuron, commitment, proof — has a 32-byte address in one flat namespace. domain separation lives in the hash input (different serialization, different capacity flags), not in type prefixes on the output. the output is pure, untagged, universal. a particle address and a cyberlink edge ID are the same type. the graph does not need type tags to function — it needs content to be addressable.
+5. **flat namespace.** every entity in [[nox]] — file, edge, neuron, commitment, proof — has a 32-byte address in one flat namespace. domain separation lives in the hash input (different serialization, different capacity flags), not in type prefixes on the output. the output is pure, untagged, universal. a particle address and a cyberlink edge ID are the same type. the graph does not need type tags to function — it needs content to be addressable.
 
 ## the difference from IPFS
 

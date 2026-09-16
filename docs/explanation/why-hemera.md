@@ -17,7 +17,7 @@ eight design principles shape every decision. each is a deliberate departure fro
 
 every Poseidon2 deployment in production today — SP1, RISC Zero, Starknet, Plonky3, Miden — treats hashing as an execution-layer concern. trace commitments live for seconds. Merkle proofs are verified and discarded. parameters are updatable in the next software release.
 
-[[cyber]] uses Hemera as an identity-layer primitive. a [[particle]]'s Hemera hash is its permanent address in the [[cybergraph]]. every [[cyberlink]] references particles by hash. every [[neuron]]'s state commitment depends on hashes. the global state root depends on every shard.
+[[cyber]] uses Hemera as an identity-layer primitive. a [[file]]'s Hemera hash is its [[particle]] — its permanent address in the [[cybergraph]]. every [[cyberlink]] references files by particle. every [[neuron]]'s state commitment depends on hashes. the global state root depends on every shard.
 
 | property | zkVM (SP1, RISC Zero) | cyber/core |
 |---|---|---|
@@ -29,7 +29,7 @@ every Poseidon2 deployment in production today — SP1, RISC Zero, Starknet, Plo
 
 parameters chosen at genesis are permanent commitments — and this applies to the tree equally. the 4 KB chunk size, the binary left-balanced shape, the two-pass leaf construction, the capacity flag layout — all are as permanent as the round counts. the threat model is not "what attacks exist today" but "what attacks will exist over the lifetime of the system." this asymmetry drives every decision: wider state (t=16 vs t=12), more rounds (R_P=16 vs R_P=22), doubled capacity (c=8 vs c=4). the cost is ~38% slower native hashing and ~3.2× proving cost. Moore's law eliminates any constant-factor penalty in two years. a broken hash function is permanent.
 
-there is no version byte. there is no escape hatch. if Hemera is ever broken, the response is full graph rehash — every particle, every cyberlink, every commitment. [[storage proofs]] make this possible. versioning headers do not save you — they waste bytes multiplied by 10²⁴ cyberlinks.
+there is no version byte. there is no escape hatch. if Hemera is ever broken, the response is full graph rehash — every file, every cyberlink, every commitment. [[storage proofs]] make this possible. versioning headers do not save you — they waste bytes multiplied by 10²⁴ cyberlinks.
 
 ## the tree
 
@@ -43,7 +43,7 @@ the tree is not bolted onto the permutation. the permutation was designed for th
 
 three properties emerge from the tree that the permutation alone cannot provide:
 
-**verified streaming.** chunks arrive over the network with their Merkle proof. each chunk is verified independently — the receiver never needs the full file. a 1 TB particle is verifiable one 4 KB chunk at a time. this is what makes planetary-scale content delivery possible.
+**verified streaming.** chunks arrive over the network with their Merkle proof. each chunk is verified independently — the receiver never needs the full file. a 1 TB file is verifiable one 4 KB chunk at a time. this is what makes planetary-scale content delivery possible.
 
 **incremental computation.** modifying one chunk requires rehashing one leaf (75 permutations) plus the path from leaf to root (log₂(N) nodes × 2 permutations). for a 1 GB file: 111 permutations to update any single chunk. the tree makes content mutation O(log N) instead of O(N).
 
@@ -85,11 +85,11 @@ the 32-byte Hemera output IS the particle address. not a representation of it. n
 
 no version prefix. no multicodec header. no length indicator. no framing of any kind. a particle identifier identifies content — it does not identify itself. every byte spent saying "this is a Hemera hash" is a byte replicated 10²⁴ times, a byte not spent on security, and a byte that implies the system might one day be something other than what it is.
 
-every entity in [[nox]] — particle, edge, neuron, commitment, proof — has a 32-byte address in one flat namespace. no type tags. no interpretation hints. the same function produces all identifiers. domain separation lives in the hash input (different serialization, different capacity flags), not in type prefixes on the output. the output is pure, untagged, universal.
+every entity in [[nox]] — file, edge, neuron, commitment, proof — has a 32-byte address in one flat namespace. no type tags. no interpretation hints. the same function produces all identifiers. domain separation lives in the hash input (different serialization, different capacity flags), not in type prefixes on the output. the output is pure, untagged, universal.
 
 ## unity
 
-one permutation. one sponge mode. one tree primitive. every hash — particle content, Merkle leaves, Merkle internal nodes, cyberlink edges, key derivation, polynomial commitments — passes through the same permutation, the same absorption, the same squeezing. every tree — content, MMR, NMT, Brakedown — passes through the same `hash_node`.
+one permutation. one sponge mode. one tree primitive. every hash — file data, Merkle leaves, Merkle internal nodes, cyberlink edges, key derivation, polynomial commitments — passes through the same permutation, the same absorption, the same squeezing. every tree — content, MMR, NMT, Brakedown — passes through the same `hash_node`.
 
 ```
                     hash_node(left, right, is_root)
