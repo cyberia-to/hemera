@@ -140,6 +140,76 @@ fn parse_backend_flag(args: &[String]) -> (Option<Backend>, Vec<String>) {
     (forced, rest)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn strings(items: &[&str]) -> Vec<String> {
+        items.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn fmt_size_bytes() {
+        assert_eq!(fmt_size(0), "0 B");
+        assert_eq!(fmt_size(1023), "1023 B");
+    }
+
+    #[test]
+    fn fmt_size_kilobytes() {
+        assert_eq!(fmt_size(1024), "1.0 KB");
+        assert_eq!(fmt_size(1024 * 1024 - 1), "1024.0 KB");
+    }
+
+    #[test]
+    fn fmt_size_megabytes() {
+        assert_eq!(fmt_size(1024 * 1024), "1.0 MB");
+        assert_eq!(fmt_size(1024 * 1024 * 1024 - 1), "1024.0 MB");
+    }
+
+    #[test]
+    fn fmt_size_gigabytes() {
+        assert_eq!(fmt_size(1024 * 1024 * 1024), "1.00 GB");
+        assert_eq!(fmt_size(2 * 1024 * 1024 * 1024), "2.00 GB");
+    }
+
+    #[test]
+    fn parse_backend_flag_defaults_to_none() {
+        let (backend, rest) = parse_backend_flag(&strings(&["hash", "file.txt"]));
+        assert!(backend.is_none());
+        assert_eq!(rest, strings(&["hash", "file.txt"]));
+    }
+
+    #[test]
+    fn parse_backend_flag_picks_up_gpu_and_cpu() {
+        let (backend, rest) = parse_backend_flag(&strings(&["hash", "--gpu", "file.txt"]));
+        assert!(matches!(backend, Some(Backend::Gpu)));
+        assert_eq!(rest, strings(&["hash", "file.txt"]));
+
+        let (backend, rest) = parse_backend_flag(&strings(&["hash", "--cpu", "file.txt"]));
+        assert!(matches!(backend, Some(Backend::Cpu)));
+        assert_eq!(rest, strings(&["hash", "file.txt"]));
+    }
+
+    #[test]
+    fn parse_backend_flag_last_flag_wins() {
+        let (backend, _) = parse_backend_flag(&strings(&["--cpu", "--gpu"]));
+        assert!(matches!(backend, Some(Backend::Gpu)));
+    }
+
+    #[test]
+    fn parse_backend_flag_strips_flags_from_every_position() {
+        let (_, rest) = parse_backend_flag(&strings(&["--gpu", "a", "--cpu", "b", "--gpu", "c"]));
+        assert_eq!(rest, strings(&["a", "b", "c"]));
+    }
+
+    #[test]
+    fn parse_backend_flag_empty_input() {
+        let (backend, rest) = parse_backend_flag(&[]);
+        assert!(backend.is_none());
+        assert!(rest.is_empty());
+    }
+}
+
 fn print_timing(backend: Backend, elapsed: std::time::Duration) {
     let us = elapsed.as_nanos() as f64 / 1000.0;
     if us < 1000.0 {
