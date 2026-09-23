@@ -465,4 +465,116 @@ mod tests {
         assert_eq!(decoder.progress(), data.len() as u64);
         assert!(decoder.is_done());
     }
+
+    #[tokio::test]
+    async fn header_declared_len_mismatch_detected() {
+        // Encode with the real length, then hand the decoder a different
+        // expected `data_len` so the header's declared length disagrees
+        // with what the caller asked for.
+        let data = b"header mismatch check";
+        let (root, encoded) = crate::stream::encode(data);
+
+        let cursor = std::io::Cursor::new(encoded);
+        let mut decoder = StreamDecoder::new(root, (data.len() + 1) as u64, cursor);
+
+        match decoder.next().await {
+            StreamItem::Error(StreamError::HashMismatch { offset }) => assert_eq!(offset, 0),
+            other => panic!("expected header HashMismatch, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn truncated_header_detected() {
+        // Fewer than HEADER_SIZE bytes available: the very first read_exact
+        // call must surface Truncated, not panic or hang.
+        let short = vec![0u8; HEADER_SIZE - 1];
+        let cursor = std::io::Cursor::new(short);
+        let placeholder = Hash::from_bytes([0u8; OUTPUT_BYTES]);
+        let mut decoder = StreamDecoder::new(placeholder, 100, cursor);
+
+        match decoder.next().await {
+            StreamItem::Error(StreamError::Truncated) => {}
+            other => panic!("expected Truncated, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn truncated_single_chunk_body_detected() {
+        // Header is intact and declares the right length, but the body
+        // is cut short before read_single_chunk can fill its buffer.
+        let data = b"a small single chunk payload";
+        let (root, encoded) = crate::stream::encode(data);
+        let truncated = encoded[..HEADER_SIZE + 2].to_vec();
+
+        let cursor = std::io::Cursor::new(truncated);
+        let mut decoder = StreamDecoder::new(root, data.len() as u64, cursor);
+
+        match decoder.next().await {
+            StreamItem::Error(StreamError::Io(_)) => {}
+            other => panic!("expected Io error, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn truncated_parent_read_detected() {
+        // Large enough input to have at least one internal node, then cut
+        // the stream inside the first hash-pair read (after the header).
+        let data: Vec<u8> = (0..20_000).map(|i| (i % 256) as u8).collect();
+        let (root, encoded) = crate::stream::encode(&data);
+        assert!(encoded.len() > HEADER_SIZE + PAIR_SIZE, "fixture too small");
+        let truncated = encoded[..HEADER_SIZE + PAIR_SIZE - 4].to_vec();
+
+        let cursor = std::io::Cursor::new(truncated);
+        let mut decoder = StreamDecoder::new(root, data.len() as u64, cursor);
+
+        match decoder.next().await {
+            StreamItem::Error(StreamError::Truncated) => {}
+            other => panic!("expected Truncated, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn empty_data_roundtrips_both_directions() {
+        // data_len == 0 forces num_chunks == 1 on both the encode and
+        // decode single-chunk paths.
+        let data: &[u8] = b"";
+        let (root, encoded) = crate::stream::encode(data);
+
+        let cursor = std::io::Cursor::new(encoded);
+        let mut decoder = StreamDecoder::new(root, 0, cursor);
+        match decoder.next().await {
+            StreamItem::Chunk { offset, data } => {
+                assert_eq!(offset, 0);
+                assert!(data.is_empty());
+            }
+            other => panic!("expected an (empty) chunk, got {:?}", other),
+        }
+        assert!(matches!(decoder.next().await, StreamItem::Done));
+
+        // encode_stream must agree with the non-streaming encoder on the
+        // zero-length root hash too.
+        let reader = std::io::Cursor::new(Vec::<u8>::new());
+        let mut out = Vec::new();
+        let streamed_root = encode_stream(0, reader, &mut out).await.unwrap();
+        assert_eq!(streamed_root, root);
+    }
+
+    #[tokio::test]
+    async fn into_reader_returns_the_inner_reader() {
+        let data = b"give the reader back";
+        let (root, encoded) = crate::stream::encode(data);
+        let cursor = std::io::Cursor::new(encoded.clone());
+        let mut decoder = StreamDecoder::new(root, data.len() as u64, cursor);
+
+        loop {
+            match decoder.next().await {
+                StreamItem::Chunk { .. } => {}
+                StreamItem::Done => break,
+                StreamItem::Error(e) => panic!("decode error: {:?}", e),
+            }
+        }
+
+        let recovered_cursor = decoder.into_reader();
+        assert_eq!(recovered_cursor.into_inner(), encoded);
+    }
 }
