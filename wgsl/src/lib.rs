@@ -897,7 +897,7 @@ fn left_balanced_decompose(n: usize) -> Vec<(usize, usize)> {
 }
 
 fn left_subtree_chunks(count: usize) -> usize {
-    debug_assert!(count > 1);
+    assert!(count > 1, "left_subtree_chunks: count must be > 1, got {count}");
     1 << (usize::BITS - (count - 1).leading_zeros() - 1)
 }
 
@@ -927,4 +927,35 @@ fn outboard_subtree_from_leaves(
     out[pair_start + OUTPUT_BYTES..pair_start + OUTPUT_BYTES * 2].copy_from_slice(right.as_ref());
 
     cyber_hemera::tree::hash_node(&left, &right, is_root)
+}
+
+#[cfg(test)]
+mod left_subtree_chunks_tests {
+    use super::left_subtree_chunks;
+
+    #[test]
+    #[should_panic(expected = "count must be > 1")]
+    fn zero_count_panics() {
+        left_subtree_chunks(0);
+    }
+
+    #[test]
+    #[should_panic(expected = "count must be > 1")]
+    fn one_count_panics() {
+        left_subtree_chunks(1);
+    }
+
+    #[test]
+    fn returns_largest_power_of_two_below_count() {
+        // Matches cyber-hemera's rs/src/stream.rs::left_subtree_chunks contract:
+        // the largest power of two strictly less than count.
+        assert_eq!(left_subtree_chunks(2), 1);
+        assert_eq!(left_subtree_chunks(3), 2);
+        assert_eq!(left_subtree_chunks(4), 2);
+        assert_eq!(left_subtree_chunks(5), 4);
+        assert_eq!(left_subtree_chunks(7), 4);
+        assert_eq!(left_subtree_chunks(8), 4);
+        assert_eq!(left_subtree_chunks(9), 8);
+        assert_eq!(left_subtree_chunks(1 << 20), 1 << 19);
+    }
 }
