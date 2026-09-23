@@ -92,7 +92,7 @@ fn encode_subtree(
     is_root: bool,
     out: &mut Vec<u8>,
 ) -> Hash {
-    debug_assert!(count > 0);
+    assert!(count > 0, "encode_subtree: count must be > 0, got 0");
 
     if count == 1 {
         let start = offset * CHUNK_SIZE;
@@ -164,7 +164,7 @@ fn decode_subtree(
     data_len: usize,
     out: &mut Vec<u8>,
 ) -> Result<(), DecodeError> {
-    debug_assert!(count > 0);
+    assert!(count > 0, "decode_subtree: count must be > 0, got 0");
 
     if count == 1 {
         let start = offset * CHUNK_SIZE;
@@ -236,7 +236,7 @@ fn outboard_subtree(
     is_root: bool,
     out: &mut Vec<u8>,
 ) -> Hash {
-    debug_assert!(count > 0);
+    assert!(count > 0, "outboard_subtree: count must be > 0, got 0");
 
     if count == 1 {
         let start = offset * CHUNK_SIZE;
@@ -294,7 +294,7 @@ fn verify_outboard_subtree(
     is_root: bool,
     expected: &Hash,
 ) -> Result<(), DecodeError> {
-    debug_assert!(count > 0);
+    assert!(count > 0, "verify_outboard_subtree: count must be > 0, got 0");
 
     if count == 1 {
         let start = offset * CHUNK_SIZE;
@@ -325,7 +325,7 @@ fn verify_outboard_subtree(
 
 /// Left subtree size for a left-balanced binary tree with `count` leaves.
 pub fn left_subtree_chunks(count: usize) -> usize {
-    debug_assert!(count > 1);
+    assert!(count > 1, "left_subtree_chunks: count must be > 1, got {count}");
     1 << (usize::BITS - (count - 1).leading_zeros() - 1)
 }
 
@@ -506,5 +506,70 @@ mod tests {
             let (root, ob) = outboard(&data);
             verify_outboard(&data, &ob, &root).unwrap();
         }
+    }
+
+    // `left_subtree_chunks` is `pub`, so it is reachable directly by any
+    // caller with a `count` its own recursive callers never produce.
+    // `debug_assert!` would compile out in release, silently returning
+    // `1 << 63` (from `(0usize - 1).leading_zeros()` wrapping to
+    // `usize::MAX`) instead of failing — promoted to `assert!` so this
+    // is caught in every build profile.
+
+    #[test]
+    #[should_panic(expected = "count must be > 1")]
+    fn left_subtree_chunks_rejects_zero() {
+        left_subtree_chunks(0);
+    }
+
+    #[test]
+    #[should_panic(expected = "count must be > 1")]
+    fn left_subtree_chunks_rejects_one() {
+        left_subtree_chunks(1);
+    }
+
+    #[test]
+    fn left_subtree_chunks_valid_counts() {
+        // Largest power of two strictly less than count.
+        assert_eq!(left_subtree_chunks(2), 1);
+        assert_eq!(left_subtree_chunks(3), 2);
+        assert_eq!(left_subtree_chunks(4), 2);
+        assert_eq!(left_subtree_chunks(5), 4);
+        assert_eq!(left_subtree_chunks(1024), 512);
+    }
+
+    // The four recursive subtree walkers share the same invariant,
+    // upheld today only by `left_subtree_chunks` never returning a split
+    // that empties either side. Promoted alongside it as defense in
+    // depth: none of them has a production caller that can pass 0, but
+    // a future one should fail loudly here, not corrupt data silently.
+
+    #[test]
+    #[should_panic(expected = "encode_subtree: count must be > 0")]
+    fn encode_subtree_rejects_zero() {
+        let mut out = Vec::new();
+        encode_subtree(b"", 0, 0, true, &mut out);
+    }
+
+    #[test]
+    #[should_panic(expected = "decode_subtree: count must be > 0")]
+    fn decode_subtree_rejects_zero() {
+        let mut pos = 0usize;
+        let mut out = Vec::new();
+        let expected = Hash::from_bytes([0; OUTPUT_BYTES]);
+        let _ = decode_subtree(b"", &mut pos, 0, 0, true, &expected, 0, &mut out);
+    }
+
+    #[test]
+    #[should_panic(expected = "outboard_subtree: count must be > 0")]
+    fn outboard_subtree_rejects_zero() {
+        let mut out = Vec::new();
+        outboard_subtree(b"", 0, 0, true, &mut out);
+    }
+
+    #[test]
+    #[should_panic(expected = "verify_outboard_subtree: count must be > 0")]
+    fn verify_outboard_subtree_rejects_zero() {
+        let expected = Hash::from_bytes([0; OUTPUT_BYTES]);
+        let _ = verify_outboard_subtree(b"", b"", &mut 0usize, 0, 0, true, &expected);
     }
 }
