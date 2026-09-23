@@ -131,6 +131,13 @@ pub fn decode(encoded: &[u8], expected_root: &Hash) -> Result<Vec<u8>, DecodeErr
     }
 
     let data_len = u64::from_le_bytes(encoded[..HEADER_SIZE].try_into().unwrap()) as usize;
+    // A well-formed stream never needs more payload than the buffer holds.
+    // Reject an oversized declared length here, before it drives an
+    // overflow-prone `HEADER_SIZE + data_len` addition (single chunk) or an
+    // unbounded `Vec::with_capacity(data_len)` allocation (multi chunk).
+    if data_len > encoded.len() - HEADER_SIZE {
+        return Err(DecodeError::Truncated);
+    }
     let n = if data_len == 0 { 1 } else { (data_len + CHUNK_SIZE - 1) / CHUNK_SIZE };
     let mut pos = HEADER_SIZE;
 
@@ -417,6 +424,30 @@ mod tests {
         // Truncate the encoded data
         let truncated = &encoded[..encoded.len() - 100];
         assert_eq!(decode(truncated, &root), Err(DecodeError::Truncated));
+    }
+
+    #[test]
+    fn decode_oversized_header_len_rejected_multi_chunk() {
+        let data = vec![0x42; CHUNK_SIZE * 2];
+        let (root, mut encoded) = encode(&data);
+        // A header declaring far more data than the buffer can hold must
+        // not reach `Vec::with_capacity(data_len)` — that aborts the
+        // process on a huge request instead of returning an error.
+        encoded[..HEADER_SIZE].copy_from_slice(&u64::MAX.to_le_bytes());
+        assert_eq!(decode(&encoded, &root), Err(DecodeError::Truncated));
+    }
+
+    #[test]
+    fn decode_oversized_header_len_rejected_single_chunk() {
+        // A header-only buffer (no chunk data) with a huge declared
+        // length must be rejected before `HEADER_SIZE + data_len` can
+        // overflow in the n <= 1 branch's bounds check and slice.
+        let mut encoded = vec![0u8; HEADER_SIZE];
+        encoded[..HEADER_SIZE].copy_from_slice(&u64::MAX.to_le_bytes());
+        assert_eq!(
+            decode(&encoded, &Hash::from_bytes([0; OUTPUT_BYTES])),
+            Err(DecodeError::Truncated)
+        );
     }
 
     #[test]
