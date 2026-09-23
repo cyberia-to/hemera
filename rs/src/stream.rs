@@ -131,14 +131,21 @@ pub fn decode(encoded: &[u8], expected_root: &Hash) -> Result<Vec<u8>, DecodeErr
     }
 
     let data_len = u64::from_le_bytes(encoded[..HEADER_SIZE].try_into().unwrap()) as usize;
+    // The stream embeds every data byte directly, interleaved with hash
+    // pairs, so a well-formed encoding can never be shorter than its own
+    // declared length. Reject an inflated data_len here, before it can
+    // drive `Vec::with_capacity` below — otherwise a tampered header
+    // claiming a huge length aborts the process on allocation instead of
+    // returning `Truncated`. `saturating_sub` avoids relying on
+    // `HEADER_SIZE + data_len` not overflowing `usize`.
+    if encoded.len().saturating_sub(HEADER_SIZE) < data_len {
+        return Err(DecodeError::Truncated);
+    }
     let n = if data_len == 0 { 1 } else { (data_len + CHUNK_SIZE - 1) / CHUNK_SIZE };
     let mut pos = HEADER_SIZE;
 
     if n <= 1 {
         // Single chunk: just the raw data after the header.
-        if encoded.len() < HEADER_SIZE + data_len {
-            return Err(DecodeError::Truncated);
-        }
         let chunk = &encoded[HEADER_SIZE..HEADER_SIZE + data_len];
         let cv = hash_leaf(chunk, 0, true);
         if cv != *expected_root {
@@ -417,6 +424,29 @@ mod tests {
         // Truncate the encoded data
         let truncated = &encoded[..encoded.len() - 100];
         assert_eq!(decode(truncated, &root), Err(DecodeError::Truncated));
+    }
+
+    /// A tampered header claiming a huge `data_len` on a small real buffer
+    /// must be rejected before it drives `Vec::with_capacity(data_len)` —
+    /// a multi-terabyte allocation attempt would abort the process instead
+    /// of returning `Truncated`. Covers the multi-chunk path, which (unlike
+    /// the single-chunk path) had no length check ahead of the allocation.
+    #[test]
+    fn decode_inflated_header_on_multi_chunk_rejected() {
+        let data = vec![0x42; CHUNK_SIZE * 2];
+        let (root, mut encoded) = encode(&data);
+        encoded[..HEADER_SIZE].copy_from_slice(&(1u64 << 40).to_le_bytes());
+        assert_eq!(decode(&encoded, &root), Err(DecodeError::Truncated));
+    }
+
+    /// Same class, at the boundary the header-length arithmetic must not
+    /// overflow `usize` on: a near-`u64::MAX` declared length.
+    #[test]
+    fn decode_near_max_header_rejected() {
+        let data = vec![0x42; CHUNK_SIZE * 2];
+        let (root, mut encoded) = encode(&data);
+        encoded[..HEADER_SIZE].copy_from_slice(&(u64::MAX - 4).to_le_bytes());
+        assert_eq!(decode(&encoded, &root), Err(DecodeError::Truncated));
     }
 
     #[test]
