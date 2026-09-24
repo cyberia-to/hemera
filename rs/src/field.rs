@@ -241,8 +241,8 @@ pub fn apply_mat4(x: &mut [Goldilocks; 4]) {
 #[inline]
 pub fn mds_light_permutation(state: &mut [Goldilocks; 16]) {
     // Apply M4 to each consecutive 4-element chunk.
-    for chunk in state.chunks_exact_mut(4) {
-        apply_mat4(chunk.try_into().unwrap());
+    for chunk in state.as_chunks_mut::<4>().0 {
+        apply_mat4(chunk);
     }
 
     // Compute column sums (one per M4 column position).

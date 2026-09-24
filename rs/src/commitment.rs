@@ -262,11 +262,11 @@ fn reconstruct(item: ContentId, proof: &InclusionProof) -> Option<SequenceId> {
 }
 
 fn canonical(hash: &Hash) -> bool {
-    hash.as_bytes().chunks_exact(8).all(|chunk| {
-        let mut limb = [0; 8];
-        limb.copy_from_slice(chunk);
-        u64::from_le_bytes(limb) < P
-    })
+    hash.as_bytes()
+        .as_chunks::<8>()
+        .0
+        .iter()
+        .all(|limb| u64::from_le_bytes(*limb) < P)
 }
 
 #[cfg(test)]
