@@ -2,10 +2,10 @@
 
 principles for working with AI coding agents across any project. this page is the bootstrap entry point — read it and the four foundational documents to have complete development context:
 
-- [[cyber/engineering]] — pipeline contracts, dual-stream optimization, verification dimensions
-- [[cyber/quality]] — 12 review passes, severity tiers, audit protocol
-- [[cyber/projects]] — repo layout, namespace conventions, git workflow
-- [[cyber/documentation]] — Diataxis framework, reference vs docs, spec before code
+- [[cyberia/engineering]] — pipeline contracts, dual-stream optimization, verification dimensions
+- [[cyberia/quality]] — 12 review passes, severity tiers, audit protocol
+- [[cyberia/projects]] — repo layout, namespace conventions, git workflow
+- [[cyberia/documentation]] — Diataxis framework, reference vs docs, spec before code
 
 ## auditor mindset
 
@@ -574,7 +574,7 @@ with an external Rust crate.
 | RS502 | `Vec<T>` | `BoundedVec<T, N>` with compile-time capacity |
 | RS503 | `String` | `&str` or `ArrayString<N>` |
 | RS504 | `dyn Trait` | generics or enum dispatch |
-| RS505 | `Arc<T>`, `Rc<T>` | cell-owned state or bounded channels |
+| RS505 | `Arc<T>`, `Rc<T>` | module-owned state or bounded channels |
 | RS506 | `panic!()` | `Result` for recoverable, abort for unrecoverable |
 | RS507 | `HashMap`, `HashSet` | `BTreeMap`, `BTreeSet`, or `BoundedMap<K,V,N>` |
 

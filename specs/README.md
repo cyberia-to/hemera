@@ -18,7 +18,10 @@ alias: Hemera reference, Hemera specification, Hemera spec, Hemera_Hash_Primitiv
 
 Hemera is the cryptographic hash primitive for [[cyber]], a knowledge graph for planetary-scale collective intelligence. It instantiates the [[Poseidon2]] permutation over the [[Goldilocks field]] (p = 2^64 - 2^32 + 1) with state width t = 16, full-round S-box x⁷, partial-round S-box x⁻¹ (field inversion), and 16 partial rounds (R_P = 16).
 
-The construction provides 256-bit classical collision resistance and 170-bit quantum collision resistance. Algebraic degree 7⁸ × (p−2)¹⁶ ≈ 2^1046 places the permutation far beyond any foreseeable attack capability — 2^918 bits of margin over 128-bit security. Every [[particles|particle]] address in the network, every node in every proof tree, and every commitment in every [[zheng]] proof derives from the same permutation.
+The construction targets compact 32-byte identities. Its generic classical
+collision ceiling is about 128 bits; security of the concrete hybrid
+permutation remains under investigation. The old 2^1046 degree / 2^918 margin
+argument is withdrawn. See `research/inverse-sbox-assessment.md`.
 
 Hemera is the domain separation layer and trust anchor. Lens (Brakedown) handles bulk commitment — polynomial evaluation, batch openings, erasure coding. Hemera wraps Lens commitments with domain tags, providing identity binding and Fiat-Shamir seeding. Per execution, hemera is called ~3 times: (a) domain separation wrapper: hemera(Lens.commit(noun) ‖ tag) — one call per noun identity. (b) Fiat-Shamir seed — one call per proof. (c) Brakedown binding — one call per Lens commit (internal to Lens). The heavy work is polynomial arithmetic; hemera is the thin trust layer on top.
 
@@ -49,12 +52,12 @@ One function. One mode (sponge). 32 bytes output. ~736 constraints per permutati
 │  Constraints per permutation: ~736                        │
 │  Binary node:             1 permutation (32+32 ≤ rate)    │
 │                                                          │
-│  Classical collision resistance:  256 bits     = 2⁸       │
-│  Quantum collision resistance:   170 bits                │
-│  Algebraic degree:               2¹⁰⁴⁶                   │
-│  Security margin:                2⁹¹⁸ over 128-bit       │
+│  Classical collision ceiling:     128 bits     = 2⁸       │
+│  Quantum collision security:     not certified                │
+│  Algebraic attack margin:         not established                   │
+│  Parameter status:               experimental       │
 │                                                          │
-│  MPC/FHE depth:                  40 (5.4× reduction)     │
+│  MPC/FHE depth:                  protocol-dependent     │
 │                                                          │
 │  Every parameter that appears in code is a power of 2.   │
 └──────────────────────────────────────────────────────────┘
@@ -62,11 +65,24 @@ One function. One mode (sponge). 32 bytes output. ~736 constraints per permutati
 
 ## Design decisions
 
-**x⁻¹ partial S-box.** field inversion replaces x⁷ in the 16 partial rounds. algebraic degree jumps from 7⁶⁴ ≈ 2¹⁸⁰ to 7⁸ × (p−2)¹⁶ ≈ 2¹⁰⁴⁶. partial rounds drop from 64 to 16 (4× fewer). constraints per permutation drop from ~1,152 to ~736 (36% reduction). MPC/FHE multiplicative depth drops from 216 to 40 (5.4× reduction). same wall-clock — fewer rounds but inversion costs more per round.
+**x⁻¹ partial S-box.** Inversion admits two cubic or three quadratic local
+constraints, including the zero case. This motivates investigation of the
+cost/security tradeoff. Cheap witness verification does not imply cheap native,
+MPC or FHE evaluation. The ~736 total is an unvalidated historical estimate.
 
-**32-byte output.** 4 elements instead of 8. 2× faster tree hashing (binary node fits in one rate block: 32+32=64 bytes ≤ 8×8=64 bytes). 2× less storage for roots and proofs. 256-bit collision resistance preserved (capacity is 8 elements = 64 bytes, unchanged). the output is a hash, not an encryption — 32 bytes is standard (SHA-256, Blake3, Keccak-256).
+**32-byte output.** Four canonical field elements. This halves digest storage
+relative to eight elements, but sets the classical output collision ceiling
+near 128 bits regardless of the capacity or S-box. Existing tree compression
+loads two digests as eight field limbs; ordinary byte absorption uses a separate
+seven-byte packing rule.
 
-**16 partial rounds.** the minimum for security with x⁻¹ S-box. full rounds (8) provide diffusion across all 16 state elements. partial rounds (16) provide algebraic depth on element 0 only. the combination gives algebraic degree 2¹⁰⁴⁶ with only 24 total rounds.
+**16 partial rounds.** Implemented candidate, not a proven minimum. An analysis
+of the exact mixed permutation is required before parameters are frozen.
+
+**Structural identity.** The experimental format-independent commitment layer
+provides position-independent blob IDs, ordered sequences and nominal records.
+The `.cyb` adapter commits extracted sections. See [[structural-commitments]]
+for encoding, opening verification, parser obligations and migration gates.
 
 ## Specification pages
 
@@ -75,6 +91,7 @@ One function. One mode (sponge). 32 bytes output. ~736 constraints per permutati
 - [[sponge]] — absorb/squeeze, padding, operational semantics
 - [[capacity]] — structured capacity: flags, domain tags, counters, namespace bounds
 - [[encoding]] — 7-byte canonical encoding, byte-to-field mapping
+- [[structural-commitments]] — experimental blobs, sequences, records and `.cyb` section adapter
 - [[tree]] — binary Merkle tree, `hash_node` construction
 - [[constants]] — all 144 round constants (hex values)
 - [[bootstrap]] — round constant self-generation via Hemera₀
@@ -83,6 +100,9 @@ One function. One mode (sponge). 32 bytes output. ~736 constraints per permutati
 
 ## See also
 
+- [Eidos proof coverage report](../audit/formal-proofs.md) — checked theorems, explicit premises, validation boundary and remaining obligations
+
+- [[files|file]] — the thing a particle identifies; its data is what Hemera hashes
 - [[particles|particle]] — particle addressing with Hemera
 - [[cyberlinks|cyberlink]] — edges referencing particles by Hemera hash
 - [[cybergraph]] — the graph Hemera addresses

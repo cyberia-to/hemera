@@ -1,0 +1,20 @@
+-- Unbounded binary positive arithmetic, checked by CIC reduction.
+-- These are integer identities, not proofs of Rust modular arithmetic.
+def sh1 (n : Pos) : Pos := Pos.bit0 n
+def sh2 (n : Pos) : Pos := sh1 (sh1 n)
+def sh4 (n : Pos) : Pos := sh2 (sh2 n)
+def sh8 (n : Pos) : Pos := sh4 (sh4 n)
+def sh16 (n : Pos) : Pos := sh8 (sh8 n)
+def sh32 (n : Pos) : Pos := sh16 (sh16 n)
+def two32 : Pos := sh32 Pos.one
+def two64 : Pos := sh32 two32
+def epsilon : Pos := (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 Pos.one)))))))))))))))))))))))))))))))
+-- p = (2^32 - 1) * 2^32 + 1.
+def p : Pos := Pos.bit1 (sh1 (sh2 (sh4 (sh8 (sh16 epsilon)))))
+-- p - 2 = (2^31 - 1) * 2^33 + (2^32 - 1).
+def invExponent : Pos := Pos.add (sh32 (sh1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 (Pos.bit1 Pos.one)))))))))))))))))))))))))))))))) epsilon
+
+theorem goldilocks_modulus : Eq Pos (Pos.add p epsilon) two64 := by { rfl }
+theorem inverse_exponent : Eq Pos (Pos.add invExponent (Pos.bit0 Pos.one)) p := by { rfl }
+theorem binary_one_add (n : Pos) : Eq Pos (Pos.add Pos.one n) (Pos.succ n) := by { rfl }
+theorem binary_carry (n : Pos) : Eq Pos (Pos.succ (Pos.bit1 n)) (Pos.bit0 (Pos.succ n)) := by { rfl }

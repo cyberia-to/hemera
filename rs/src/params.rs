@@ -29,11 +29,10 @@
 //! │  Total constants:         144                 = 9 × 2⁴   │
 //! │  Total rounds:            24                  = 3 × 2³   │
 //! │                                                          │
-//! │  Classical collision resistance:  256 bits     = 2⁸       │
-//! │  Quantum collision resistance:   170 bits                │
-//! │  Algebraic degree:               2¹⁰⁴⁶                   │
+//! │  Generic collision ceiling:      ~128 bits     = 2⁸       │
+//! │  Full-round security:            unestablished                │
+//! │  Inverse-16 profile:             experimental                   │
 //! │                                                          │
-//! │  Every parameter that appears in code is a power of 2.   │
 //! └──────────────────────────────────────────────────────────┘
 //! ```
 
@@ -102,8 +101,9 @@ pub const MAX_TREE_DEPTH: usize = 64;
 
 // ── Security properties (informational) ─────────────────────────────
 
-/// Classical collision resistance in bits.
-pub const COLLISION_BITS: usize = 256;
+/// Approximate generic classical collision ceiling for the 32-byte digest.
+/// This is an output-size bound, not a proved security level of the permutation.
+pub const COLLISION_BITS: usize = 128;
 
 // ── Permutation entry point ─────────────────────────────────────────
 

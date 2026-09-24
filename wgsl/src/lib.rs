@@ -30,7 +30,7 @@ use std::num::NonZeroU64;
 use cyber_hemera::field::Goldilocks;
 use cyber_hemera::sparse::CompressedSparseProof;
 use cyber_hemera::tree::{InclusionProof, Sibling};
-use cyber_hemera::{Hash, CHUNK_SIZE, OUTPUT_BYTES, OUTPUT_ELEMENTS, WIDTH};
+use cyber_hemera::{CHUNK_SIZE, Hash, OUTPUT_BYTES, OUTPUT_ELEMENTS, WIDTH};
 use wgpu::util::DeviceExt;
 
 /// Pre-compiled GPU compute pipelines and device handles.
@@ -161,16 +161,36 @@ impl GpuContext {
         })
     }
 
-    fn bind(&self, io: &wgpu::Buffer, params: &wgpu::Buffer, aux: &wgpu::Buffer) -> wgpu::BindGroup {
+    fn bind(
+        &self,
+        io: &wgpu::Buffer,
+        params: &wgpu::Buffer,
+        aux: &wgpu::Buffer,
+    ) -> wgpu::BindGroup {
         self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
             layout: &self.bind_group_layout,
             entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: io.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 1, resource: self.rc_buffer.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 2, resource: params.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 3, resource: self.diag_buffer.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 4, resource: aux.as_entire_binding() },
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: io.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: self.rc_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: params.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: self.diag_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: aux.as_entire_binding(),
+                },
             ],
         })
     }
@@ -212,25 +232,34 @@ impl GpuContext {
     }
 
     fn params_buf(&self, p: [u32; 8]) -> wgpu::Buffer {
-        self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: None,
-            contents: bytemuck::cast_slice(&p),
-            usage: wgpu::BufferUsages::UNIFORM,
-        })
+        self.device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: None,
+                contents: bytemuck::cast_slice(&p),
+                usage: wgpu::BufferUsages::UNIFORM,
+            })
     }
 
-    fn dispatch_hash(&self, pipeline: &wgpu::ComputePipeline, aux: &[u8], p: [u32; 8], n: u32) -> Vec<Hash> {
+    fn dispatch_hash(
+        &self,
+        pipeline: &wgpu::ComputePipeline,
+        aux: &[u8],
+        p: [u32; 8],
+        n: u32,
+    ) -> Vec<Hash> {
         let io = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: None,
             size: (n as u64) * 16 * 4,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
-        let aux_buf = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: None,
-            contents: aux,
-            usage: wgpu::BufferUsages::STORAGE,
-        });
+        let aux_buf = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: None,
+                contents: aux,
+                usage: wgpu::BufferUsages::STORAGE,
+            });
         let pb = self.params_buf(p);
         let bg = self.bind(&io, &pb, &aux_buf);
         u32s_to_hashes(&self.dispatch_readback(pipeline, &bg, &io, n), n as usize)
@@ -240,34 +269,59 @@ impl GpuContext {
 
     /// Run batch Poseidon2 permutations on GPU.
     pub async fn batch_permute(&self, states: &[[Goldilocks; WIDTH]]) -> Vec<[Goldilocks; WIDTH]> {
-        if states.is_empty() { return vec![]; }
+        if states.is_empty() {
+            return vec![];
+        }
         let n = states.len() as u32;
         let data = flatten_states(states);
-        let io = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: None,
-            contents: bytemuck::cast_slice(&data),
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
-        });
+        let io = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: None,
+                contents: bytemuck::cast_slice(&data),
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+            });
         let pb = self.params_buf([n, 0, 0, 0, 0, 0, 0, 0]);
         let bg = self.bind(&io, &pb, &self.dummy_buffer);
-        unflatten_states(&self.dispatch_readback(&self.permute_pipeline, &bg, &io, n), states.len())
+        unflatten_states(
+            &self.dispatch_readback(&self.permute_pipeline, &bg, &io, n),
+            states.len(),
+        )
     }
 
     /// Batch sponge hash of data chunks (plain hash, no tree domain).
     pub async fn batch_hash(&self, data: &[u8], chunk_size: usize) -> Vec<Hash> {
-        if data.is_empty() { return vec![]; }
+        if data.is_empty() {
+            return vec![];
+        }
         let n = data.len().div_ceil(chunk_size) as u32;
         self.dispatch_hash(
             &self.hash_chunk_pipeline,
             &pad4(data),
-            [n, DOMAIN_HASH, chunk_size as u32, data.len() as u32, 0, 0, 0, 0],
+            [
+                n,
+                DOMAIN_HASH,
+                chunk_size as u32,
+                data.len() as u32,
+                0,
+                0,
+                0,
+                0,
+            ],
             n,
         )
     }
 
     /// Batch keyed hash — key read from aux[0..64) by GPU, no per-chunk duplication.
-    pub async fn batch_keyed_hash(&self, key: &[u8; OUTPUT_BYTES], data: &[u8], chunk_size: usize) -> Vec<Hash> {
-        if data.is_empty() { return vec![]; }
+    pub async fn batch_keyed_hash(
+        &self,
+        key: &[u8; OUTPUT_BYTES],
+        data: &[u8],
+        chunk_size: usize,
+    ) -> Vec<Hash> {
+        if data.is_empty() {
+            return vec![];
+        }
         let n = data.len().div_ceil(chunk_size) as u32;
         let mut buf = Vec::with_capacity(OUTPUT_BYTES + data.len());
         buf.extend_from_slice(key);
@@ -281,15 +335,30 @@ impl GpuContext {
     }
 
     /// Derive key: context hash on CPU, material hash on GPU.
-    pub async fn batch_derive_key(&self, context: &str, data: &[u8], chunk_size: usize) -> Vec<Hash> {
-        if data.is_empty() { return vec![]; }
+    pub async fn batch_derive_key(
+        &self,
+        context: &str,
+        data: &[u8],
+        chunk_size: usize,
+    ) -> Vec<Hash> {
+        if data.is_empty() {
+            return vec![];
+        }
         let ctx_hash = cyber_hemera::Hasher::new_derive_key_context(context).finalize();
-        self.batch_derive_key_material(&ctx_hash, data, chunk_size).await
+        self.batch_derive_key_material(&ctx_hash, data, chunk_size)
+            .await
     }
 
     /// Derive key material phase, seeded by a pre-computed context hash.
-    pub async fn batch_derive_key_material(&self, ctx: &Hash, data: &[u8], chunk_size: usize) -> Vec<Hash> {
-        if data.is_empty() { return vec![]; }
+    pub async fn batch_derive_key_material(
+        &self,
+        ctx: &Hash,
+        data: &[u8],
+        chunk_size: usize,
+    ) -> Vec<Hash> {
+        if data.is_empty() {
+            return vec![];
+        }
         let n = data.len().div_ceil(chunk_size) as u32;
         let mut aux_u32s: Vec<u32> = Vec::new();
         push_hash_u32s(&mut aux_u32s, ctx);
@@ -310,8 +379,15 @@ impl GpuContext {
     /// For large inputs, dispatches in batches to avoid GPU timeouts.
     /// The counter offset (param slot ns_min_lo) ensures each leaf gets
     /// its correct global chunk index regardless of batch boundaries.
-    pub async fn batch_hash_leaves(&self, data: &[u8], chunk_size: usize, is_root: bool) -> Vec<Hash> {
-        if data.is_empty() { return vec![]; }
+    pub async fn batch_hash_leaves(
+        &self,
+        data: &[u8],
+        chunk_size: usize,
+        is_root: bool,
+    ) -> Vec<Hash> {
+        if data.is_empty() {
+            return vec![];
+        }
         let total_chunks = data.len().div_ceil(chunk_size);
 
         if total_chunks <= Self::LEAF_BATCH {
@@ -338,7 +414,16 @@ impl GpuContext {
             let hashes = self.dispatch_hash(
                 &self.hash_leaf_pipeline,
                 &pad4(slice),
-                [n, 0, chunk_size as u32, slice.len() as u32, counter_offset, 0, 0, 0],
+                [
+                    n,
+                    0,
+                    chunk_size as u32,
+                    slice.len() as u32,
+                    counter_offset,
+                    0,
+                    0,
+                    0,
+                ],
                 n,
             );
             all_hashes.extend(hashes);
@@ -356,7 +441,9 @@ impl GpuContext {
         total: usize,
         progress: &impl Fn(usize, usize),
     ) -> Vec<Hash> {
-        if data.is_empty() { return vec![]; }
+        if data.is_empty() {
+            return vec![];
+        }
         let total_chunks = data.len().div_ceil(chunk_size);
 
         if total_chunks <= Self::LEAF_BATCH {
@@ -384,7 +471,16 @@ impl GpuContext {
             let hashes = self.dispatch_hash(
                 &self.hash_leaf_pipeline,
                 &pad4(slice),
-                [n, 0, chunk_size as u32, slice.len() as u32, counter_offset, 0, 0, 0],
+                [
+                    n,
+                    0,
+                    chunk_size as u32,
+                    slice.len() as u32,
+                    counter_offset,
+                    0,
+                    0,
+                    0,
+                ],
                 n,
             );
             all_hashes.extend(hashes);
@@ -396,7 +492,9 @@ impl GpuContext {
 
     /// Combine pairs of child hashes into parent hashes.
     pub async fn batch_hash_nodes(&self, pairs: &[(Hash, Hash)], is_root: bool) -> Vec<Hash> {
-        if pairs.is_empty() { return vec![]; }
+        if pairs.is_empty() {
+            return vec![];
+        }
         let n = pairs.len() as u32;
         let flags = if is_root { FLAG_ROOT } else { 0 };
         self.dispatch_hash(
@@ -409,17 +507,30 @@ impl GpuContext {
 
     /// Combine pairs with namespace bounds (NMT). Full u64 ns support.
     pub async fn batch_hash_nodes_nmt(
-        &self, pairs: &[(Hash, Hash)], ns_min: u64, ns_max: u64, is_root: bool,
+        &self,
+        pairs: &[(Hash, Hash)],
+        ns_min: u64,
+        ns_max: u64,
+        is_root: bool,
     ) -> Vec<Hash> {
-        if pairs.is_empty() { return vec![]; }
+        if pairs.is_empty() {
+            return vec![];
+        }
         let n = pairs.len() as u32;
         let flags = if is_root { FLAG_ROOT } else { 0 };
         self.dispatch_hash(
             &self.hash_node_nmt_pipeline,
             &flatten_pairs(pairs),
-            [n, flags, 0, 0,
-             ns_min as u32, (ns_min >> 32) as u32,
-             ns_max as u32, (ns_max >> 32) as u32],
+            [
+                n,
+                flags,
+                0,
+                0,
+                ns_min as u32,
+                (ns_min >> 32) as u32,
+                ns_max as u32,
+                (ns_max >> 32) as u32,
+            ],
             n,
         )
     }
@@ -447,12 +558,18 @@ impl GpuContext {
         }
         let n = data.len().div_ceil(CHUNK_SIZE);
         if n == 1 {
-            return self.batch_hash_leaves(data, CHUNK_SIZE, true).await.remove(0);
+            return self
+                .batch_hash_leaves(data, CHUNK_SIZE, true)
+                .await
+                .remove(0);
         }
         let total = 2 * n - 1;
         progress(0, total);
-        let leaves = self.batch_hash_leaves_progress(data, CHUNK_SIZE, false, total, &progress).await;
-        self.merge_tree_with_progress(leaves, n, total, &progress).await
+        let leaves = self
+            .batch_hash_leaves_progress(data, CHUNK_SIZE, false, total, &progress)
+            .await;
+        self.merge_tree_with_progress(leaves, n, total, &progress)
+            .await
     }
 
     /// Merge tree with progress reporting.
@@ -490,7 +607,9 @@ impl GpuContext {
                 let height = size.trailing_zeros();
                 if height <= round {
                     // Already complete or size-1.
-                    if size > 1 { offset += size >> round; }
+                    if size > 1 {
+                        offset += size >> round;
+                    }
                     continue;
                 }
                 let cur_count = size >> round;
@@ -501,14 +620,18 @@ impl GpuContext {
                 offset += cur_count;
             }
 
-            if pairs.is_empty() { break; }
+            if pairs.is_empty() {
+                break;
+            }
 
             // Determine is_root: only if single segment and final round.
             let is_root = num_segments == 1 && round + 1 == max_height;
             let num_pairs = pairs.len();
             let results = self.batch_hash_nodes(&pairs, is_root).await;
             done += num_pairs;
-            if total > 0 { progress(done, total); }
+            if total > 0 {
+                progress(done, total);
+            }
 
             let mut ri = 0;
             for (si, &(_, size)) in segments.iter().enumerate() {
@@ -543,7 +666,9 @@ impl GpuContext {
             let result = self.batch_hash_nodes(&[(left, right)], is_root).await;
             roots.push(result[0]);
             done += 1;
-            if total > 0 { progress(done, total); }
+            if total > 0 {
+                progress(done, total);
+            }
         }
 
         roots.pop().unwrap()
@@ -555,10 +680,17 @@ impl GpuContext {
     /// and serializes parent pairs in pre-order.
     /// Returns `(root_hash, outboard_bytes)` matching `cyber_hemera::stream::outboard`.
     pub async fn outboard(&self, data: &[u8]) -> (Hash, Vec<u8>) {
-        let n = if data.is_empty() { 1 } else { data.len().div_ceil(CHUNK_SIZE) };
+        let n = if data.is_empty() {
+            1
+        } else {
+            data.len().div_ceil(CHUNK_SIZE)
+        };
 
         if n <= 1 {
-            let root = self.batch_hash_leaves(data, CHUNK_SIZE, true).await.remove(0);
+            let root = self
+                .batch_hash_leaves(data, CHUNK_SIZE, true)
+                .await
+                .remove(0);
             let mut out = Vec::with_capacity(8);
             out.extend_from_slice(&(data.len() as u64).to_le_bytes());
             return (root, out);
@@ -583,23 +715,30 @@ impl GpuContext {
         &self,
         proofs: &[(&[u8], &InclusionProof, &Hash)],
     ) -> Vec<bool> {
-        if proofs.is_empty() { return vec![]; }
+        if proofs.is_empty() {
+            return vec![];
+        }
 
         let max_depth = proofs.iter().map(|(_, p, _)| p.depth()).max().unwrap_or(0);
 
         // Compute initial hashes (leaf or subtree root).
-        let mut current: Vec<Hash> = proofs.iter().map(|(chunk, proof, _)| {
-            let start = proof.start_chunk;
-            let end = proof.end_chunk;
-            if end - start == 1 {
-                cyber_hemera::tree::hash_leaf(chunk, start, proof.num_chunks == 1)
-            } else {
-                cyber_hemera::tree::root_hash(chunk)
-            }
-        }).collect();
+        let mut current: Vec<Hash> = proofs
+            .iter()
+            .map(|(chunk, proof, _)| {
+                let start = proof.start_chunk;
+                let end = proof.end_chunk;
+                if end - start == 1 {
+                    cyber_hemera::tree::hash_leaf(chunk, start, proof.num_chunks == 1)
+                } else {
+                    cyber_hemera::tree::root_hash(chunk)
+                }
+            })
+            .collect();
 
         if max_depth == 0 {
-            return proofs.iter().enumerate()
+            return proofs
+                .iter()
+                .enumerate()
                 .map(|(i, (_, _, root))| current[i] == **root)
                 .collect();
         }
@@ -616,7 +755,9 @@ impl GpuContext {
                 let siblings = proof.siblings();
                 // level 0 = leaf-most sibling (last in array).
                 let sib_idx = siblings.len().checked_sub(1 + level);
-                let Some(sib_idx) = sib_idx else { continue; };
+                let Some(sib_idx) = sib_idx else {
+                    continue;
+                };
                 let is_root = sib_idx == 0;
                 let pair = match siblings[sib_idx] {
                     Sibling::Left(sib) => (sib, current[i]),
@@ -645,7 +786,11 @@ impl GpuContext {
             }
         }
 
-        proofs.iter().enumerate().map(|(i, (_, _, root))| current[i] == **root).collect()
+        proofs
+            .iter()
+            .enumerate()
+            .map(|(i, (_, _, root))| current[i] == **root)
+            .collect()
     }
 
     /// Verify multiple sparse Merkle proofs in batch on GPU.
@@ -658,21 +803,24 @@ impl GpuContext {
         proofs: &[(&CompressedSparseProof, Option<&[u8]>, &Hash)],
         depth: u32,
     ) -> Vec<bool> {
-        if proofs.is_empty() { return vec![]; }
+        if proofs.is_empty() {
+            return vec![];
+        }
 
         // Compute sentinel table on CPU (done once).
         let sentinels = cyber_hemera::sparse::sentinel_table(depth);
 
         // Compute initial leaf hashes on CPU.
         let n = proofs.len();
-        let mut current_hashes: Vec<Hash> = proofs.iter().map(|(proof, value, _)| {
-            match value {
-                Some(v) => cyber_hemera::tree::hash_leaf(
-                    &[proof.key.as_slice(), *v].concat(), 0, false,
-                ),
+        let mut current_hashes: Vec<Hash> = proofs
+            .iter()
+            .map(|(proof, value, _)| match value {
+                Some(v) => {
+                    cyber_hemera::tree::hash_leaf(&[proof.key.as_slice(), *v].concat(), 0, false)
+                }
                 None => sentinels[0],
-            }
-        }).collect();
+            })
+            .collect();
         let mut cursors = vec![0usize; n];
 
         for level in 0..depth {
@@ -732,9 +880,13 @@ impl GpuContext {
             }
         }
 
-        proofs.iter().enumerate().map(|(i, (proof, _, root))| {
-            current_hashes[i] == **root && cursors[i] == proof.siblings.len()
-        }).collect()
+        proofs
+            .iter()
+            .enumerate()
+            .map(|(i, (proof, _, root))| {
+                current_hashes[i] == **root && cursors[i] == proof.siblings.len()
+            })
+            .collect()
     }
 
     /// Batch XOF squeeze: given finalized sponge states, produce `count`
@@ -744,7 +896,9 @@ impl GpuContext {
         states: &[[Goldilocks; WIDTH]],
         count: usize,
     ) -> Vec<Vec<[u8; OUTPUT_BYTES]>> {
-        if states.is_empty() || count == 0 { return vec![vec![]; states.len()]; }
+        if states.is_empty() || count == 0 {
+            return vec![vec![]; states.len()];
+        }
 
         let n = states.len();
         let mut result = vec![Vec::with_capacity(count); n];

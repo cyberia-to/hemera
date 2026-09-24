@@ -1,0 +1,11 @@
+[package]
+name = "hemera-eidos-proofs"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+cyber-eidos = { path = "../../../eidos/rs" }
+cyber-hemera = { path = "../../rs" }

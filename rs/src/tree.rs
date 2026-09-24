@@ -97,13 +97,7 @@ pub fn hash_node(left: &Hash, right: &Hash, is_root: bool) -> Hash {
 /// Extends `hash_node` with namespace bounds committed in capacity:
 /// `state[12] = ns_min`, `state[13] = ns_max`. When both are zero this
 /// reduces to `hash_node`. See spec §4.6.4.
-pub fn hash_node_nmt(
-    left: &Hash,
-    right: &Hash,
-    ns_min: u64,
-    ns_max: u64,
-    is_root: bool,
-) -> Hash {
+pub fn hash_node_nmt(left: &Hash, right: &Hash, ns_min: u64, ns_max: u64, is_root: bool) -> Hash {
     let left_elems = bytes_to_cv(left.as_bytes());
     let right_elems = bytes_to_cv(right.as_bytes());
 
@@ -150,7 +144,7 @@ pub fn fixed_chunk_root(data: &[u8]) -> Hash {
     if data.is_empty() {
         return hash_leaf(data, 0, true);
     }
-    let n = (data.len() + CHUNK_SIZE - 1) / CHUNK_SIZE;
+    let n = data.len().div_ceil(CHUNK_SIZE);
     if n == 1 {
         return hash_leaf(data, 0, true);
     }
@@ -165,7 +159,7 @@ pub fn root_hash_with_progress(data: &[u8], progress: impl Fn(usize, usize)) -> 
     if data.is_empty() {
         return hash_leaf(data, 0, true);
     }
-    let n = (data.len() + CHUNK_SIZE - 1) / CHUNK_SIZE;
+    let n = data.len().div_ceil(CHUNK_SIZE);
     if n == 1 {
         return hash_leaf(data, 0, true);
     }
@@ -190,7 +184,11 @@ fn merge_range_progress(
     tick: &impl Fn(&core::cell::Cell<usize>),
 ) -> Hash {
     debug_assert!(count > 0);
-    let n_total = if data.is_empty() { 1 } else { (data.len() + CHUNK_SIZE - 1) / CHUNK_SIZE };
+    let n_total = if data.is_empty() {
+        1
+    } else {
+        data.len().div_ceil(CHUNK_SIZE)
+    };
 
     if count == 1 {
         let start = offset * CHUNK_SIZE;
@@ -212,7 +210,11 @@ fn merge_range_progress(
 /// computing leaf hashes on demand from the data slice.
 pub(crate) fn merge_range(data: &[u8], offset: usize, count: usize, is_root: bool) -> Hash {
     debug_assert!(count > 0);
-    let n_total = if data.is_empty() { 1 } else { (data.len() + CHUNK_SIZE - 1) / CHUNK_SIZE };
+    let n_total = if data.is_empty() {
+        1
+    } else {
+        data.len().div_ceil(CHUNK_SIZE)
+    };
 
     if count == 1 {
         let start = offset * CHUNK_SIZE;
@@ -290,7 +292,12 @@ impl<'de> serde::Deserialize<'de> for InclusionProof {
 
         #[derive(serde::Deserialize)]
         #[serde(field_identifier, rename_all = "snake_case")]
-        enum Field { StartChunk, EndChunk, NumChunks, Siblings }
+        enum Field {
+            StartChunk,
+            EndChunk,
+            NumChunks,
+            Siblings,
+        }
 
         struct InclusionProofVisitor;
 
@@ -302,16 +309,30 @@ impl<'de> serde::Deserialize<'de> for InclusionProof {
             }
 
             fn visit_seq<V: SeqAccess<'de>>(self, mut seq: V) -> Result<InclusionProof, V::Error> {
-                let start_chunk = seq.next_element()?.ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                let end_chunk = seq.next_element()?.ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                let num_chunks = seq.next_element()?.ok_or_else(|| de::Error::invalid_length(2, &self))?;
-                let siblings: AllocVec<Sibling> = seq.next_element()?.ok_or_else(|| de::Error::invalid_length(3, &self))?;
+                let start_chunk = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                let end_chunk = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                let num_chunks = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(2, &self))?;
+                let siblings: AllocVec<Sibling> = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(3, &self))?;
                 if siblings.len() > MAX_TREE_DEPTH {
                     return Err(de::Error::custom("too many siblings"));
                 }
                 let mut buf = [SIBLING_ZERO; MAX_TREE_DEPTH];
                 buf[..siblings.len()].copy_from_slice(&siblings);
-                Ok(InclusionProof { start_chunk, end_chunk, num_chunks, buf, depth: siblings.len() })
+                Ok(InclusionProof {
+                    start_chunk,
+                    end_chunk,
+                    num_chunks,
+                    buf,
+                    depth: siblings.len(),
+                })
             }
 
             fn visit_map<V: MapAccess<'de>>(self, mut map: V) -> Result<InclusionProof, V::Error> {
@@ -321,22 +342,38 @@ impl<'de> serde::Deserialize<'de> for InclusionProof {
                 let mut siblings: Option<AllocVec<Sibling>> = None;
                 while let Some(key) = map.next_key()? {
                     match key {
-                        Field::StartChunk => { start_chunk = Some(map.next_value()?); }
-                        Field::EndChunk => { end_chunk = Some(map.next_value()?); }
-                        Field::NumChunks => { num_chunks = Some(map.next_value()?); }
-                        Field::Siblings => { siblings = Some(map.next_value()?); }
+                        Field::StartChunk => {
+                            start_chunk = Some(map.next_value()?);
+                        }
+                        Field::EndChunk => {
+                            end_chunk = Some(map.next_value()?);
+                        }
+                        Field::NumChunks => {
+                            num_chunks = Some(map.next_value()?);
+                        }
+                        Field::Siblings => {
+                            siblings = Some(map.next_value()?);
+                        }
                     }
                 }
-                let start_chunk = start_chunk.ok_or_else(|| de::Error::missing_field("start_chunk"))?;
+                let start_chunk =
+                    start_chunk.ok_or_else(|| de::Error::missing_field("start_chunk"))?;
                 let end_chunk = end_chunk.ok_or_else(|| de::Error::missing_field("end_chunk"))?;
-                let num_chunks = num_chunks.ok_or_else(|| de::Error::missing_field("num_chunks"))?;
+                let num_chunks =
+                    num_chunks.ok_or_else(|| de::Error::missing_field("num_chunks"))?;
                 let siblings = siblings.ok_or_else(|| de::Error::missing_field("siblings"))?;
                 if siblings.len() > MAX_TREE_DEPTH {
                     return Err(de::Error::custom("too many siblings"));
                 }
                 let mut buf = [SIBLING_ZERO; MAX_TREE_DEPTH];
                 buf[..siblings.len()].copy_from_slice(&siblings);
-                Ok(InclusionProof { start_chunk, end_chunk, num_chunks, buf, depth: siblings.len() })
+                Ok(InclusionProof {
+                    start_chunk,
+                    end_chunk,
+                    num_chunks,
+                    buf,
+                    depth: siblings.len(),
+                })
             }
         }
 
@@ -361,8 +398,15 @@ pub fn prove(data: &[u8], chunk_index: u64) -> (Hash, InclusionProof) {
 /// Returns the root hash and the proof. Panics if the range is invalid.
 /// No heap allocation — uses a fixed-size siblings buffer.
 pub fn prove_range(data: &[u8], start: u64, end: u64) -> (Hash, InclusionProof) {
-    let n = if data.is_empty() { 1u64 } else { ((data.len() + CHUNK_SIZE - 1) / CHUNK_SIZE) as u64 };
-    assert!(start < end && end <= n, "invalid range [{start}..{end}) for {n} chunks");
+    let n = if data.is_empty() {
+        1u64
+    } else {
+        data.len().div_ceil(CHUNK_SIZE) as u64
+    };
+    assert!(
+        start < end && end <= n,
+        "invalid range [{start}..{end}) for {n} chunks"
+    );
 
     if n == 1 {
         let cv = hash_leaf(data, 0, true);
@@ -384,8 +428,7 @@ pub fn prove_range(data: &[u8], start: u64, end: u64) -> (Hash, InclusionProof) 
         data,
         0,
         n as usize,
-        start as usize,
-        end as usize,
+        (start as usize, end as usize),
         true,
         &mut buf,
         &mut depth,
@@ -408,12 +451,12 @@ fn prove_subtree_data(
     data: &[u8],
     offset: usize,
     count: usize,
-    target_start: usize,
-    target_end: usize,
+    target: (usize, usize),
     is_root: bool,
     buf: &mut [Sibling; MAX_TREE_DEPTH],
     depth: &mut usize,
 ) -> Hash {
+    let (target_start, target_end) = target;
     debug_assert!(count > 0);
 
     // If the current subtree exactly matches the target range, just merge it.
@@ -421,7 +464,10 @@ fn prove_subtree_data(
         return merge_range(data, offset, count, is_root);
     }
 
-    assert!(count > 1, "target range does not align to a subtree boundary");
+    assert!(
+        count > 1,
+        "target range does not align to a subtree boundary"
+    );
 
     let split = 1 << (usize::BITS - (count - 1).leading_zeros() - 1);
 
@@ -430,9 +476,7 @@ fn prove_subtree_data(
         let right = merge_range(data, offset + split, count - split, false);
         buf[*depth] = Sibling::Right(right);
         *depth += 1;
-        let left = prove_subtree_data(
-            data, offset, split, target_start, target_end, false, buf, depth,
-        );
+        let left = prove_subtree_data(data, offset, split, target, false, buf, depth);
         hash_node(&left, &right, is_root)
     } else if target_start >= offset + split {
         // Target is entirely in the right subtree.
@@ -440,7 +484,13 @@ fn prove_subtree_data(
         buf[*depth] = Sibling::Left(left);
         *depth += 1;
         let right = prove_subtree_data(
-            data, offset + split, count - split, target_start, target_end, false, buf, depth,
+            data,
+            offset + split,
+            count - split,
+            target,
+            false,
+            buf,
+            depth,
         );
         hash_node(&left, &right, is_root)
     } else {
@@ -457,11 +507,7 @@ fn prove_subtree_data(
 /// Given the raw chunk data, recomputes the leaf hash and walks the
 /// proof path up to the root. Returns `true` if the recomputed root
 /// matches `expected_root`.
-pub fn verify_proof(
-    chunk_data: &[u8],
-    proof: &InclusionProof,
-    expected_root: &Hash,
-) -> bool {
+pub fn verify_proof(chunk_data: &[u8], proof: &InclusionProof, expected_root: &Hash) -> bool {
     assert_eq!(
         proof.end_chunk - proof.start_chunk,
         1,
@@ -474,24 +520,18 @@ pub fn verify_proof(
         return current == *expected_root;
     }
 
-    walk_proof(&mut current, proof.siblings())
-        == *expected_root
+    walk_proof(&mut current, proof.siblings()) == *expected_root
 }
 
 /// Verify an inclusion proof for an internal node (subtree hash) against
 /// an expected root hash.
-pub fn verify_node_proof(
-    node_hash: &Hash,
-    proof: &InclusionProof,
-    expected_root: &Hash,
-) -> bool {
+pub fn verify_node_proof(node_hash: &Hash, proof: &InclusionProof, expected_root: &Hash) -> bool {
     if proof.siblings().is_empty() {
         return *node_hash == *expected_root;
     }
 
     let mut current = *node_hash;
-    walk_proof(&mut current, proof.siblings())
-        == *expected_root
+    walk_proof(&mut current, proof.siblings()) == *expected_root
 }
 
 /// Walk siblings from leaf toward root, returning the computed root.
@@ -618,7 +658,7 @@ pub fn num_chunks(data_len: usize) -> u64 {
     if data_len == 0 {
         1
     } else {
-        ((data_len + CHUNK_SIZE - 1) / CHUNK_SIZE) as u64
+        data_len.div_ceil(CHUNK_SIZE) as u64
     }
 }
 
@@ -831,9 +871,9 @@ pub(crate) fn merge_leaf_hashes(leaves: &[Hash], is_root: bool) -> Hash {
 #[cfg(test)]
 mod tests {
     extern crate std;
-    use std::vec;
     use super::*;
     use crate::params::OUTPUT_BYTES;
+    use std::vec;
 
     #[test]
     fn hash_node_non_commutative() {
@@ -999,8 +1039,8 @@ mod tests {
         assert_eq!(CAPACITY_COUNTER_IDX, 8);
         assert_eq!(CAPACITY_FLAGS_IDX, 9);
         // Sponge uses CAPACITY_START + 2 = 10 and CAPACITY_START + 3 = 11
-        assert!(CAPACITY_COUNTER_IDX < 10);
-        assert!(CAPACITY_FLAGS_IDX < 10);
+        const { assert!(CAPACITY_COUNTER_IDX < 10) };
+        const { assert!(CAPACITY_FLAGS_IDX < 10) };
     }
 
     #[test]
@@ -1062,7 +1102,7 @@ mod tests {
         assert_eq!(CAPACITY_NS_MIN_IDX, 12);
         assert_eq!(CAPACITY_NS_MAX_IDX, 13);
         // No overlap with counter (8), flags (9), msg_length (10), domain (11)
-        assert!(CAPACITY_NS_MIN_IDX > 11);
+        const { assert!(CAPACITY_NS_MIN_IDX > 11) };
     }
 
     // ── root_hash tests (CDC-based) ──────────────────────────────────

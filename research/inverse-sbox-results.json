@@ -1,0 +1,105 @@
+{
+  "scope": "algebraic checks only; no full-round cryptanalysis or security certification",
+  "sympy_version": "1.14.0",
+  "field_source_sha256": "55ac29d64f11ae23a9f2461f7c7e6c329d3523a4b3c823248d8902cb18fb3efb",
+  "p": 18446744069414584321,
+  "p_is_prime": true,
+  "gcd_7_p_minus_1": 1,
+  "addition_chain": {
+    "exponent": 18446744069414584319,
+    "multiplications": 75,
+    "multiplicative_depth": 71
+  },
+  "old_constraint_counterexample": {
+    "x": 1,
+    "y": 0
+  },
+  "small_fields": [
+    {
+      "p": 17,
+      "old_false_acceptances": 16,
+      "inverse_differential_uniformity": 2,
+      "power7_differential_uniformity": 4,
+      "corrected_constraints_exhaustive": true
+    },
+    {
+      "p": 97,
+      "old_false_acceptances": 96,
+      "inverse_differential_uniformity": 4,
+      "power7_differential_uniformity": 4,
+      "corrected_constraints_exhaustive": true
+    },
+    {
+      "p": 193,
+      "old_false_acceptances": 192,
+      "inverse_differential_uniformity": 4,
+      "power7_differential_uniformity": 6,
+      "corrected_constraints_exhaustive": true
+    },
+    {
+      "p": 257,
+      "old_false_acceptances": 256,
+      "inverse_differential_uniformity": 2,
+      "power7_differential_uniformity": 6,
+      "corrected_constraints_exhaustive": true
+    },
+    {
+      "p": 769,
+      "old_false_acceptances": 768,
+      "inverse_differential_uniformity": 4,
+      "power7_differential_uniformity": 6,
+      "corrected_constraints_exhaustive": true
+    }
+  ],
+  "goldilocks_inverse_ddt_a1_b1_witnesses": [
+    0,
+    4294967295,
+    18446744065119617025,
+    18446744069414584320
+  ],
+  "nonzero_branch_projective_degree_upper_bound": 377801998336,
+  "internal_matrix_rank": 16,
+  "inactive_coordinate_observability_ranks": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16
+  ],
+  "internal_charpoly_factor_degrees": [
+    [
+      16,
+      1
+    ]
+  ],
+  "internal_charpoly_coefficients_mod_p": [
+    1,
+    80166820277070444,
+    5749531995790056348,
+    13631807685124541227,
+    9458735381213009251,
+    10602611824788344690,
+    4356556644472248041,
+    14772027821901923135,
+    11082166241139133851,
+    17942568652078983827,
+    3338547676020354408,
+    6429757057174465455,
+    3171362401075206490,
+    2325497153899052368,
+    8514614342630290204,
+    16178236336305349050,
+    13755994508561259921
+  ]
+}

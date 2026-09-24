@@ -53,7 +53,7 @@ pub fn merkle_verify_path(root: &Hash, leaf_hash: &Hash, path: &[(Hash, Side)]) 
     for (i, (sibling, side)) in path.iter().enumerate() {
         let is_root = i == last;
         current = match side {
-            Side::Left  => hash_node(sibling, &current, is_root),
+            Side::Left => hash_node(sibling, &current, is_root),
             Side::Right => hash_node(&current, sibling, is_root),
         };
     }
@@ -65,8 +65,8 @@ pub fn merkle_verify_path(root: &Hash, leaf_hash: &Hash, path: &[(Hash, Side)]) 
 mod tests {
     extern crate std;
     use super::*;
-    use crate::tree::{hash_leaf, hash_node};
     use crate::params::OUTPUT_BYTES;
+    use crate::tree::{hash_leaf, hash_node};
 
     /// Build a minimal 2-leaf tree and return (root, leaf0_hash, leaf1_hash).
     ///
@@ -79,8 +79,8 @@ mod tests {
     /// hash_node(leaf0, leaf1, is_root=true) = root.
     fn two_leaf_tree() -> (Hash, Hash, Hash) {
         let leaf0 = hash_leaf(b"leaf zero data", 0, false);
-        let leaf1 = hash_leaf(b"leaf one data",  1, false);
-        let root  = hash_node(&leaf0, &leaf1, true);
+        let leaf1 = hash_leaf(b"leaf one data", 1, false);
+        let root = hash_node(&leaf0, &leaf1, true);
         (root, leaf0, leaf1)
     }
 
@@ -146,7 +146,7 @@ mod tests {
 
     #[test]
     fn empty_path_wrong_hash_fails() {
-        let leaf  = hash_leaf(b"solo", 0, true);
+        let leaf = hash_leaf(b"solo", 0, true);
         let other = Hash::from_bytes([0x01; OUTPUT_BYTES]);
         assert!(!merkle_verify_path(&leaf, &other, &[]));
     }
@@ -166,20 +166,36 @@ mod tests {
         let c2 = hash_leaf(b"c2", 2, false);
         let c3 = hash_leaf(b"c3", 3, false);
 
-        let p01  = hash_node(&c0, &c1, false);
-        let p23  = hash_node(&c2, &c3, false);
+        let p01 = hash_node(&c0, &c1, false);
+        let p23 = hash_node(&c2, &c3, false);
         let root = hash_node(&p01, &p23, true);
 
         // c0: sibling=c1 (right), then sibling=p23 (right)
-        assert!(merkle_verify_path(&root, &c0, &[(c1, Side::Right), (p23, Side::Right)]));
+        assert!(merkle_verify_path(
+            &root,
+            &c0,
+            &[(c1, Side::Right), (p23, Side::Right)]
+        ));
 
         // c1: sibling=c0 (left), then sibling=p23 (right)
-        assert!(merkle_verify_path(&root, &c1, &[(c0, Side::Left), (p23, Side::Right)]));
+        assert!(merkle_verify_path(
+            &root,
+            &c1,
+            &[(c0, Side::Left), (p23, Side::Right)]
+        ));
 
         // c2: sibling=c3 (right), then sibling=p01 (left)
-        assert!(merkle_verify_path(&root, &c2, &[(c3, Side::Right), (p01, Side::Left)]));
+        assert!(merkle_verify_path(
+            &root,
+            &c2,
+            &[(c3, Side::Right), (p01, Side::Left)]
+        ));
 
         // c3: sibling=c2 (left), then sibling=p01 (left)
-        assert!(merkle_verify_path(&root, &c3, &[(c2, Side::Left), (p01, Side::Left)]));
+        assert!(merkle_verify_path(
+            &root,
+            &c3,
+            &[(c2, Side::Left), (p01, Side::Left)]
+        ));
     }
 }

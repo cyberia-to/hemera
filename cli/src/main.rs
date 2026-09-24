@@ -41,7 +41,9 @@ fn status_clear() {
 fn progress_status(label: &str) -> impl Fn(usize, usize) + '_ {
     let last_permille = std::cell::Cell::new(u16::MAX);
     move |done, total| {
-        if total == 0 { return; }
+        if total == 0 {
+            return;
+        }
         let permille = ((done as u64 * 1000) / total as u64) as u16;
         if permille != last_permille.get() {
             last_permille.set(permille);
@@ -169,34 +171,32 @@ fn main() {
             }
             process::exit(show_tree(&args[1]));
         }
-        Some("prove") => {
-            match args.len() {
-                2 => process::exit(prove_node(&args[1], 0, 1)),
-                3 => {
-                    if let Some((s, e)) = args[2].split_once(':') {
-                        let start: u64 = s.parse().unwrap_or_else(|_| {
-                            eprintln!("hemera: invalid range start: {s}");
-                            process::exit(1);
-                        });
-                        let end: u64 = e.parse().unwrap_or_else(|_| {
-                            eprintln!("hemera: invalid range end: {e}");
-                            process::exit(1);
-                        });
-                        process::exit(prove_node(&args[1], start, end));
-                    } else {
-                        let idx: u64 = args[2].parse().unwrap_or_else(|_| {
-                            eprintln!("hemera: invalid chunk index: {}", args[2]);
-                            process::exit(1);
-                        });
-                        process::exit(prove_node(&args[1], idx, idx + 1));
-                    }
-                }
-                _ => {
-                    eprintln!("hemera: prove requires <file> [chunk | start:end]");
-                    process::exit(1);
+        Some("prove") => match args.len() {
+            2 => process::exit(prove_node(&args[1], 0, 1)),
+            3 => {
+                if let Some((s, e)) = args[2].split_once(':') {
+                    let start: u64 = s.parse().unwrap_or_else(|_| {
+                        eprintln!("hemera: invalid range start: {s}");
+                        process::exit(1);
+                    });
+                    let end: u64 = e.parse().unwrap_or_else(|_| {
+                        eprintln!("hemera: invalid range end: {e}");
+                        process::exit(1);
+                    });
+                    process::exit(prove_node(&args[1], start, end));
+                } else {
+                    let idx: u64 = args[2].parse().unwrap_or_else(|_| {
+                        eprintln!("hemera: invalid chunk index: {}", args[2]);
+                        process::exit(1);
+                    });
+                    process::exit(prove_node(&args[1], idx, idx + 1));
                 }
             }
-        }
+            _ => {
+                eprintln!("hemera: prove requires <file> [chunk | start:end]");
+                process::exit(1);
+            }
+        },
         Some("encode") => {
             let ctx = Ctx::new(forced);
             match args.len() {
@@ -210,9 +210,7 @@ fn main() {
         }
         Some("decode") => match args.len() {
             3 => process::exit(cmd_decode(&args[1], &args[2], None)),
-            5 if args[3] == "-o" => {
-                process::exit(cmd_decode(&args[1], &args[2], Some(&args[4])))
-            }
+            5 if args[3] == "-o" => process::exit(cmd_decode(&args[1], &args[2], Some(&args[4]))),
             _ => {
                 eprintln!("hemera: decode requires <file> <hash> [-o output]");
                 process::exit(1);
@@ -250,12 +248,15 @@ fn main() {
                 eprintln!("hemera: prove-batch requires <file> <index>...");
                 process::exit(1);
             }
-            let indices: Vec<u64> = args[2..].iter().map(|s| {
-                s.parse().unwrap_or_else(|_| {
-                    eprintln!("hemera: invalid chunk index: {s}");
-                    process::exit(1);
+            let indices: Vec<u64> = args[2..]
+                .iter()
+                .map(|s| {
+                    s.parse().unwrap_or_else(|_| {
+                        eprintln!("hemera: invalid chunk index: {s}");
+                        process::exit(1);
+                    })
                 })
-            }).collect();
+                .collect();
             process::exit(cmd_prove_batch(&args[1], &indices));
         }
         Some("verify-batch") => {
@@ -267,7 +268,9 @@ fn main() {
         }
         Some("sparse") => {
             if args.len() < 2 {
-                eprintln!("hemera: sparse requires a subcommand (new, insert, get, prove, verify, root)");
+                eprintln!(
+                    "hemera: sparse requires a subcommand (new, insert, get, prove, verify, root)"
+                );
                 process::exit(1);
             }
             process::exit(cmd_sparse(&args[1..]));
@@ -356,7 +359,11 @@ fn hash_path(ctx: &Ctx, path: &Path) {
 #[allow(unknown_lints, rs_no_vec)]
 fn hash_file(ctx: &Ctx, path: &Path) -> io::Result<(String, Backend, std::time::Duration)> {
     let meta = fs::metadata(path)?;
-    status(&format!("reading {} ({})", path.display(), fmt_size(meta.len())));
+    status(&format!(
+        "reading {} ({})",
+        path.display(),
+        fmt_size(meta.len())
+    ));
     let mut file = File::open(path)?;
     let mut data = Vec::new();
     file.read_to_end(&mut data)?;
@@ -385,7 +392,8 @@ fn show_tree(path: &str) -> i32 {
     };
 
     let n = cyber_hemera::tree::num_chunks(data.len());
-    let tree = cyber_hemera::tree::build_tree_with_progress(&data, progress_status("building tree"));
+    let tree =
+        cyber_hemera::tree::build_tree_with_progress(&data, progress_status("building tree"));
     status_clear();
 
     println!("file: {path}");
@@ -857,7 +865,9 @@ fn cmd_sparse(args: &[String]) -> i32 {
             // hemera sparse verify <proof-file> <root-hash> [--value <file>] [--depth N]
             // Omitting --value means non-inclusion proof.
             if args.len() < 3 {
-                eprintln!("hemera: sparse verify requires <proof-file> <root-hash> [--value <file>] [--depth N]");
+                eprintln!(
+                    "hemera: sparse verify requires <proof-file> <root-hash> [--value <file>] [--depth N]"
+                );
                 return 1;
             }
             let proof_path = &args[1];
@@ -919,7 +929,12 @@ fn cmd_sparse(args: &[String]) -> i32 {
 }
 
 #[allow(unknown_lints, rs_no_vec)]
-fn cmd_sparse_verify(proof_path: &str, root_hex: &str, value_path: Option<&str>, depth: u32) -> i32 {
+fn cmd_sparse_verify(
+    proof_path: &str,
+    root_hex: &str,
+    value_path: Option<&str>,
+    depth: u32,
+) -> i32 {
     let root = match parse_hash(root_hex) {
         Some(h) => h,
         None => {
@@ -988,7 +1003,11 @@ fn cmd_sparse_verify(proof_path: &str, root_hex: &str, value_path: Option<&str>,
         }
     };
 
-    let proof = cyber_hemera::sparse::CompressedSparseProof { key, bitmask, siblings };
+    let proof = cyber_hemera::sparse::CompressedSparseProof {
+        key,
+        bitmask,
+        siblings,
+    };
 
     let value_data = match value_path {
         Some(p) => match fs::read(p) {
@@ -1002,17 +1021,17 @@ fn cmd_sparse_verify(proof_path: &str, root_hex: &str, value_path: Option<&str>,
     };
 
     let t = Instant::now();
-    let valid = cyber_hemera::sparse::SparseTree::verify(
-        &proof,
-        value_data.as_deref(),
-        &root,
-        depth,
-    );
+    let valid =
+        cyber_hemera::sparse::SparseTree::verify(&proof, value_data.as_deref(), &root, depth);
     let elapsed = t.elapsed();
 
     print_timing(Backend::Cpu, elapsed);
     if valid {
-        let kind = if value_data.is_some() { "inclusion" } else { "non-inclusion" };
+        let kind = if value_data.is_some() {
+            "inclusion"
+        } else {
+            "non-inclusion"
+        };
         println!("sparse verify ({kind}): OK");
         0
     } else {
