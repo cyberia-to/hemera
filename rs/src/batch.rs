@@ -127,13 +127,16 @@ fn collect_siblings(
     hash_node(&left_hash, &right_hash, is_root)
 }
 
-/// Verify a batch inclusion proof against the provided chunk data.
+/// Verify a batch inclusion proof against the provided chunk data and a
+/// caller-supplied, independently trusted root.
 ///
-/// `chunks[i]` is the data for `proof.indices[i]`. Returns `true`
-/// if the reconstructed root matches `proof.root` and all siblings
-/// are consumed.
+/// `chunks[i]` is the data for `proof.indices[i]`. Returns `true` if the
+/// reconstructed root matches `expected_root` and all siblings are
+/// consumed. `proof.root` is never consulted: it is data the prover
+/// controls, not a trust anchor, so a forged proof cannot relabel itself
+/// into passing by setting `.root` to match its own forged content.
 #[allow(unknown_lints, rs_no_vec)]
-pub fn verify_batch(chunks: &[&[u8]], proof: &BatchInclusionProof) -> bool {
+pub fn verify_batch(chunks: &[&[u8]], proof: &BatchInclusionProof, expected_root: &Hash) -> bool {
     if chunks.len() != proof.indices.len() {
         return false;
     }
@@ -146,7 +149,7 @@ pub fn verify_batch(chunks: &[&[u8]], proof: &BatchInclusionProof) -> bool {
             return false;
         }
         let root = hash_leaf(chunks[0], 0, true);
-        return root == proof.root;
+        return root == *expected_root;
     }
 
     let mut cursor = 0usize;
@@ -161,7 +164,7 @@ pub fn verify_batch(chunks: &[&[u8]], proof: &BatchInclusionProof) -> bool {
     );
 
     match result {
-        Some(root) => root == proof.root && cursor == proof.siblings.len(),
+        Some(root) => root == *expected_root && cursor == proof.siblings.len(),
         None => false,
     }
 }
@@ -254,7 +257,7 @@ mod tests {
             assert_eq!(r, root);
             let start = i as usize * CHUNK_SIZE;
             let end = start + CHUNK_SIZE;
-            assert!(verify_batch(&[&data[start..end]], &proof));
+            assert!(verify_batch(&[&data[start..end]], &proof, &root));
         }
     }
 
@@ -267,7 +270,7 @@ mod tests {
 
         let c0 = &data[..CHUNK_SIZE];
         let c1 = &data[CHUNK_SIZE..CHUNK_SIZE * 2];
-        assert!(verify_batch(&[c0, c1], &proof));
+        assert!(verify_batch(&[c0, c1], &proof, &root));
 
         // Adjacent leaves share a parent — fewer siblings than 2 individual proofs.
         // Individual: 2 * 2 = 4 siblings. Batch should have fewer.
@@ -283,7 +286,7 @@ mod tests {
 
         let c0 = &data[..CHUNK_SIZE];
         let c7 = &data[CHUNK_SIZE * 7..];
-        assert!(verify_batch(&[c0, c7], &proof));
+        assert!(verify_batch(&[c0, c7], &proof, &root));
     }
 
     #[test]
@@ -296,7 +299,7 @@ mod tests {
         let chunks: std::vec::Vec<&[u8]> = (0..4)
             .map(|i| &data[i * CHUNK_SIZE..(i + 1) * CHUNK_SIZE])
             .collect();
-        assert!(verify_batch(&chunks, &proof));
+        assert!(verify_batch(&chunks, &proof, &root));
 
         // All leaves present — no siblings needed.
         assert_eq!(proof.siblings.len(), 0);
@@ -313,23 +316,43 @@ mod tests {
         let chunks: std::vec::Vec<&[u8]> = (0..4)
             .map(|i| &data[i * CHUNK_SIZE..(i + 1) * CHUNK_SIZE])
             .collect();
-        assert!(verify_batch(&chunks, &proof));
+        assert!(verify_batch(&chunks, &proof, &root));
     }
 
     #[test]
     fn batch_wrong_data_fails() {
         let data = vec![0x42u8; CHUNK_SIZE * 4];
-        let (_, proof) = prove_batch(&data, &[0, 1]);
+        let (root, proof) = prove_batch(&data, &[0, 1]);
         let wrong = vec![0xFF; CHUNK_SIZE];
-        assert!(!verify_batch(&[&wrong, &data[CHUNK_SIZE..CHUNK_SIZE * 2]], &proof));
+        assert!(!verify_batch(
+            &[&wrong, &data[CHUNK_SIZE..CHUNK_SIZE * 2]],
+            &proof,
+            &root
+        ));
     }
 
     #[test]
     fn batch_wrong_root_fails() {
+        // The caller's own expected root, not anything carried on the
+        // proof, is what verify_batch checks against.
         let data = vec![0x42u8; CHUNK_SIZE * 4];
-        let (_, mut proof) = prove_batch(&data, &[0]);
+        let (_, proof) = prove_batch(&data, &[0]);
+        let wrong_root = Hash::from_bytes([0xFF; 32]);
+        assert!(!verify_batch(&[&data[..CHUNK_SIZE]], &proof, &wrong_root));
+    }
+
+    #[test]
+    fn batch_proof_root_field_is_not_trusted() {
+        // A forged proof can set `.root` to anything it likes; verify_batch
+        // must ignore it and check the caller's independently supplied
+        // expected_root instead, or a relabeled proof would always pass.
+        let data = vec![0x42u8; CHUNK_SIZE * 4];
+        let (real_root, mut proof) = prove_batch(&data, &[0]);
         proof.root = Hash::from_bytes([0xFF; 32]);
-        assert!(!verify_batch(&[&data[..CHUNK_SIZE]], &proof));
+        let chunk = &data[..CHUNK_SIZE];
+
+        assert!(!verify_batch(&[chunk], &proof, &proof.root));
+        assert!(verify_batch(&[chunk], &proof, &real_root));
     }
 
     #[test]
@@ -338,7 +361,7 @@ mod tests {
         let root = root_hash(data);
         let (r, proof) = prove_batch(data, &[0]);
         assert_eq!(r, root);
-        assert!(verify_batch(&[data.as_slice()], &proof));
+        assert!(verify_batch(&[data.as_slice()], &proof, &root));
     }
 
     #[test]
@@ -355,7 +378,7 @@ mod tests {
                 &data[start..end]
             })
             .collect();
-        assert!(verify_batch(&chunks, &proof));
+        assert!(verify_batch(&chunks, &proof, &root));
         assert_eq!(proof.siblings.len(), 0);
     }
 
@@ -374,7 +397,7 @@ mod tests {
         let chunks: std::vec::Vec<&[u8]> = (0..32)
             .map(|i| &data[i * CHUNK_SIZE..(i + 1) * CHUNK_SIZE])
             .collect();
-        assert!(verify_batch(&chunks, &proof));
+        assert!(verify_batch(&chunks, &proof, &root));
     }
 
     #[test]
@@ -394,8 +417,8 @@ mod tests {
     #[test]
     fn batch_extra_siblings_rejected() {
         let data = vec![0x42u8; CHUNK_SIZE * 4];
-        let (_, mut proof) = prove_batch(&data, &[0]);
+        let (root, mut proof) = prove_batch(&data, &[0]);
         proof.siblings.push(Hash::from_bytes([0xAA; 32]));
-        assert!(!verify_batch(&[&data[..CHUNK_SIZE]], &proof));
+        assert!(!verify_batch(&[&data[..CHUNK_SIZE]], &proof, &root));
     }
 }
