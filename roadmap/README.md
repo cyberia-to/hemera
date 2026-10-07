@@ -31,7 +31,6 @@ batched-proving and folded-sponge removed — polynomial nouns reduce hemera to 
 
 | proposal | in reference? | breaks hash? | target |
 |----------|--------------|:------------:|--------|
-| [[erasure-coding]] | no | no | Reed-Solomon erasure coding over Goldilocks: same field, same NTT, data availability codec |
 | [[capacity-typing]] | no | no | type tags in reserved capacity slot state[14]: type-integrated hashing, type confusion prevention |
 | [[semantic-hashing]] | no | **yes** | section tree identity for .cyb containers: flat hash → section tree, changes particle_id for structured files |
 
@@ -45,12 +44,11 @@ FS calls (20-round):    20 × 736 = 14,720    1 × 736 + 19 × 50 = 1,686
 
 ## endgame role
 
-hemera becomes the identity layer: content identity (hash), content typing (capacity), content availability (erasure). polynomial commitments ([[Brakedown]]) handle the high-volume proof work — proof binding and state verification with ZERO hemera calls.
+hemera becomes the identity layer: content identity (hash), content typing (capacity). availability — erasure coding and sampling over the same field — is [[foculus]]'s ([[foculus/specs/erasure|erasure]], moved 2026-10-07): hemera hashes the shards, foculus decides how many and which to sample. polynomial commitments ([[Brakedown]]) handle the high-volume proof work — proof binding and state verification with ZERO hemera calls.
 
 ```
 always hemera:     H(particle) identity, H(cyberlink), Fiat-Shamir seed
                    type-integrated hashing (capacity slot → type IS identity)
-                   erasure encoding (RS over Goldilocks → availability codec)
 algebraic:         proof challenges (algebraic FS), state verification (polynomial)
 eliminated:        tree hashing (Brakedown is Merkle-free), DAS proofs (Lens openings)
 ```
