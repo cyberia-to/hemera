@@ -36,7 +36,7 @@ parameters are chosen by a rule so they can be re-derived when the attacks move.
 - constants: keep the self-bootstrap (Hemera₀ sponge over the seed `cyber`), then run the Poseidon parameter checks on the result — invariant-subspace trails through the partial layer and matrix conditions. constants that fail are regenerated with a counter.
 - width and sponge: t = 16, rate 8, capacity 8 (512 bits) unchanged.
 - digest: 6 elements (48 bytes). see below.
-- one profile. no keyed mode, no typed capacity, no second round count for ephemeral use. [[one-pure-hash]] stands.
+- one profile. no keyed mode, no typed capacity, no second round count for ephemeral use. [[one-pure-hash]] stands; its §4 records the four reasons a second profile is rejected, so the question does not reopen.
 
 ## post-quantum digest
 
