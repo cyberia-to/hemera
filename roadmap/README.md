@@ -17,6 +17,12 @@ hemera is specified: x⁻¹ partial S-box, 16 partial rounds, 32-byte output, ~7
 | [[gpu-backend]] | wgpu compute shaders, u64 emulation in WGSL, batch dispatch |
 | [[zero-alloc]] | no_std core, fixed-size buffers, rs-edition compliant |
 
+## security proposals
+
+| proposal | in reference? | breaks hash? | target |
+|----------|--------------|:------------:|--------|
+| [[profile-v2]] | yes — Poseidon2 x⁷ family | **yes** | one permutation with post-quantum margin: x⁷ everywhere, RF12/RP48 by rule, 48/64-byte digest, reference matrices, bounty before genesis |
+
 ## optimization proposals
 
 | proposal | in reference? | breaks hash? | target |
