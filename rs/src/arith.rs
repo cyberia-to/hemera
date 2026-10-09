@@ -11,6 +11,10 @@
 //! `canon` produces the canonical value in `[0, p)`. Functions whose name
 //! ends in `_c` additionally require one argument to be canonical, which
 //! the profile constructor checks for every round constant.
+//!
+//! The aarch64 assembly forms are selected on aarch64; the portable forms
+//! everywhere else, or on aarch64 with `RUSTFLAGS="--cfg hemera_portable"`
+//! (how the portable path is tested on Apple Silicon).
 
 /// The Goldilocks prime p = 2^64 − 2^32 + 1.
 pub(crate) const P: u64 = 0xFFFF_FFFF_0000_0001;
@@ -52,7 +56,7 @@ pub(crate) fn reduce_small(v: u128) -> u64 {
 }
 
 /// Reduce any `u128` (identical to `field::reduce128`).
-#[cfg_attr(target_arch = "aarch64", allow(dead_code))]
+#[cfg_attr(all(target_arch = "aarch64", not(hemera_portable)), allow(dead_code))]
 #[inline(always)]
 pub(crate) fn reduce_wide(x: u128) -> u64 {
     let x_lo = x as u64;
@@ -86,7 +90,7 @@ pub(crate) fn reduce_wide(x: u128) -> u64 {
 ///   multiplication (`audit/permutation-performance-2026-10.md`).
 #[inline(always)]
 pub(crate) fn mul(a: u64, b: u64) -> u64 {
-    #[cfg(target_arch = "aarch64")]
+    #[cfg(all(target_arch = "aarch64", not(hemera_portable)))]
     {
         let r: u64;
         // SAFETY: register-only arithmetic; flags are clobbered (the
@@ -122,7 +126,7 @@ pub(crate) fn mul(a: u64, b: u64) -> u64 {
         }
         r
     }
-    #[cfg(not(target_arch = "aarch64"))]
+    #[cfg(not(all(target_arch = "aarch64", not(hemera_portable))))]
     {
         reduce_wide(u128::from(a) * u128::from(b))
     }
@@ -132,7 +136,7 @@ pub(crate) fn mul(a: u64, b: u64) -> u64 {
 /// `(2^64−1)^2 + 2^64 − 1 < 2^128`).
 #[inline(always)]
 pub(crate) fn mul_add(a: u64, b: u64, c: u64) -> u64 {
-    #[cfg(target_arch = "aarch64")]
+    #[cfg(all(target_arch = "aarch64", not(hemera_portable)))]
     {
         let r: u64;
         // SAFETY: as in `mul`.
@@ -169,7 +173,7 @@ pub(crate) fn mul_add(a: u64, b: u64, c: u64) -> u64 {
         }
         r
     }
-    #[cfg(not(target_arch = "aarch64"))]
+    #[cfg(not(all(target_arch = "aarch64", not(hemera_portable))))]
     {
         reduce_wide(u128::from(a) * u128::from(b) + u128::from(c))
     }
@@ -182,7 +186,7 @@ pub(crate) fn mul_add(a: u64, b: u64, c: u64) -> u64 {
 /// layer). Same representative as [`mul`].
 #[inline(always)]
 pub(crate) fn mul_t(a: u64, b: u64) -> u64 {
-    #[cfg(target_arch = "aarch64")]
+    #[cfg(all(target_arch = "aarch64", not(hemera_portable)))]
     {
         let r: u64;
         // SAFETY: as in `mul`.
@@ -211,7 +215,7 @@ pub(crate) fn mul_t(a: u64, b: u64) -> u64 {
         }
         r
     }
-    #[cfg(not(target_arch = "aarch64"))]
+    #[cfg(not(all(target_arch = "aarch64", not(hemera_portable))))]
     {
         reduce_wide(u128::from(a) * u128::from(b))
     }
@@ -220,7 +224,7 @@ pub(crate) fn mul_t(a: u64, b: u64) -> u64 {
 /// `a · b + c`, throughput form of [`mul_add`].
 #[inline(always)]
 pub(crate) fn mul_add_t(a: u64, b: u64, c: u64) -> u64 {
-    #[cfg(target_arch = "aarch64")]
+    #[cfg(all(target_arch = "aarch64", not(hemera_portable)))]
     {
         let r: u64;
         // SAFETY: as in `mul`.
@@ -252,7 +256,7 @@ pub(crate) fn mul_add_t(a: u64, b: u64, c: u64) -> u64 {
         }
         r
     }
-    #[cfg(not(target_arch = "aarch64"))]
+    #[cfg(not(all(target_arch = "aarch64", not(hemera_portable))))]
     {
         reduce_wide(u128::from(a) * u128::from(b) + u128::from(c))
     }

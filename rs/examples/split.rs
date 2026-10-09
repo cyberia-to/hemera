@@ -39,7 +39,28 @@ fn t(name: &str, p: &Profile, batch: bool) {
         best[20], best[0]
     );
 }
+fn tail(n: usize) {
+    let mut v: Vec<[Goldilocks; 16]> = (0..n as u64)
+        .map(|i| core::array::from_fn(|j| Goldilocks::new(i * 31 + j as u64 * 7 + 1)))
+        .collect();
+    let mut best = Vec::new();
+    for _ in 0..201 {
+        let t0 = Instant::now();
+        cyber_hemera::permutation::permute_batch(&mut v);
+        black_box(&v);
+        best.push(t0.elapsed().as_secs_f64() * 1e9 / n as f64);
+    }
+    best.sort_by(f64::total_cmp);
+    println!(
+        "permute_batch of {n:<3}               median {:.0} ns  min {:.0} ns (per permutation)",
+        best[100], best[0]
+    );
+}
+
 fn main() {
+    for n in [1, 2, 4, 7, 8, 15, 16, 20, 31] {
+        tail(n);
+    }
     let full_only = Profile::new(4, 0, HEMERA.partial, HEMERA.external, &[], HEMERA.diag);
     let part_only = Profile::new(0, 16, HEMERA.partial, &[], HEMERA.internal, HEMERA.diag);
     for batch in [false, true] {

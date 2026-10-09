@@ -39,18 +39,34 @@ pub fn permute_profile(state: &mut [Goldilocks; 16], profile: &Profile<'_>) {
 /// Apply the permutation to every state in `states` (independent inputs).
 ///
 /// Equal, state by state, to calling [`permute`] on each; runs
-/// [`BATCH_LANES`] permutations interleaved per kernel call and shares one
-/// field inversion per partial round across them (Montgomery's trick).
+/// [`BATCH_LANES`] permutations interleaved per kernel call (a shorter
+/// tail in groups of 8, 4, 2) and shares one field inversion per partial
+/// round across each group (Montgomery's trick).
 pub fn permute_batch(states: &mut [[Goldilocks; 16]]) {
     permute_batch_profile(states, &HEMERA);
 }
 
 /// [`permute_batch`] for any profile.
 pub fn permute_batch_profile(states: &mut [[Goldilocks; 16]], profile: &Profile<'_>) {
-    let mut chunks = states.chunks_exact_mut(BATCH_LANES);
+    // Full groups of BATCH_LANES, then the remainder through narrower
+    // kernels (8, 4, 2 lanes) so a short tail still runs interleaved.
+    let rest = run_groups::<BATCH_LANES>(states, profile);
+    let rest = run_groups::<8>(rest, profile);
+    let rest = run_groups::<4>(rest, profile);
+    let rest = run_groups::<2>(rest, profile);
+    for st in rest {
+        permute_profile(st, profile);
+    }
+}
+
+/// Permute `states` in groups of `L` lanes; return the ungrouped tail.
+fn run_groups<'s, const L: usize>(
+    states: &'s mut [[Goldilocks; 16]],
+    profile: &Profile<'_>,
+) -> &'s mut [[Goldilocks; 16]] {
+    let mut chunks = states.chunks_exact_mut(L);
     for chunk in &mut chunks {
-        let mut s: Lanes<BATCH_LANES> =
-            core::array::from_fn(|i| core::array::from_fn(|l| chunk[l][i].raw()));
+        let mut s: Lanes<L> = core::array::from_fn(|i| core::array::from_fn(|l| chunk[l][i].raw()));
         permute_lanes(&mut s, profile);
         for (l, st) in chunk.iter_mut().enumerate() {
             for (i, e) in st.iter_mut().enumerate() {
@@ -58,9 +74,7 @@ pub fn permute_batch_profile(states: &mut [[Goldilocks; 16]], profile: &Profile<
             }
         }
     }
-    for st in chunks.into_remainder() {
-        permute_profile(st, profile);
-    }
+    chunks.into_remainder()
 }
 
 /// Apply the Poseidon2 permutation with caller-supplied round constants.
@@ -69,7 +83,11 @@ pub fn permute_batch_profile(states: &mut [[Goldilocks; 16]], profile: &Profile<
 /// `constants` = 128 external then 16 internal; any representatives.
 pub fn permute_with_constants(state: &mut [Goldilocks; 16], constants: &[Goldilocks]) {
     let mut raw = [0u64; NUM_CONSTANTS];
-    assert_eq!(constants.len(), NUM_CONSTANTS, "permute_with_constants: 144 constants");
+    assert_eq!(
+        constants.len(),
+        NUM_CONSTANTS,
+        "permute_with_constants: 144 constants"
+    );
     for (r, c) in raw.iter_mut().zip(constants) {
         *r = c.as_canonical_u64();
     }
@@ -192,7 +210,10 @@ mod tests {
     fn traced_matches_plain() {
         let mut state_plain = [Goldilocks::new(42); 16];
         let mut state_traced = state_plain;
-        let mut counter = RoundCounter { full: 0, partial: 0 };
+        let mut counter = RoundCounter {
+            full: 0,
+            partial: 0,
+        };
 
         permute(&mut state_plain);
         permute_traced(&mut state_traced, &mut counter);
@@ -234,7 +255,10 @@ mod tests {
             assert_eq!(rec.full_indices[i as usize], i, "full round index {i}");
         }
         for i in 0..16u8 {
-            assert_eq!(rec.partial_indices[i as usize], i, "partial round index {i}");
+            assert_eq!(
+                rec.partial_indices[i as usize], i,
+                "partial round index {i}"
+            );
         }
     }
 

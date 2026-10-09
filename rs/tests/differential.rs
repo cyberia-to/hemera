@@ -89,6 +89,7 @@ fn permutation_matches_reference() {
         let mut r = Rng(seed);
         let mut batch_in = Vec::new();
         let mut batch_ref = Vec::new();
+        let mut flush_at = 1 + (r.next() % 40) as usize;
         for k in 0..count {
             let raw = r.state();
             let mut expect = raw;
@@ -103,8 +104,10 @@ fn permutation_matches_reference() {
             );
             batch_in.push(raw.map(Goldilocks::new));
             batch_ref.push(expect);
-            // batched path: flush at irregular sizes to cover remainders
-            if batch_in.len() == 37 || k + 1 == count {
+            // batched path: flush at random sizes 1..=40 to cover every
+            // lane-group cascade (16, 8, 4, 2, 1)
+            if batch_in.len() == flush_at || k + 1 == count {
+                flush_at = 1 + (r.next() % 40) as usize;
                 permute_batch(&mut batch_in);
                 for (got, want) in batch_in.iter().zip(&batch_ref) {
                     assert_eq!(canon(*got), *want, "permute_batch differs");
