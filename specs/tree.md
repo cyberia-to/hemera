@@ -165,7 +165,7 @@ where:
 
 This replaces the recursive `hemera_node(H(left), H(right))` construction for noun addressing. The Lens commitment captures the entire noun in one algebraic object. Hemera wraps it with a domain tag, binding the commitment to its semantic role. Cost: one Lens commit (bulk polynomial work) + one hemera call (domain binding). No tree traversal.
 
-Accessing any byte range within a polynomial noun is a Lens opening: `Lens.open(commitment, position)` producing ~75 bytes of proof. This gives O(1) random access to noun content without tree path walks.
+Accessing any byte range within a polynomial noun is a Lens opening: `Lens.open(commitment, position)`. The opening carries hemera Merkle paths; the constant opening size of the retired zheng design does not hold, and the measured size lives in [[soft3/proposals/proof-system-repair|the proof-system repair]].
 
 Hemera tree hashing (the recursive construction below) remains available for legacy compatibility and cold storage NMT layout where sequential disk access patterns favor tree structure over polynomial evaluation.
 
