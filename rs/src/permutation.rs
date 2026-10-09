@@ -7,6 +7,7 @@
 //!
 //! Hemera parameters: R_F=8 (4+4), R_P=16, full-round S-box=x^7, partial S-box=x^(-1).
 
+use crate::backend::{Ct, Fast};
 use crate::constants::{NUM_CONSTANTS, ROUND_CONSTANTS};
 use crate::field::{Goldilocks, matmul_internal, mds_light_permutation};
 use crate::kernel::{Lanes, permute_lanes};
@@ -30,7 +31,23 @@ pub fn permute(state: &mut [Goldilocks; 16]) {
 /// Apply the permutation of `profile` in-place (single state).
 pub fn permute_profile(state: &mut [Goldilocks; 16], profile: &Profile<'_>) {
     let mut s: Lanes<1> = core::array::from_fn(|i| [state[i].raw()]);
-    permute_lanes(&mut s, profile);
+    permute_lanes::<Fast, 1>(&mut s, profile);
+    for (dst, src) in state.iter_mut().zip(s.iter()) {
+        *dst = Goldilocks::new(src[0]);
+    }
+}
+
+/// The permutation in constant time: no branch and no memory access
+/// depends on the state. Bit-identical to [`permute`] (same limbs).
+///
+/// Every hemera entry point that can see secret input runs this kernel
+/// internally — `keyed_hash`, `derive_key`, `hash_secret` and the
+/// `Hasher`s they build (see `specs/api.md` § constant time). Call it
+/// directly only to build another secret-input construction.
+#[inline(never)]
+pub fn permute_ct(state: &mut [Goldilocks; 16]) {
+    let mut s: Lanes<1> = core::array::from_fn(|i| [state[i].raw()]);
+    permute_lanes::<Ct, 1>(&mut s, &HEMERA);
     for (dst, src) in state.iter_mut().zip(s.iter()) {
         *dst = Goldilocks::new(src[0]);
     }
@@ -67,7 +84,7 @@ fn run_groups<'s, const L: usize>(
     let mut chunks = states.chunks_exact_mut(L);
     for chunk in &mut chunks {
         let mut s: Lanes<L> = core::array::from_fn(|i| core::array::from_fn(|l| chunk[l][i].raw()));
-        permute_lanes(&mut s, profile);
+        permute_lanes::<Fast, L>(&mut s, profile);
         for (l, st) in chunk.iter_mut().enumerate() {
             for (i, e) in st.iter_mut().enumerate() {
                 *e = Goldilocks::new(s[i][l]);

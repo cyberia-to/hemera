@@ -28,9 +28,8 @@
 
 #![allow(clippy::needless_range_loop)] // SoA: rows and lanes are indexed together
 
-use crate::arith::{
-    add, add_c, canon, inv_nonzero_fill, mul, mul_add, mul_add_t, pow7, pow7_t, reduce_small,
-};
+use crate::arith::{add_c, inv_nonzero_fill, pow7, pow7_t, reduce_small};
+use crate::backend::Arith;
 use crate::profile::{PartialSbox, Profile};
 
 /// `L` width-16 states, structure-of-arrays.
@@ -73,10 +72,10 @@ fn external<const L: usize>(s: &mut Lanes<L>) {
 
 /// Add round constants, x⁷ on all 16 elements, external layer.
 #[inline(always)]
-fn full_round<const L: usize>(s: &mut Lanes<L>, rc: &[u64]) {
+fn full_round<A: Arith, const L: usize>(s: &mut Lanes<L>, rc: &[u64]) {
     for i in 0..16 {
         for l in 0..L {
-            s[i][l] = pow7_t(add_c(s[i][l], rc[i]));
+            s[i][l] = pow7_t::<A>(add_c(s[i][l], rc[i]));
         }
     }
     external(s);
@@ -86,29 +85,29 @@ fn full_round<const L: usize>(s: &mut Lanes<L>, rc: &[u64]) {
 /// across lanes otherwise — with `tasks` work items interleaved into the
 /// inversion chain (see `arith::inv_nonzero_fill`).
 #[inline(always)]
-fn inv_lanes_fill<const L: usize, F: FnMut(usize)>(
+fn inv_lanes_fill<A: Arith, const L: usize, F: FnMut(usize)>(
     x: [u64; L],
     fill: &mut F,
     tasks: usize,
 ) -> [u64; L] {
-    let zero: [bool; L] = core::array::from_fn(|l| canon(x[l]) == 0);
-    let a: [u64; L] = core::array::from_fn(|l| if zero[l] { 1 } else { x[l] });
+    // Zero lanes (0 ↦ 0) by masks, not branches: the product uses 1 in
+    // their place and their output is cleared.
+    let zero: [u64; L] = core::array::from_fn(|l| u64::from(A::canon(x[l]) == 0).wrapping_neg());
+    let a: [u64; L] = core::array::from_fn(|l| (x[l] & !zero[l]) | (1 & zero[l]));
     let mut prefix = [0u64; L];
     prefix[0] = a[0];
     for l in 1..L {
-        prefix[l] = mul(prefix[l - 1], a[l]);
+        prefix[l] = A::mul(prefix[l - 1], a[l]);
     }
-    let mut t = inv_nonzero_fill(prefix[L - 1], fill, tasks);
+    let mut t = inv_nonzero_fill::<A, F>(prefix[L - 1], fill, tasks);
     let mut out = [0u64; L];
     for l in (1..L).rev() {
-        out[l] = mul(t, prefix[l - 1]);
-        t = mul(t, a[l]);
+        out[l] = A::mul(t, prefix[l - 1]);
+        t = A::mul(t, a[l]);
     }
     out[0] = t;
     for l in 0..L {
-        if zero[l] {
-            out[l] = 0;
-        }
+        out[l] &= !zero[l];
     }
     out
 }
@@ -116,16 +115,16 @@ fn inv_lanes_fill<const L: usize, F: FnMut(usize)>(
 /// Partial-round S-box on every lane, with `tasks` work items run in its
 /// shadow (all of them, exactly once, in order).
 #[inline(always)]
-fn sbox_lanes_fill<const L: usize, F: FnMut(usize)>(
+fn sbox_lanes_fill<A: Arith, const L: usize, F: FnMut(usize)>(
     x: [u64; L],
     kind: PartialSbox,
     fill: &mut F,
     tasks: usize,
 ) -> [u64; L] {
     match kind {
-        PartialSbox::Inverse => inv_lanes_fill(x, fill, tasks),
+        PartialSbox::Inverse => inv_lanes_fill::<A, L, F>(x, fill, tasks),
         PartialSbox::Pow7 => {
-            let y = core::array::from_fn(|l| pow7(x[l]));
+            let y = core::array::from_fn(|l| pow7::<A>(x[l]));
             for k in 0..tasks {
                 fill(k);
             }
@@ -156,27 +155,27 @@ fn sum_rest<const L: usize>(s: &Lanes<L>) -> [u64; L] {
 /// are the work interleaved into round r+1's inversion chain, and
 /// `rest' = Σ_{i≥1} sᵢ'` is summed after it, in time for `x''`.
 #[inline(always)]
-fn partial_rounds<const L: usize>(s: &mut Lanes<L>, p: &Profile<'_>) {
+fn partial_rounds<A: Arith, const L: usize>(s: &mut Lanes<L>, p: &Profile<'_>) {
     if p.rp == 0 {
         return;
     }
     let d = p.diag;
-    let d0p1 = add(d[0], 1);
+    let d0p1 = A::add(d[0], 1);
     let c = p.internal;
     let x: [u64; L] = core::array::from_fn(|l| add_c(s[0][l], c[0]));
     let mut rest = sum_rest(s);
-    let mut y = sbox_lanes_fill(x, p.partial, &mut |_| {}, 0);
+    let mut y = sbox_lanes_fill::<A, L, _>(x, p.partial, &mut |_| {}, 0);
     for r in 0..p.rp {
-        let sum: [u64; L] = core::array::from_fn(|l| add(y[l], rest[l]));
+        let sum: [u64; L] = core::array::from_fn(|l| A::add(y[l], rest[l]));
         let mut row = |k: usize| {
             for l in 0..L {
-                s[k + 1][l] = mul_add_t(s[k + 1][l], d[k + 1], sum[l]);
+                s[k + 1][l] = A::mul_add_t(s[k + 1][l], d[k + 1], sum[l]);
             }
         };
         if r + 1 < p.rp {
             let x: [u64; L] =
-                core::array::from_fn(|l| mul_add(y[l], d0p1, add_c(rest[l], c[r + 1])));
-            let y_next = sbox_lanes_fill(x, p.partial, &mut row, 15);
+                core::array::from_fn(|l| A::mul_add(y[l], d0p1, add_c(rest[l], c[r + 1])));
+            let y_next = sbox_lanes_fill::<A, L, _>(x, p.partial, &mut row, 15);
             rest = sum_rest(s);
             y = y_next;
         } else {
@@ -184,7 +183,7 @@ fn partial_rounds<const L: usize>(s: &mut Lanes<L>, p: &Profile<'_>) {
                 row(k);
             }
             for l in 0..L {
-                s[0][l] = mul_add(y[l], d0p1, rest[l]);
+                s[0][l] = A::mul_add(y[l], d0p1, rest[l]);
             }
         }
     }
@@ -192,19 +191,19 @@ fn partial_rounds<const L: usize>(s: &mut Lanes<L>, p: &Profile<'_>) {
 
 /// The full permutation on `L` independent states; output canonical.
 #[inline(always)]
-pub(crate) fn permute_lanes<const L: usize>(s: &mut Lanes<L>, p: &Profile<'_>) {
+pub(crate) fn permute_lanes<A: Arith, const L: usize>(s: &mut Lanes<L>, p: &Profile<'_>) {
     external(s);
     let (initial, terminal) = p.external.split_at(p.rf_half * 16);
     for rc in initial.chunks_exact(16) {
-        full_round(s, rc);
+        full_round::<A, L>(s, rc);
     }
-    partial_rounds(s, p);
+    partial_rounds::<A, L>(s, p);
     for rc in terminal.chunks_exact(16) {
-        full_round(s, rc);
+        full_round::<A, L>(s, rc);
     }
     for row in s.iter_mut() {
         for v in row.iter_mut() {
-            *v = canon(*v);
+            *v = A::canon(*v);
         }
     }
 }

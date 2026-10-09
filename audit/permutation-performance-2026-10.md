@@ -220,10 +220,61 @@ it does not.
   batchable permutations at 2²⁰ across cores is the remaining hashing
   lever (≈ 1.8 ms single-core; not measured).
 
+## 6. constant-time kernel for secret input (added 2026-10-09)
+
+Decision (coordinator): keep the branchy fast multiplication for public
+hashing; every path that can see secret input runs a constant-time
+kernel, chosen by the entry point and not by the caller. The list of
+entry points is in `specs/api.md` § constant time: `keyed_hash`,
+`derive_key`, the new `hash_secret` (= `hash`, constant time — mudra's
+`domain_scalar` hashes secret entropy with plain `hash` today), the
+hashers behind them and their XOF readers, and `permute_ct`.
+
+Implementation: `rs/src/backend.rs` — the kernel is generic over `Fast`
+and `Ct` arithmetic. `Ct` multiplies in 13 aarch64 instructions with
+both reduction fix-ups as `csel` (no branch by construction), adds and
+canonicalises with masks; the portable form uses masks. Zero lanes in
+the batch inversion are masked rather than branched on in both backends,
+and `Goldilocks` `+`, `−` and `as_canonical_u64` are now mask-based
+(same bits; the sponge absorbs and encodes secret input with them).
+
+Checks:
+
+- `rs/tests/constant_time.rs`: `permute_ct` = `permute`, raw limbs, on
+  10⁶ random states (edge values and non-canonical limbs included);
+  `hash_secret`, `hash`, `keyed_hash`, `derive_key` and a secret XOF
+  against a reference sponge on `reference::permute`, 10⁵ random inputs
+  each. 0 mismatches; also with `--cfg hemera_portable` and in debug.
+- Disassembly of the compiled `permute_ct` (release, aarch64 asm path
+  2 354 lines; portable path 2 043 lines): 19 / 22 conditional branches,
+  every one comparing a loop counter with a constant (round loops, the
+  15- and 33-squaring runs, the every-third-squaring interleave counter,
+  the 15-row loop); every indexed memory access uses a row counter. No
+  branch or address depends on a field value. This is an inspection of
+  one compiler output (rustc 1.95.0), not a guarantee for other compilers
+  — the asm multiply is the part that holds by construction.
+
+Cost (`examples/bench.rs`, 5 runs × 31, median of medians, ns, load
+9–30):
+
+| operation | fast | constant time | ratio |
+|---|---|---|---|
+| permutation, single (aarch64) | 2 991 | 3 833 | 1.28× |
+| 64-byte digest (`hash` vs `hash_secret`) | 6 660 | 7 836 | 1.18× |
+| `keyed_hash`, 64 B (2 permutations) | — | 7 873 | — |
+| permutation, single (portable, 3 runs) | 4 176 | 4 406 | 1.06× |
+| 64-byte digest (portable) | 7 931 | 8 589 | 1.08× |
+
+The constant-time single permutation is still faster than the 0.3.1
+fast one (4 146 ns, §3). Its multiplication is ≈ 9 cycles on the serial
+chain against 7–8 for the fast form (the borrow fix-up returns to the
+dependency chain).
+
 ## reproduce
 
 ```text
 cargo test  --release -p cyber-hemera --test differential -- --nocapture
+cargo test  --release -p cyber-hemera --test constant_time -- --nocapture
 cargo run   --release -p cyber-hemera --example bench [-- runs]
 cargo run   --release -p cyber-hemera --example split
 cargo run   --release -p cyber-hemera --example neon_mul

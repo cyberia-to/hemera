@@ -16,6 +16,8 @@
 //! everywhere else, or on aarch64 with `RUSTFLAGS="--cfg hemera_portable"`
 //! (how the portable path is tested on Apple Silicon).
 
+use crate::backend::Arith;
+
 /// The Goldilocks prime p = 2^64 − 2^32 + 1.
 pub(crate) const P: u64 = 0xFFFF_FFFF_0000_0001;
 
@@ -264,27 +266,27 @@ pub(crate) fn mul_add_t(a: u64, b: u64, c: u64) -> u64 {
 
 /// x⁷ in throughput form (full rounds: 16·L independent S-boxes).
 #[inline(always)]
-pub(crate) fn pow7_t(x: u64) -> u64 {
-    let x2 = mul_t(x, x);
-    let x3 = mul_t(x2, x);
-    let x4 = mul_t(x2, x2);
-    mul_t(x3, x4)
+pub(crate) fn pow7_t<A: Arith>(x: u64) -> u64 {
+    let x2 = A::mul_t(x, x);
+    let x3 = A::mul_t(x2, x);
+    let x4 = A::mul_t(x2, x2);
+    A::mul_t(x3, x4)
 }
 
 /// x^7: depth 3 (x², then x³ ‖ x⁴, then x⁷), 4 multiplications.
 #[inline(always)]
-pub(crate) fn pow7(x: u64) -> u64 {
-    let x2 = mul(x, x);
-    let x3 = mul(x2, x);
-    let x4 = mul(x2, x2);
-    mul(x3, x4)
+pub(crate) fn pow7<A: Arith>(x: u64) -> u64 {
+    let x2 = A::mul(x, x);
+    let x3 = A::mul(x2, x);
+    let x4 = A::mul(x2, x2);
+    A::mul(x3, x4)
 }
 
 /// Square `x` `n` times.
 #[inline(always)]
-fn sqn(mut x: u64, n: usize) -> u64 {
+fn sqn<A: Arith>(mut x: u64, n: usize) -> u64 {
     for _ in 0..n {
-        x = mul(x, x);
+        x = A::mul(x, x);
     }
     x
 }
@@ -292,7 +294,7 @@ fn sqn(mut x: u64, n: usize) -> u64 {
 /// Square `x` `n` times, calling `fill(k)` for the next pending task `k`
 /// after every `every`-th squaring.
 #[inline(always)]
-fn sqn_fill<F: FnMut(usize)>(
+fn sqn_fill<A: Arith, F: FnMut(usize)>(
     mut x: u64,
     n: usize,
     every: usize,
@@ -301,7 +303,7 @@ fn sqn_fill<F: FnMut(usize)>(
     tasks: usize,
 ) -> u64 {
     for k in 1..=n {
-        x = mul(x, x);
+        x = A::mul(x, x);
         if k % every == 0 && *next < tasks {
             fill(*next);
             *next += 1;
@@ -328,20 +330,24 @@ fn sqn_fill<F: FnMut(usize)>(
 /// in the chain's shadow instead of after it — the out-of-order window
 /// is too small to find work issued after a 69-deep chain.
 #[inline(always)]
-pub(crate) fn inv_nonzero_fill<F: FnMut(usize)>(x: u64, fill: &mut F, tasks: usize) -> u64 {
+pub(crate) fn inv_nonzero_fill<A: Arith, F: FnMut(usize)>(
+    x: u64,
+    fill: &mut F,
+    tasks: usize,
+) -> u64 {
     let mut next = 0;
-    let x2 = mul(x, x);
-    let a2 = mul(x2, x); // x^3
-    let x4 = mul(x2, x2);
-    let a3 = mul(x4, a2); // x^7
-    let a4 = mul(sqn(a2, 2), a2); // x^15
-    let a7 = mul(sqn(a4, 3), a3);
-    let a8 = mul(sqn(a4, 4), a4);
-    let a15 = mul(sqn(a8, 7), a7);
-    let a16 = mul(sqn(a8, 8), a8);
-    let a31 = mul(sqn_fill(a16, 15, 3, fill, &mut next, tasks), a15);
-    let a32 = mul(mul(a31, a31), x);
-    let r = mul(sqn_fill(a31, 33, 3, fill, &mut next, tasks), a32);
+    let x2 = A::mul(x, x);
+    let a2 = A::mul(x2, x); // x^3
+    let x4 = A::mul(x2, x2);
+    let a3 = A::mul(x4, a2); // x^7
+    let a4 = A::mul(sqn::<A>(a2, 2), a2); // x^15
+    let a7 = A::mul(sqn::<A>(a4, 3), a3);
+    let a8 = A::mul(sqn::<A>(a4, 4), a4);
+    let a15 = A::mul(sqn::<A>(a8, 7), a7);
+    let a16 = A::mul(sqn::<A>(a8, 8), a8);
+    let a31 = A::mul(sqn_fill::<A, F>(a16, 15, 3, fill, &mut next, tasks), a15);
+    let a32 = A::mul(A::mul(a31, a31), x);
+    let r = A::mul(sqn_fill::<A, F>(a31, 33, 3, fill, &mut next, tasks), a32);
     while next < tasks {
         fill(next);
         next += 1;

@@ -6,6 +6,7 @@
 
 - `permutation::permute_batch`, `tree::hash_node_batch`, `tree::hash_leaf_batch` — independent inputs run 16 at a time through a lane-interleaved kernel with one shared field inversion per partial round (≈ 5× the single-call throughput on M4 Max)
 - `permutation::Profile` / `PartialSbox` / `HEMERA`, `permute_profile`, `permute_batch_profile` — the kernel is generic in round counts and partial S-box (x⁻¹ or x⁷)
+- Constant-time kernel for secret input: `keyed_hash`, `derive_key` and their hashers run it internally; new `hash_secret` / `Hasher::new_secret` (same digest as `hash`, constant time) and `permutation::permute_ct`. Contract in `specs/api.md` § constant time
 - `reference` (doc-hidden) definitional oracle and `rs/tests/differential.rs` (10⁶ random inputs per family)
 
 ### Changed

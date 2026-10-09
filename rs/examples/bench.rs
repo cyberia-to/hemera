@@ -14,7 +14,10 @@
 //!   (each result feeds the next) — the cost that bounds the inverse chain.
 //! - `mul throughput`: 8 independent chains interleaved.
 //! - `permute (latency)`: each permutation's output is the next input.
-//! - `hash 64 B`: `hemera::hash` of a 64-byte message (2 permutations).
+//! - `permute_ct (latency)`: the constant-time kernel, chained.
+//! - `hash 64 B`: `hemera::hash` of a 64-byte message (2 permutations);
+//!   `hash_secret` (same digest, constant time) and `keyed_hash` (key ‖ 64 B = 96 B,
+//!   2 permutations).
 //! - `hash_node`: the 2-to-1 Merkle compression lens verifies with
 //!   (`tree::hash_node`), chained.
 //! - `1024 × permute (loop)`: 1024 independent states, one `permute` each.
@@ -30,7 +33,7 @@ use std::hint::black_box;
 use std::time::Instant;
 
 use cyber_hemera::field::Goldilocks;
-use cyber_hemera::permutation::{permute, permute_batch};
+use cyber_hemera::permutation::{permute, permute_batch, permute_ct};
 use cyber_hemera::tree::{hash_leaf, hash_leaf_batch, hash_node, hash_node_batch};
 use cyber_hemera::{Hash, WIDTH};
 
@@ -117,6 +120,17 @@ fn main() {
         }),
     );
 
+    row(
+        "permute_ct (latency)",
+        time(runs, PERMS, || {
+            let mut s = black_box(s0);
+            for _ in 0..PERMS {
+                permute_ct(&mut s);
+            }
+            black_box(s);
+        }),
+    );
+
     // ── hash of 64 bytes ────────────────────────────────────────────
     let msg: [u8; 64] = core::array::from_fn(|i| (r() as u8).wrapping_add(i as u8));
     row(
@@ -124,6 +138,24 @@ fn main() {
         time(runs, PERMS, || {
             for _ in 0..PERMS {
                 black_box(cyber_hemera::hash(black_box(&msg)));
+            }
+        }),
+    );
+
+    row(
+        "hash_secret 64 B (CT)",
+        time(runs, PERMS, || {
+            for _ in 0..PERMS {
+                black_box(cyber_hemera::hash_secret(black_box(&msg)));
+            }
+        }),
+    );
+    let key = [7u8; 32];
+    row(
+        "keyed_hash 64 B (CT)",
+        time(runs, PERMS, || {
+            for _ in 0..PERMS {
+                black_box(cyber_hemera::keyed_hash(&key, black_box(&msg)));
             }
         }),
     );

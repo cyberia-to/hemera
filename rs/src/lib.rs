@@ -55,6 +55,7 @@ extern crate alloc;
 extern crate std;
 
 mod arith;
+mod backend;
 pub mod batch;
 pub mod stream;
 pub mod bootstrap;
@@ -95,14 +96,25 @@ pub fn hash(input: &[u8]) -> Hash {
     hasher.finalize()
 }
 
-/// Hash the input bytes with a key.
+/// Hash secret input bytes: the same digest as [`hash`], computed in
+/// constant time (no branch or memory access depends on the input).
+///
+/// Use for key material — seeds, entropy, private scalars. [`hash`] is the
+/// fast path for public data (content, Merkle nodes, transcripts).
+pub fn hash_secret(input: &[u8]) -> Hash {
+    let mut hasher = Hasher::new_secret();
+    hasher.update(input);
+    hasher.finalize()
+}
+
+/// Hash the input bytes with a key (constant time).
 pub fn keyed_hash(key: &[u8; OUTPUT_BYTES], input: &[u8]) -> Hash {
     let mut hasher = Hasher::new_keyed(key);
     hasher.update(input);
     hasher.finalize()
 }
 
-/// Derive a key from a context string and key material.
+/// Derive a key from a context string and key material (constant time).
 ///
 /// This is a two-phase operation:
 /// 1. Hash the context string with domain separation
