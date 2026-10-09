@@ -21,6 +21,8 @@
 //! - `1024 × permute_batch`: the same 1024 states through the batched,
 //!   lane-interleaved API.
 //! - `1024 × hash_node_batch`: 1024 independent node compressions.
+//! - `1024 × hash_leaf 144 B`: leaf digests (3 sponge permutations + 1
+//!   re-derivation each), per leaf and through `hash_leaf_batch`.
 //!
 //! Every row prints ns per operation (median over runs).
 
@@ -29,42 +31,12 @@ use std::time::Instant;
 
 use cyber_hemera::field::Goldilocks;
 use cyber_hemera::permutation::{permute, permute_batch};
-use cyber_hemera::tree::{hash_node, hash_node_batch};
+use cyber_hemera::tree::{hash_leaf, hash_leaf_batch, hash_node, hash_node_batch};
 use cyber_hemera::{Hash, WIDTH};
 
 fn median(mut v: Vec<f64>) -> f64 {
     v.sort_by(f64::total_cmp);
     v[v.len() / 2]
-}
-
-/// Nanoseconds per core clock cycle, from a dependent chain of 1-cycle
-/// additions (median of 11). Re-measured before every row so rows taken
-/// at different clock speeds (the machine is shared) stay comparable.
-fn cycle_ns() -> f64 {
-    const N: usize = 1_000_000;
-    let samples = (0..11)
-        .map(|_| {
-            let mut x: u64 = black_box(1);
-            let t = Instant::now();
-            for _ in 0..N / 8 {
-                #[cfg(target_arch = "aarch64")]
-                unsafe {
-                    core::arch::asm!(
-                        "add {x}, {x}, #1", "add {x}, {x}, #1", "add {x}, {x}, #1", "add {x}, {x}, #1",
-                        "add {x}, {x}, #1", "add {x}, {x}, #1", "add {x}, {x}, #1", "add {x}, {x}, #1",
-                        x = inout(reg) x, options(pure, nomem, nostack),
-                    );
-                }
-                #[cfg(not(target_arch = "aarch64"))]
-                {
-                    x = black_box(x.wrapping_add(8));
-                }
-            }
-            black_box(x);
-            t.elapsed().as_secs_f64() * 1e9 / N as f64
-        })
-        .collect();
-    median(samples)
 }
 
 /// Run `f` (which performs `ops` operations) `runs` times; median ns/op.
@@ -98,18 +70,8 @@ fn main() {
         .unwrap_or(31);
     let mut r = rng(7);
 
-    let mut cyc = cycle_ns();
-    println!(
-        "{:<28} {:>10} {:>10}   (clock {:.2} GHz at start)",
-        "operation",
-        "ns/op",
-        "cycles/op",
-        1.0 / cyc
-    );
-    let mut row = |name: &str, ns: f64| {
-        println!("{name:<28} {ns:>10.1} {:>10.0}", ns / cyc);
-        cyc = cycle_ns();
-    };
+    println!("{:<30} {:>10}", "operation", "ns/op");
+    let row = |name: &str, ns: f64| println!("{name:<30} {ns:>10.1}");
 
     // ── field multiply: latency and throughput ──────────────────────
     const CHAIN: usize = 100_000;
@@ -226,6 +188,32 @@ fn main() {
         "1024 × hash_node_batch",
         time(runs, BATCH, || {
             hash_node_batch(&pairs, false, &mut out);
+            black_box(&out);
+        }),
+    );
+
+    // ── 1024 independent 144-byte leaves (4 permutations each) ──────
+    let leaf_bytes: Vec<[u8; 144]> = (0..BATCH)
+        .map(|_| core::array::from_fn(|_| r() as u8))
+        .collect();
+    let leaves: Vec<(&[u8], u64)> = leaf_bytes
+        .iter()
+        .enumerate()
+        .map(|(i, b)| (b.as_slice(), i as u64))
+        .collect();
+    row(
+        "1024 × hash_leaf 144 B (loop)",
+        time(runs, BATCH, || {
+            for (o, (b, i)) in out.iter_mut().zip(&leaves) {
+                *o = hash_leaf(b, *i, false);
+            }
+            black_box(&out);
+        }),
+    );
+    row(
+        "1024 × hash_leaf_batch 144 B",
+        time(runs, BATCH, || {
+            hash_leaf_batch(&leaves, false, &mut out);
             black_box(&out);
         }),
     );

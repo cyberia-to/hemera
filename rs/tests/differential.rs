@@ -22,7 +22,7 @@ use cyber_hemera::permutation::{
     PartialSbox, Profile, permute, permute_batch, permute_batch_profile, permute_profile,
 };
 use cyber_hemera::reference;
-use cyber_hemera::tree::{hash_leaf, hash_node, hash_node_batch};
+use cyber_hemera::tree::{hash_leaf, hash_leaf_batch, hash_node, hash_node_batch};
 use cyber_hemera::{Hash, hash};
 
 fn n() -> usize {
@@ -289,4 +289,42 @@ fn v2_shaped_profile_matches_reference() {
         }
     }
     println!("v2-shaped profiles (x^7 and x^-1 partial): {total} states each");
+}
+
+#[test]
+fn leaf_batch_matches_reference() {
+    let total = n() / 4;
+    parallel(total, |seed, count| {
+        let mut r = Rng(seed ^ 0x77);
+        let mut k = 0;
+        while k < count {
+            // Groups of equal length (lockstep path), sometimes with one
+            // odd length (fallback path); lengths cross the 56-byte rate.
+            let group = 1 + (r.next() % 40) as usize;
+            let len = (r.next() % 200) as usize;
+            let odd = r.next().is_multiple_of(4);
+            let chunks: Vec<Vec<u8>> = (0..group)
+                .map(|g| {
+                    let l = if odd && g == group / 2 { len + 1 } else { len };
+                    (0..l).map(|_| r.next() as u8).collect()
+                })
+                .collect();
+            let leaves: Vec<(&[u8], u64)> = chunks
+                .iter()
+                .map(|c| (c.as_slice(), r.next() >> 20))
+                .collect();
+            let root = r.next().is_multiple_of(9);
+            let mut out = vec![Hash::from_bytes([0; 32]); group];
+            hash_leaf_batch(&leaves, root, &mut out);
+            for ((c, ctr), o) in leaves.iter().zip(&out) {
+                assert_eq!(
+                    *o.as_bytes(),
+                    ref_leaf(c, *ctr, root),
+                    "hash_leaf_batch differs"
+                );
+            }
+            k += group;
+        }
+    });
+    println!("hash_leaf_batch: {total} random leaves in groups of 1..=40");
 }

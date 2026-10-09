@@ -41,8 +41,15 @@ pub fn hash_leaf(chunk: &[u8], counter: u64, is_root: bool) -> Hash {
     let mut hasher = crate::sponge::Hasher::new();
     hasher.update(chunk);
     let base_hash = hasher.finalize();
+    let mut state = leaf_state(&base_hash, counter, is_root);
+    params::permute(&mut state);
+    state_digest(&state)
+}
 
-    // Re-derive with flags and counter via single-permutation.
+/// Re-derivation state of `hash_leaf`: the base digest in the rate, the
+/// counter and flags in the capacity.
+#[inline]
+fn leaf_state(base_hash: &Hash, counter: u64, is_root: bool) -> [Goldilocks; WIDTH] {
     let base_elems = bytes_to_cv(base_hash.as_bytes());
     let mut state = [Goldilocks::new(0); WIDTH];
     state[..OUTPUT_ELEMENTS].copy_from_slice(&base_elems);
@@ -53,11 +60,40 @@ pub fn hash_leaf(chunk: &[u8], counter: u64, is_root: bool) -> Hash {
     }
     state[CAPACITY_COUNTER_IDX] = Goldilocks::new(counter);
     state[CAPACITY_FLAGS_IDX] = Goldilocks::new(flags);
+    state
+}
 
-    params::permute(&mut state);
-
-    let output: [Goldilocks; OUTPUT_ELEMENTS] = state[..OUTPUT_ELEMENTS].try_into().unwrap();
-    Hash::from_bytes(hash_to_bytes(&output))
+/// `out[i] = hash_leaf(leaves[i].0, leaves[i].1, is_root)` for every `i`.
+///
+/// Leaves of equal length (the Merkle trees of a PCS) are hashed
+/// `permutation::BATCH_LANES` at a time with every permutation of the
+/// sponge and of the re-derivation batched; a group of unequal lengths
+/// falls back to `hash_leaf`. No allocation.
+pub fn hash_leaf_batch(leaves: &[(&[u8], u64)], is_root: bool, out: &mut [Hash]) {
+    assert_eq!(leaves.len(), out.len(), "hash_leaf_batch: length mismatch");
+    let mut states = [[Goldilocks::new(0); WIDTH]; BATCH_LANES];
+    let mut msgs: [&[u8]; BATCH_LANES] = [&[]; BATCH_LANES];
+    for (lc, oc) in leaves.chunks(BATCH_LANES).zip(out.chunks_mut(BATCH_LANES)) {
+        let n = lc.len();
+        if lc.iter().any(|(m, _)| m.len() != lc[0].0.len()) {
+            for (o, (m, ctr)) in oc.iter_mut().zip(lc) {
+                *o = hash_leaf(m, *ctr, is_root);
+            }
+            continue;
+        }
+        for (slot, (m, _)) in msgs.iter_mut().zip(lc) {
+            *slot = m;
+        }
+        crate::sponge::finalize_states_equal_len(&msgs[..n], &mut states[..n]);
+        for (st, (_, ctr)) in states.iter_mut().zip(lc) {
+            let base = state_digest(st);
+            *st = leaf_state(&base, *ctr, is_root);
+        }
+        permute_batch(&mut states[..n]);
+        for (o, st) in oc.iter_mut().zip(&states) {
+            *o = state_digest(st);
+        }
+    }
 }
 
 /// Combine two child chaining values into a parent chaining value.

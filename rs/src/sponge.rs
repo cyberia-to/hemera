@@ -113,6 +113,43 @@ impl fmt::Debug for Hash {
     }
 }
 
+/// Plain-mode `Hasher::new().update(m).finalize_state()` for several
+/// messages of equal length, their permutations batched
+/// (`permutation::permute_batch`). `states[k]` receives the finalized
+/// state of `msgs[k]`.
+pub(crate) fn finalize_states_equal_len(msgs: &[&[u8]], states: &mut [[Goldilocks; WIDTH]]) {
+    assert_eq!(msgs.len(), states.len());
+    let Some(first) = msgs.first() else { return };
+    let len = first.len();
+    assert!(msgs.iter().all(|m| m.len() == len), "equal lengths");
+    for st in states.iter_mut() {
+        *st = Hasher::new().state;
+    }
+    let mut block = [Goldilocks::new(0); RATE];
+    let full = len / RATE_BYTES;
+    for b in 0..full {
+        for (st, m) in states.iter_mut().zip(msgs) {
+            bytes_to_rate_block(&m[b * RATE_BYTES..(b + 1) * RATE_BYTES], &mut block);
+            for (s, e) in st.iter_mut().zip(block) {
+                *s += e;
+            }
+        }
+        crate::permutation::permute_batch(states);
+    }
+    for (st, m) in states.iter_mut().zip(msgs) {
+        let rem = &m[full * RATE_BYTES..];
+        let mut padded = [0u8; RATE_BYTES];
+        padded[..rem.len()].copy_from_slice(rem);
+        padded[rem.len()] = 0x01;
+        bytes_to_rate_block(&padded, &mut block);
+        for (s, e) in st.iter_mut().zip(block) {
+            *s += e;
+        }
+        st[CAPACITY_START + 2] = Goldilocks::new(len as u64);
+    }
+    crate::permutation::permute_batch(states);
+}
+
 /// A streaming Poseidon2 hasher.
 ///
 /// Supports three modes via domain separation:
