@@ -19,8 +19,9 @@
 //!   additions per element;
 //! - partial rounds: the next S-box input is carried directly as
 //!   `x' = (d₀+1)·y + (Σ_{i≥1} sᵢ + c_{r+1})`, one fused multiply-add after
-//!   the S-box, the lane sum being computed beside the S-box;
-//!   `sᵢ' = dᵢ·sᵢ + (y + Σ)` is one fused multiply-add per element;
+//!   the S-box; `sᵢ' = dᵢ·sᵢ + (y + Σ)` is one fused multiply-add per
+//!   element, and those fifteen rows of round r are interleaved into the
+//!   inversion chain of round r+1;
 //! - partial x⁻¹ with `L > 1`: Montgomery's batch inversion across lanes
 //!   (one inversion + 3(L−1) multiplications instead of L inversions);
 //!   zero lanes are replaced by 1 in the product and masked to 0 after.

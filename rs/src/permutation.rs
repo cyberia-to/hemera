@@ -136,13 +136,25 @@ pub(crate) fn permute_one_round(state: &mut [Goldilocks; 16], round: usize) {
             state[i] = state[i].pow7();
         }
         mds_light_permutation(state);
+        if round == 23 {
+            canonicalize(state);
+        }
+    }
+}
+
+/// Reduce every limb to `[0, p)` — the representation `permute` returns,
+/// so the stepped and traced paths end bit-identical to it.
+fn canonicalize(state: &mut [Goldilocks; 16]) {
+    for e in state.iter_mut() {
+        *e = Goldilocks::new(e.as_canonical_u64());
     }
 }
 
 /// Apply the Poseidon2 permutation in-place, calling `visitor` once per round.
 ///
 /// Emits 24 callbacks total in order: full_round 0–3, partial_round 0–15, full_round 4–7.
-/// The initial MDS step is linear and does not emit a callback.
+/// The initial MDS step is linear and does not emit a callback. The final
+/// state is returned canonical, bit-identical to [`permute`].
 pub fn permute_traced<V: RoundVisitor>(state: &mut [Goldilocks; 16], visitor: &mut V) {
     let (external, internal) = ROUND_CONSTANTS.split_at(NUM_EXTERNAL);
     let (initial_rc, terminal_rc) = external.split_at(NUM_EXTERNAL / 2);
@@ -168,6 +180,7 @@ pub fn permute_traced<V: RoundVisitor>(state: &mut [Goldilocks; 16], visitor: &m
         let witnesses = full_round_step(state, rc);
         visitor.full_round(round + 4, state, &witnesses);
     }
+    canonicalize(state);
 }
 
 /// Add round constants, apply x^7 S-box to all 16 elements, apply MDS.

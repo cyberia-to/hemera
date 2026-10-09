@@ -331,3 +331,31 @@ fn leaf_batch_matches_reference() {
     });
     println!("hash_leaf_batch: {total} random leaves in groups of 1..=40");
 }
+
+/// The traced and stepped permutations end bit-identical (raw limbs, not
+/// only canonical values) to `permute`.
+#[test]
+fn traced_and_stepped_equal_permute() {
+    use cyber_hemera::StepSponge;
+    use cyber_hemera::permutation::permute_traced;
+    use cyber_hemera::trace::{FullRoundWitnesses, RoundVisitor};
+    struct Nop;
+    impl RoundVisitor for Nop {
+        fn full_round(&mut self, _: u8, _: &[Goldilocks; 16], _: &FullRoundWitnesses) {}
+        fn partial_round(&mut self, _: u8, _: &[Goldilocks; 16], _: Goldilocks) {}
+    }
+    let mut r = Rng(0x7EACE);
+    for _ in 0..n() / 10 {
+        let raw = r.state();
+        let mut plain = raw.map(Goldilocks::new);
+        permute(&mut plain);
+        let mut traced = raw.map(Goldilocks::new);
+        permute_traced(&mut traced, &mut Nop);
+        assert_eq!(traced, plain);
+        let rate: [Goldilocks; 8] = core::array::from_fn(|i| Goldilocks::new(raw[i]));
+        let mut atomic = [Goldilocks::new(0); 16];
+        atomic[..8].copy_from_slice(&rate);
+        permute(&mut atomic);
+        assert_eq!(StepSponge::absorb(&rate).last().unwrap(), atomic);
+    }
+}

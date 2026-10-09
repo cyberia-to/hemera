@@ -5,15 +5,18 @@
 // ---
 //! Where a permutation's time goes: the live profile against the same
 //! kernel with only its full rounds (RP = 0) and only its partial rounds
-//! (RF = 0), single-state and batched. Median and min of 41 runs over
-//! 1024 states, ns per permutation.
+//! (RF = 0), single-state and batched; a profile with the shape of the
+//! x⁷ RF 6+6 / RP 48 proposal; batch tails of 1..31 states. Median and
+//! min of 41 runs over 1024 states, ns per permutation.
 //!
 //! ```text
 //! cargo run --release -p cyber-hemera --example split
 //! ```
 
 use cyber_hemera::field::Goldilocks;
-use cyber_hemera::permutation::{HEMERA, Profile, permute_batch_profile, permute_profile};
+use cyber_hemera::permutation::{
+    HEMERA, PartialSbox, Profile, permute_batch_profile, permute_profile,
+};
 use std::hint::black_box;
 use std::time::Instant;
 fn t(name: &str, p: &Profile, batch: bool) {
@@ -60,6 +63,25 @@ fn tail(n: usize) {
 fn main() {
     for n in [1, 2, 4, 7, 8, 15, 16, 20, 31] {
         tail(n);
+    }
+    // Shape of the profile-v2 proposal (x^7 partial, RF 6+6, RP 48).
+    // Timing does not depend on constant values; these are placeholders
+    // (the live constants repeated), so only the cost is meaningful.
+    let ext: Vec<u64> = HEMERA
+        .external
+        .iter()
+        .cycle()
+        .take(12 * 16)
+        .copied()
+        .collect();
+    let int: Vec<u64> = HEMERA.internal.iter().cycle().take(48).copied().collect();
+    let v2 = Profile::new(6, 48, PartialSbox::Pow7, &ext, &int, HEMERA.diag);
+    for batch in [false, true] {
+        t(
+            &format!("v2-shaped x^7 RF12/RP48 batch={batch}"),
+            &v2,
+            batch,
+        );
     }
     let full_only = Profile::new(4, 0, HEMERA.partial, HEMERA.external, &[], HEMERA.diag);
     let part_only = Profile::new(0, 16, HEMERA.partial, &[], HEMERA.internal, HEMERA.diag);
