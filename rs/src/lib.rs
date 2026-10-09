@@ -54,6 +54,7 @@ extern crate alloc;
 #[cfg(feature = "std")]
 extern crate std;
 
+mod arith;
 pub mod batch;
 pub mod stream;
 pub mod bootstrap;
@@ -63,7 +64,11 @@ mod encoding;
 pub mod field;
 pub mod merkle;
 mod params;
+mod kernel;
 pub mod permutation;
+mod profile;
+#[doc(hidden)]
+pub mod reference;
 mod sponge;
 pub mod sparse;
 pub mod step_sponge;

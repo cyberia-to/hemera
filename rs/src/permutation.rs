@@ -7,61 +7,82 @@
 //!
 //! Hemera parameters: R_F=8 (4+4), R_P=16, full-round S-box=x^7, partial S-box=x^(-1).
 
-use crate::constants::ROUND_CONSTANTS;
+use crate::constants::{NUM_CONSTANTS, ROUND_CONSTANTS};
 use crate::field::{Goldilocks, matmul_internal, mds_light_permutation};
+use crate::kernel::{Lanes, permute_lanes};
+pub use crate::profile::{HEMERA, PartialSbox, Profile};
 use crate::trace::{FullRoundWitnesses, RoundVisitor};
 
 /// Number of external (full) round constants: R_F * WIDTH = 8 * 16 = 128.
 const NUM_EXTERNAL: usize = 128;
 
+/// Lanes per batched kernel call (see `permute_batch`).
+pub const BATCH_LANES: usize = 16;
+
 /// Apply the Poseidon2 permutation in-place using the standard Hemera constants.
 ///
 /// Structure: initial MDS → 4 full rounds → 16 partial rounds → 4 full rounds.
+/// Output elements are canonical.
 pub fn permute(state: &mut [Goldilocks; 16]) {
-    permute_with_constants(state, &ROUND_CONSTANTS);
+    permute_profile(state, &HEMERA);
+}
+
+/// Apply the permutation of `profile` in-place (single state).
+pub fn permute_profile(state: &mut [Goldilocks; 16], profile: &Profile<'_>) {
+    let mut s: Lanes<1> = core::array::from_fn(|i| [state[i].raw()]);
+    permute_lanes(&mut s, profile);
+    for (dst, src) in state.iter_mut().zip(s.iter()) {
+        *dst = Goldilocks::new(src[0]);
+    }
+}
+
+/// Apply the permutation to every state in `states` (independent inputs).
+///
+/// Equal, state by state, to calling [`permute`] on each; runs
+/// [`BATCH_LANES`] permutations interleaved per kernel call and shares one
+/// field inversion per partial round across them (Montgomery's trick).
+pub fn permute_batch(states: &mut [[Goldilocks; 16]]) {
+    permute_batch_profile(states, &HEMERA);
+}
+
+/// [`permute_batch`] for any profile.
+pub fn permute_batch_profile(states: &mut [[Goldilocks; 16]], profile: &Profile<'_>) {
+    let mut chunks = states.chunks_exact_mut(BATCH_LANES);
+    for chunk in &mut chunks {
+        let mut s: Lanes<BATCH_LANES> =
+            core::array::from_fn(|i| core::array::from_fn(|l| chunk[l][i].raw()));
+        permute_lanes(&mut s, profile);
+        for (l, st) in chunk.iter_mut().enumerate() {
+            for (i, e) in st.iter_mut().enumerate() {
+                *e = Goldilocks::new(s[i][l]);
+            }
+        }
+    }
+    for st in chunks.into_remainder() {
+        permute_profile(st, profile);
+    }
 }
 
 /// Apply the Poseidon2 permutation with caller-supplied round constants.
 ///
 /// Used by `bootstrap.rs` to run Hemera₀ (all-zero constants).
+/// `constants` = 128 external then 16 internal; any representatives.
 pub fn permute_with_constants(state: &mut [Goldilocks; 16], constants: &[Goldilocks]) {
-    let (external, internal) = constants.split_at(NUM_EXTERNAL);
-
-    // Split external constants into initial (first 4 rounds) and terminal (last 4 rounds).
-    let (initial_rc, terminal_rc) = external.split_at(NUM_EXTERNAL / 2);
-
-    // ── Initial external rounds ─────────────────────────────────
-    // One MDS multiplication before the first round.
-    mds_light_permutation(state);
-
-    // 4 initial full rounds: add_rc + sbox_all + MDS
-    for round in 0..4 {
-        let rc = &initial_rc[round * 16..(round + 1) * 16];
-        for i in 0..16 {
-            state[i] += rc[i];
-            state[i] = state[i].pow7();
-        }
-        mds_light_permutation(state);
+    let mut raw = [0u64; NUM_CONSTANTS];
+    assert_eq!(constants.len(), NUM_CONSTANTS, "permute_with_constants: 144 constants");
+    for (r, c) in raw.iter_mut().zip(constants) {
+        *r = c.as_canonical_u64();
     }
-
-    // ── Internal (partial) rounds ───────────────────────────────
-    // 16 partial rounds: add_rc to state[0] + sbox state[0] (field inversion) + diffusion
-    for round in 0..16 {
-        state[0] += internal[round];
-        state[0] = state[0].inv();
-        matmul_internal(state);
-    }
-
-    // ── Terminal external rounds ─────────────────────────────────
-    // 4 terminal full rounds: add_rc + sbox_all + MDS
-    for round in 0..4 {
-        let rc = &terminal_rc[round * 16..(round + 1) * 16];
-        for i in 0..16 {
-            state[i] += rc[i];
-            state[i] = state[i].pow7();
-        }
-        mds_light_permutation(state);
-    }
+    let (external, internal) = raw.split_at(NUM_EXTERNAL);
+    let profile = Profile::new(
+        HEMERA.rf_half,
+        HEMERA.rp,
+        HEMERA.partial,
+        external,
+        internal,
+        HEMERA.diag,
+    );
+    permute_profile(state, &profile);
 }
 
 /// Execute one round of the permutation in-place.

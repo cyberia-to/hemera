@@ -11,6 +11,7 @@
 use crate::encoding::{bytes_to_cv, hash_to_bytes};
 use crate::field::Goldilocks;
 use crate::params::{self, CHUNK_SIZE, MAX_TREE_DEPTH, OUTPUT_ELEMENTS, RATE, WIDTH};
+use crate::permutation::{BATCH_LANES, permute_batch};
 use crate::sponge::Hash;
 
 /// Flags encoded in the capacity for tree operations.
@@ -67,6 +68,15 @@ pub fn hash_leaf(chunk: &[u8], counter: u64, is_root: bool) -> Hash {
 ///
 /// The `is_root` flag domain-separates the tree root from interior nodes.
 pub fn hash_node(left: &Hash, right: &Hash, is_root: bool) -> Hash {
+    let mut state = node_state(left, right, is_root);
+    params::permute(&mut state);
+    state_digest(&state)
+}
+
+/// Pre-permutation state of `hash_node`: flags in the capacity, both
+/// children absorbed into the rate (4 + 4 = 8 elements = one rate block).
+#[inline]
+fn node_state(left: &Hash, right: &Hash, is_root: bool) -> [Goldilocks; WIDTH] {
     let left_elems = bytes_to_cv(left.as_bytes());
     let right_elems = bytes_to_cv(right.as_bytes());
 
@@ -86,10 +96,34 @@ pub fn hash_node(left: &Hash, right: &Hash, is_root: bool) -> Hash {
     for i in 0..OUTPUT_ELEMENTS {
         state[OUTPUT_ELEMENTS + i] += right_elems[i];
     }
-    params::permute(&mut state);
+    state
+}
 
+/// Digest of a permuted state: the first `OUTPUT_ELEMENTS`, canonical LE.
+#[inline]
+fn state_digest(state: &[Goldilocks; WIDTH]) -> Hash {
     let output: [Goldilocks; OUTPUT_ELEMENTS] = state[..OUTPUT_ELEMENTS].try_into().unwrap();
     Hash::from_bytes(hash_to_bytes(&output))
+}
+
+/// `out[i] = hash_node(&pairs[i].0, &pairs[i].1, is_root)` for every `i`.
+///
+/// Runs `permutation::BATCH_LANES` compressions interleaved per kernel
+/// call (see `permutation::permute_batch`); no allocation. Use it where
+/// many independent nodes are known at once — one level of a Merkle tree,
+/// or one level of a multi-path verification.
+pub fn hash_node_batch(pairs: &[(Hash, Hash)], is_root: bool, out: &mut [Hash]) {
+    assert_eq!(pairs.len(), out.len(), "hash_node_batch: length mismatch");
+    let mut states = [[Goldilocks::new(0); WIDTH]; BATCH_LANES];
+    for (pc, oc) in pairs.chunks(BATCH_LANES).zip(out.chunks_mut(BATCH_LANES)) {
+        for (st, (l, r)) in states.iter_mut().zip(pc) {
+            *st = node_state(l, r, is_root);
+        }
+        permute_batch(&mut states[..pc.len()]);
+        for (o, st) in oc.iter_mut().zip(&states) {
+            *o = state_digest(st);
+        }
+    }
 }
 
 /// Combine two child chaining values into a namespace-aware parent.

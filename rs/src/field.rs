@@ -113,6 +113,12 @@ impl Goldilocks {
         t * x_epsilon
     }
 
+    /// The raw representative in `[0, 2^64)` (not necessarily canonical).
+    #[inline(always)]
+    pub(crate) const fn raw(self) -> u64 {
+        self.value
+    }
+
     /// Double this element.
     #[inline]
     fn double(self) -> Self {
@@ -175,7 +181,8 @@ impl Mul for Goldilocks {
 
     #[inline]
     fn mul(self, rhs: Self) -> Self {
-        reduce128(u128::from(self.value) * u128::from(rhs.value))
+        // Same representative as `reduce128(a·b)`; latency-scheduled on aarch64.
+        Self::new(crate::arith::mul(self.value, rhs.value))
     }
 }
 
