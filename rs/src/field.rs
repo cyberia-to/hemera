@@ -318,8 +318,6 @@ mod tests {
         assert_eq!(Goldilocks::ZERO.inv().as_canonical_u64(), 0);
     }
 
-    use super::*;
-
     #[test]
     fn field_add_basic() {
         let a = Goldilocks::new(1);
