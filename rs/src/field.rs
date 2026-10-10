@@ -37,11 +37,8 @@ impl Goldilocks {
     /// Reduce to canonical form in [0, p).
     #[inline]
     pub fn as_canonical_u64(self) -> u64 {
-        let mut c = self.value;
-        if c >= P {
-            c -= P;
-        }
-        c
+        // Mask, not branch: hash outputs of secret inputs pass through here.
+        self.value.wrapping_sub(P & u64::from(self.value >= P).wrapping_neg())
     }
 
     /// Compute x^2.
@@ -113,6 +110,12 @@ impl Goldilocks {
         t * x_epsilon
     }
 
+    /// The raw representative in `[0, 2^64)` (not necessarily canonical).
+    #[inline(always)]
+    pub(crate) const fn raw(self) -> u64 {
+        self.value
+    }
+
     /// Double this element.
     #[inline]
     fn double(self) -> Self {
@@ -134,11 +137,9 @@ impl Add for Goldilocks {
     #[inline]
     fn add(self, rhs: Self) -> Self {
         let (sum, over) = self.value.overflowing_add(rhs.value);
-        let (mut sum, over) = sum.overflowing_add(u64::from(over) * NEG_ORDER);
-        if over {
-            sum += NEG_ORDER;
-        }
-        Self::new(sum)
+        let (sum, over) = sum.overflowing_add(u64::from(over) * NEG_ORDER);
+        // Mask, not branch: the sponge absorbs secret input with this add.
+        Self::new(sum.wrapping_add(NEG_ORDER & u64::from(over).wrapping_neg()))
     }
 }
 
@@ -155,11 +156,8 @@ impl Sub for Goldilocks {
     #[inline]
     fn sub(self, rhs: Self) -> Self {
         let (diff, under) = self.value.overflowing_sub(rhs.value);
-        let (mut diff, under) = diff.overflowing_sub(u64::from(under) * NEG_ORDER);
-        if under {
-            diff -= NEG_ORDER;
-        }
-        Self::new(diff)
+        let (diff, under) = diff.overflowing_sub(u64::from(under) * NEG_ORDER);
+        Self::new(diff.wrapping_sub(NEG_ORDER & u64::from(under).wrapping_neg()))
     }
 }
 
@@ -175,7 +173,8 @@ impl Mul for Goldilocks {
 
     #[inline]
     fn mul(self, rhs: Self) -> Self {
-        reduce128(u128::from(self.value) * u128::from(rhs.value))
+        // Same representative as `reduce128(a·b)`; latency-scheduled on aarch64.
+        Self::new(crate::arith::mul(self.value, rhs.value))
     }
 }
 
