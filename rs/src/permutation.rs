@@ -82,8 +82,8 @@ fn run_groups<'s, const L: usize>(
     states: &'s mut [[Goldilocks; 16]],
     profile: &Profile<'_>,
 ) -> &'s mut [[Goldilocks; 16]] {
-    let mut chunks = states.chunks_exact_mut(L);
-    for chunk in &mut chunks {
+    let (groups, rest) = states.as_chunks_mut::<L>();
+    for chunk in groups {
         let mut s: Lanes<L> = core::array::from_fn(|i| core::array::from_fn(|l| chunk[l][i].raw()));
         permute_lanes::<Fast, L>(&mut s, profile);
         for (l, st) in chunk.iter_mut().enumerate() {
@@ -92,7 +92,7 @@ fn run_groups<'s, const L: usize>(
             }
         }
     }
-    chunks.into_remainder()
+    rest
 }
 
 /// Apply the Poseidon2 permutation with caller-supplied round constants.
@@ -155,7 +155,8 @@ fn canonicalize(state: &mut [Goldilocks; 16]) {
 pub fn permute_traced<V: RoundVisitor>(state: &mut [Goldilocks; 16], visitor: &mut V) {
     let (external, internal) = ROUND_CONSTANTS.split_at(NUM_EXTERNAL);
     mds_light_permutation(state);
-    for (round, rc) in external.chunks_exact(16).take(RF_HALF).enumerate() {
+    let rows = external.as_chunks::<16>().0;
+    for (round, rc) in rows.iter().take(RF_HALF).enumerate() {
         let witnesses = full_round_step(state, rc);
         visitor.full_round(round as u8, state, &witnesses);
     }
@@ -163,7 +164,7 @@ pub fn permute_traced<V: RoundVisitor>(state: &mut [Goldilocks; 16], visitor: &m
         let witness = partial_round_step(state, c);
         visitor.partial_round(round as u8, state, witness);
     }
-    for (round, rc) in external.chunks_exact(16).enumerate().skip(RF_HALF) {
+    for (round, rc) in rows.iter().enumerate().skip(RF_HALF) {
         let witnesses = full_round_step(state, rc);
         visitor.full_round(round as u8, state, &witnesses);
     }

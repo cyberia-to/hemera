@@ -126,7 +126,12 @@ fn partial_rounds<A: Arith, const L: usize>(s: &mut Lanes<L>, p: &Profile<'_>) {
 }
 
 /// The full permutation on `L` independent states; output canonical.
+///
+/// The full-round loops iterate `chunks_exact(16)`: the `as_chunks` and
+/// indexed forms measured ~20 % slower on the single-permutation path
+/// (rustc 1.95, M4 Max, `examples/split.rs`), so the lint is allowed here.
 #[inline(always)]
+#[allow(unknown_lints, clippy::chunks_exact_to_as_chunks)]
 pub(crate) fn permute_lanes<A: Arith, const L: usize>(s: &mut Lanes<L>, p: &Profile<'_>) {
     external(s);
     let (initial, terminal) = p.external.split_at(p.rf_half * 16);
