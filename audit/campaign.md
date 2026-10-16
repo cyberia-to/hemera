@@ -65,9 +65,12 @@ the graph. the digest length (4, 6 or 8 limbs) is a separate parameter
 that changes no margin in §3 except the generic collision row — choose it
 for the post-quantum requirement, independently. if the owner keeps 0.3,
 the campaign below still runs (its instance table covers both), but the
-results log already opens with a full-partial-layer CICO-1 solution, and
-the honest status of 0.3 is "known weakness under measurement", which
-cannot satisfy G3.
+results log already opens with a CICO-1 solution through the whole
+partial layer, and the honest status of 0.3 is a profile with a known
+full-round distinguisher under measurement: it can meet criterion 2 of §6
+only on the estimates of §3.1, and the published subspace-trail reach
+(≈ 30 internal rounds at t = 16, §3.3) already exceeds its 16 partial
+rounds, which fails criterion 3.
 
 either way the campaign clock starts when the chosen profile's constants,
 vectors and this page's instance table are published together; a change of
@@ -215,9 +218,9 @@ root-finding complexity, not run.
 | line | 0.3 (x⁷ 4+4, x⁻¹ 16) | v2 (x⁷ 6+6, x⁷ 48) | how |
 |---|---|---|---|
 | statistical / differential (wide trail; R_F ≥ 6 rule) | R_F 8: +2 full rounds over the rule; partial x⁻¹ differential uniformity 4, x⁷ 6 | R_F 12: +6 | Poseidon2 statistical inequality; uniformity from hemera#2 `research/inverse-sbox-assessment.md` §2 |
-| interpolation (Poseidon2 inequality R_F + R_P ≥ 26 at Goldilocks, t = 16, M = 128) | x⁷-equivalent rounds 8 + 16 · log_7 2 = 13.70 of 26 needed: −12.3 rounds; needs R_P ≥ 51 at R_F = 8 | 60 of 26: +34 rounds | computed, `p2rounds.py`; inverse counted by its rational degree 2 (Poseidon §D, hemera#2) |
-| Gröbner (Poseidon2 inequalities 1–3 and the eprint 2023/537 binomial term) | not applicable: every inequality is written for x^α in all rounds; no published bound for the hybrid | all satisfied; minimal R_P at R_F = 12 is 14 (48 = 3.4×); binomial term 2^521 against 2^128 | computed, `p2rounds.py`; reproduces Poseidon2's (8, 22) for this field |
-| univariate CICO-1 degree (one free limb) | 7^8 · 2^16 = 2^38.46 < p | 7^60 = 2^168.4 > p, capped by p | computed; degree confirmed exact on 9 reduced instances (§3.2) |
+| interpolation (Poseidon2 inequality R_F + R_P ≥ 26 at Goldilocks, t = 16, M = 128) | x⁷-equivalent rounds 8 + 16 · log_7 2 = 13.70 of 26 needed: −12.3 rounds; needs R_P ≥ 51 at R_F = 8 | 60 of 26: +34 rounds | computed, `p2rounds.py`; inverse counted by its rational degree 2, as in the x⁻¹ interpolation bound of Poseidon (ePrint 2019/458, eq. 4) and hemera#2 |
+| Gröbner (Poseidon2 inequalities 1–3 and the ePrint 2023/537 binomial term) | not applicable: every inequality is written for x^α in all rounds; no published bound for the hybrid | all satisfied; minimal R_P at R_F = 12 is 14 (48 = 3.4×); binomial term 2^521 against 2^128 | computed, `p2rounds.py`; reproduces Poseidon2's (8, 22) for this field |
+| univariate CICO-1 degree (one free limb) | 7^8 · 2^16 = 2^38.46 < p | 7^60 = 2^168.4 > p, capped by p | computed; degree confirmed exact on 10 reduced instances (§3.2) |
 | CICO-1 cost (generic p = 2^64 calls ≈ 2^75 multiplications) | ≈ 2^52–2^56 multiplications, ≈ 2^41–2^45 permutation-equivalents: 2^19–2^23 below generic; memory of order 10 TB | generic | estimate from the measured slope (§3.2) |
 | CICO-2 / 128-bit partial preimage (generic 2^128) | Bézout degree D² = 2^76.9 → ≈ 2^77+ by resultant and root finding: −51 bits against 128 | generic | estimate |
 | full preimage of the 4-limb digest, CICO-4 (generic 2^256) | Bézout D⁴ = 2^153.8: +25.8 over 128; with one initial full round skipped (the round-skipping technique of Bariant et al., ToSC 2022, needs ≥ 2 free limbs) D = 2^35.65, D⁴ = 2^142.6: +14.6 | ≥ 2^128 by the inequalities; best published reach in §3.3 | estimate |
@@ -248,7 +251,7 @@ whole permutation is therefore a rational function of degree at most
 7^8 · 2^16 = 377 801 998 336 ≈ 2^38.46 in any single input limb, on all
 inputs except the ≤ 16 · D² roots of some inverse argument (probability
 negligible). the Poseidon paper rejected inverse partial rounds for exactly
-this growth (eprint 2019/458, §1.4 and appendix D); hemera#2 derived the
+this growth (ePrint 2019/458: "the inverse function does not provide a sufficiently fast degree growth"; its x⁻¹ interpolation bound counts one bit of degree per partial round); hemera#2 derived the
 same bound (`research/full-round-status.md`).
 
 `audit/campaign/cico1.py` builds N_limb − target · D symbolically with the
@@ -317,7 +320,7 @@ appear only inside PDFs (which returned 403) are marked "per abstract" or
 | Gröbner basis, HADES | Ashur, Buschman, Mahzoun, ePrint 2023/537 ("Algebraic Cryptanalysis of HADES Design Strategy: Application to POSEIDON and Poseidon2") — Gröbner cheaper than the designers' bound; the Poseidon2 round script adopted its binomial term | large-field Poseidon instances | no bound exists for the hybrid S-box | binomial term 2^521 ≥ 128 (§3.1) |
 | Gröbner on CICO, "FreeLunch" | Bariant, Boeuf, Lemoine, Manterola Ayala, Øygarden, Perrin, Raddum, ePrint 2024/347 (CRYPTO 2024) — the natural CICO system is already a Gröbner basis; Griffin CICO 7 of 10 rounds in < 4 h; full-round threat to Griffin, Anemoi, ArionHash. CheapLunch, ePrint 2025/2040 (Bak, Bariant, Boeuf, Briaud, Øygarden, Phanse) extends it to CICO-k and covers Poseidon, Neptune, XHash8 with "no full-round threat" | Griffin, Anemoi, ArionHash; Poseidon family unaffected at full rounds | not analysed for x⁻¹ partial rounds; in-house task T3 | no full-round threat reported for the family |
 | Gröbner with subspace trails | Grassi, Koschatko, Rechberger, ePrint 2025/954 (ToSC 2025) — the original round model under- or over-estimates depending on the instance; first case of preimage easier than CICO (Neptune compression) | Poseidon, Poseidon2, Neptune judged secure | — | inside the analysed family |
-| resultants, CICO-2 | Bak, Bariant, Boeuf, Hostettler, Jazeron, ePrint 2026/150 — claimed the first three Poseidon2-31m and -31k instances and two Poseidon-256 instances (up to 40 h on 1 000 cores, or 8.5 days and 1.3 TB); "we did not manage to attack any of the Poseidon2-64 instances". Bak, Hostettler, ePrint 2026/1905 — bivariate resultant of degree d^(2R_F + R_P) | 31-bit and 256-bit EF instances | D² = 2^76.9 by Bézout (§3.1) is already below generic CICO-2; the 2026/1905 degree formula is written for x^d rounds and is not applied here (task T3) | for x⁷ throughout, the formula gives 7^(2·12+48) = 2^202 if R_F counts all full rounds, 7^(12+48) = 2^168 if it counts one side: above 2^128 either way |
+| resultants, CICO-2 | Bak, Bariant, Boeuf, Hostettler, Jazeron, ePrint 2026/150 — claimed the first three Poseidon2-31m and -31k instances and two Poseidon-256 instances (per the authors' March 2025 slides: up to 40 h on 1 000 cores, or 8.5 days and 1.3 TB); "we did not manage to attack any of the Poseidon2-64 instances". Bak, Hostettler, ePrint 2026/1905 — bivariate resultant of degree d^(2R_F + R_P) | 31-bit and 256-bit EF instances | D² = 2^76.9 by Bézout (§3.1) is already below generic CICO-2; the 2026/1905 degree formula is written for x^d rounds and is not applied here (task T3) | for x⁷ throughout, the formula gives 7^(2·12+48) = 2^202 if R_F counts all full rounds, 7^(12+48) = 2^168 if it counts one side: above 2^128 either way |
 | subspace restriction | Bhati, Tariq, Ashur, ePrint 2026/1692 ("How to Attack Poseidon via Smart Subspace Restriction") — per abstract: Poseidon over KoalaBear (4, 23, 4): CICO-1 on 28 of 31 rounds and CICO-2 on 25 of 31, both on instances with one initial full round; interpolation / resultant reach 20 rounds (CICO-1) and 15 (CICO-2); a (3, 10, 3) CICO-1 F4 estimate drops from 2^560 to 2^121 | d = 3, 31-bit field, t = 24; the whole partial layer is crossed once the initial full layer is cut to one round | the hemera#2 affine line already crosses 15 of 16 partial rounds; margin lives in the 4 initial full rounds | margin lives in the 6 initial full rounds (x⁷), against the attacked design's 4 (x³) |
 | linear-layer weakness, round skipping | Merz, Rodríguez García, ePrint 2026/306 ("Skipping Class") — weak matrices improve round skipping on Poseidon2 and Poseidon2b; first algebraic collision cheaper than the matching algebraic preimage; a 2^106 improvement on one 128-bit set, still above its claimed security. secondhand only: Gröbner preimage estimates for 31-bit Poseidon2 fell 2^164 → 2^126 (t = 16, α = 3) and 2^174 → 2^123 (t = 24), reported at Ethproofs call 8 and in a ZKM blog post | 31-bit Poseidon2 / Poseidon2b | review question R3 for M_E, M_I | review question R3 for the reference matrices |
 | subspace trails through the internal layer | Li, Wang, ePrint 2026/967 — a linear subspace trail covers at most t − 1 internal rounds; Li, Wang, Liu, ePrint 2026/1792 — nonlinear trails cover about twice as many, reaching or exceeding the designers' internal round counts for several instances | t − 1 = 15 at t = 16; ≈ 30 nonlinear | 16 partial rounds: covered by the nonlinear estimate (−14) and one round past the linear bound (+1) | 48 against ≈ 30: +18 |
@@ -346,10 +349,12 @@ partial rounds; this also means hemera#15's margin rule ("best reach
 ≈ 14 of 23 partial rounds") rests on a misreading of that abstract —
 the reported reach crosses all 23 partial rounds of the attacked instance
 once the initial layer is cut to one full round. the rule should be
-restated per layer: the initial full layer must keep at least three times
-the full rounds any published attack has to remove, and the partial layer
-at least 1.5 times the longest published subspace trail (≈ 30 at t = 16).
-v2 meets both (6 against 1 + 1; 48 against 30).
+restated per layer: each outer full layer keeps at least three times the
+full rounds a published attack crosses or skips (two: the round-skipping
+technique of Bariant et al.; 2026/1692 crosses one), and the partial layer
+at least 1.5 times the longest published subspace trail (≈ 30 at t = 16,
+so ≥ 45). v2 meets both, the first exactly (6 against 3 · 2; 48 against
+45); 0.3 meets neither (4; 16).
 
 ### 3.4 Goldilocks-specific structure
 
@@ -385,8 +390,8 @@ difference stays inactive at coordinate 0 through 16 partial rounds
 (hemera#2 `research/inverse-sbox-assessment.md` §4). this is the necessary
 part of the Poseidon2 internal-matrix condition; the full condition (no
 invariant subspace for any power of M_I, the "infinitely long subspace
-trail" test of eprint 2020/500) is not yet recorded and is campaign task
-T2 for either profile. M_E is the Plonky3 circulant form; the eprint
+trail" test of ePrint 2020/500) is not yet recorded and is campaign task
+T2 for either profile. M_E is the Plonky3 circulant form; the ePrint
 2026/306 line attacks linear-layer structure and must be read against both
 matrices (review question R3).
 
@@ -463,15 +468,15 @@ contact key: [owner publishes an age or OpenPGP public key and its fingerprint]
 amounts are the owner's decision; the structure is fixed so the decision is
 one number per row.
 
-| tier | payout | in the EF bounty for comparison |
+| tier | payout | nearest EF Poseidon-initiative figure (§3.3) |
 |---|---|---|
-| A1 | [owner] | the EF Poseidon initiative paid reduced-round CICO instances on an escalating scale |
-| A2 | [owner] | |
-| A3 | [owner] | |
-| A4 | [owner] — and the profile is re-parameterized | |
-| B1, B2 | [owner] each | |
-| C | [owner] | |
-| D | [owner] — the largest; the campaign fails and the pool stays off | |
+| A1 | [owner] | $4 000 (24-bit level, 2025) |
+| A2 | [owner] | $6 000 – $10 000 (28 / 32-bit levels; 2026 CICO program) |
+| A3 | [owner] | $15 000 (40-bit level; 2026 top instance) |
+| A4 | [owner] — and the profile is re-parameterized | above every EF instance |
+| B1, B2 | [owner] each | no EF analogue; the zero-test program paid $40 000 in total |
+| C | [owner] | attack-reward program: at least $5 000 per paper |
+| D | [owner] — the largest; the campaign fails and the pool stays off | no EF analogue |
 
 payment in CYB or a stable asset at the claimant's choice, released when
 the result is verified and listed.
@@ -514,13 +519,30 @@ four questions:
   matrix and subspace checks, as good as the reference constant generator
   (the Grain LFSR of the Poseidon scripts)?
 - R3. do the external and internal matrices admit invariant or
-  infinitely long subspace trails (eprint 2020/500), or the linear-layer
-  structure exploited by eprint 2026/306?
+  infinitely long subspace trails (ePrint 2020/500), or the linear-layer
+  structure exploited by ePrint 2026/306?
 - R4. do the zheng rows that model hemera as an ideal permutation or read
   query indices from single limbs (§2.2) lose bits against a one-limb CICO
   solver, and against the profile's best known distinguisher?
 
-### 5.3 timeline
+### 5.3 in-house tasks
+
+run by the team before and during the campaign; each lands as a results
+log row with its script in `audit/campaign/`.
+
+- T1. `cico1.py` on every A instance of the frozen profile, CICO-1 and a
+  two-variable resultant variant for CICO-2, to calibrate the instance
+  table (a v2 instance that falls in-house moves up a tier before day 0).
+- T2. the infinitely-long-subspace-trail check of ePrint 2020/500 on M_I
+  and its powers, and the invariant-coset checks of §3.4, for the frozen
+  constants and matrices.
+- T3. Gröbner (msolve or F4) and resultant runs on reduced instances with
+  the CICO system written as FreeLunch / ePrint 2026/1905 write it; for
+  0.3, the same with the inverse as the two cubic relations of §1.3.
+- T4. the reach of a one-limb CICO solver into the zheng rows of §2.2
+  (R4), written as a note in `zheng/audit/`.
+
+### 5.4 timeline
 
 | when | step |
 |---|---|
@@ -539,8 +561,10 @@ G3 passes when all of these hold:
 2. no result in the log lowers collision, preimage or second preimage of
    any §1.2 mode below 128 bits classical (no tier D);
 3. no tier-A4 result (for v2: CICO-2 on half the partial budget at full
-   R_F), and no published attack reaching more than half the partial-round
-   budget — the margin rule of hemera#15;
+   R_F), and the per-layer margin rule of §3.3 still holds against the
+   literature at day 90: each outer full layer at least three times the
+   full rounds a published attack crosses or skips, the partial layer at
+   least 1.5 times the longest published subspace trail;
 4. at least one paid third-party review has answered R1–R4 in writing, with
    no open finding;
 5. the zheng hash row (`soundness.md`) moves from "parameters experimental"
@@ -554,7 +578,7 @@ it, and restarts the clock.
 
 | # | date | profile | instance | tier | result | by | status |
 |---|---|---|---|---|---|---|---|
-| 1 | 2026-10-16 | 0.3 | R_F 1 + 1, R_P 16 (all inverse rounds) and eight smaller | C (reduced) | CICO-1 solved by rational interpolation in 92 s on one core, roots checked on the permutation; degree 7^R_F · 2^R_P attained exactly; full-round extrapolation ≈ 2^52–2^56 multiplications against generic 2^75 | in-house, §3.2 | reproducible: `audit/campaign/cico1.py` |
+| 1 | 2026-10-16 | 0.3 | R_F 1 + 1, R_P 16 (all inverse rounds) and nine smaller | C (reduced) | CICO-1 solved by rational interpolation in 92 s on one core, roots checked on the permutation; degree 7^R_F · 2^R_P attained exactly; full-round extrapolation ≈ 2^52–2^56 multiplications against generic 2^75 | in-house, §3.2 | reproducible: `audit/campaign/cico1.py` |
 | 2 | 2026-10-16 | 0.3 | full | interpolation inequality | fails the Poseidon2 interpolation inequality by 12.3 x⁷-equivalent rounds (needs R_P ≥ 51 at R_F 8) | in-house, §3.1 | `audit/campaign/p2rounds.py` |
 | 3 | 2026-10-16 | v2 | full | inequalities | all Poseidon2 inequalities hold; minimal R_P at R_F 12 is 14 | in-house, §3.1 | `audit/campaign/p2rounds.py` |
 | 4 | 2026-09-11 | 0.3 | partial layer | linearization | affine input line through 15 of 16 inverse rounds | hemera#2 | `research/partial_subspace.py` (open PR) |
