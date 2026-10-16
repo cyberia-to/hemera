@@ -16,7 +16,7 @@
 //!    240 round constants = 0.
 //! 2. For counter k = 0, 1, …: seed_k = GENESIS_SEED (k = 0) or
 //!    GENESIS_SEED ‖ k as one byte (k ≥ 1). Absorb seed_k through Hemera₀
-//!    as a plain-hash sponge (0x01 padding, length in state[10]) and
+//!    as a plain-hash sponge (0x01 padding, length in `state[10]`) and
 //!    squeeze 240 field elements, 8 per permutation.
 //! 3. Accept the first set that passes the constant checks
 //!    ([`constant_checks`]): canonical, nonzero, pairwise distinct. The

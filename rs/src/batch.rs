@@ -108,7 +108,14 @@ fn collect_siblings(
     let (left_hash, right_hash) = if left_has && right_has {
         // Both subtrees have targets — recurse both, no sibling needed.
         let l = collect_siblings(data, offset, split, targets, false, siblings);
-        let r = collect_siblings(data, offset + split, count - split, targets, false, siblings);
+        let r = collect_siblings(
+            data,
+            offset + split,
+            count - split,
+            targets,
+            false,
+            siblings,
+        );
         (l, r)
     } else if left_has {
         // Only left has targets — right subtree becomes a sibling.
@@ -120,7 +127,14 @@ fn collect_siblings(
         // Only right has targets — left subtree becomes a sibling.
         let l = merge_range(data, offset, split, false);
         siblings.push(l);
-        let r = collect_siblings(data, offset + split, count - split, targets, false, siblings);
+        let r = collect_siblings(
+            data,
+            offset + split,
+            count - split,
+            targets,
+            false,
+            siblings,
+        );
         (l, r)
     };
 
@@ -201,14 +215,23 @@ fn verify_subtree(
     }
 
     let split = 1 << (usize::BITS - (count - 1).leading_zeros() - 1);
-    let left_has = indices[lo..hi].iter().any(|&t| (t as usize) < offset + split);
-    let right_has = indices[lo..hi].iter().any(|&t| (t as usize) >= offset + split);
+    let left_has = indices[lo..hi]
+        .iter()
+        .any(|&t| (t as usize) < offset + split);
+    let right_has = indices[lo..hi]
+        .iter()
+        .any(|&t| (t as usize) >= offset + split);
 
     let (left_hash, right_hash) = if left_has && right_has {
         let l = verify_subtree(chunks, indices, siblings, cursor, offset, split, false)?;
         let r = verify_subtree(
-            chunks, indices, siblings, cursor,
-            offset + split, count - split, false,
+            chunks,
+            indices,
+            siblings,
+            cursor,
+            offset + split,
+            count - split,
+            false,
         )?;
         (l, r)
     } else if left_has {
@@ -228,8 +251,13 @@ fn verify_subtree(
         let l = siblings[*cursor];
         *cursor += 1;
         let r = verify_subtree(
-            chunks, indices, siblings, cursor,
-            offset + split, count - split, false,
+            chunks,
+            indices,
+            siblings,
+            cursor,
+            offset + split,
+            count - split,
+            false,
         )?;
         (l, r)
     };
@@ -240,9 +268,9 @@ fn verify_subtree(
 #[cfg(test)]
 mod tests {
     extern crate std;
-    use std::vec;
     use super::*;
     use crate::tree::fixed_chunk_root as root_hash;
+    use std::vec;
 
     #[test]
     fn batch_single_leaf_matches_single_proof() {
@@ -321,7 +349,10 @@ mod tests {
         let data = vec![0x42u8; CHUNK_SIZE * 4];
         let (_, proof) = prove_batch(&data, &[0, 1]);
         let wrong = vec![0xFF; CHUNK_SIZE];
-        assert!(!verify_batch(&[&wrong, &data[CHUNK_SIZE..CHUNK_SIZE * 2]], &proof));
+        assert!(!verify_batch(
+            &[&wrong, &data[CHUNK_SIZE..CHUNK_SIZE * 2]],
+            &proof
+        ));
     }
 
     #[test]

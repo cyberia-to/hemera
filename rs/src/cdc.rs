@@ -21,6 +21,7 @@ use crate::tree::{hash_leaf, merge_leaf_hashes};
 /// Frozen alongside the complete hemera sponge construction (permutation
 /// constants, padding, domain tag, rate/capacity split, output encoding).
 /// Any change to the sponge invalidates all particle_id values.
+#[rustfmt::skip]
 const GEAR_TABLE: [u64; 256] = [
     0xd1391c501a023d66, 0x91dba4c168e0f243, 0xb96f910645061719, 0xe189cca9d4601bd8,
     0x715c0d2dafd34281, 0x56401e75d415c0b2, 0xe6e3a4a9199441c2, 0x91d809dc94ea4174,
@@ -179,10 +180,15 @@ fn cdc_boundaries(data: &[u8], element_size: usize, n: usize) -> Vec<usize> {
 /// Multiple chunks → left-balanced tree of leaf hashes.
 #[allow(unknown_lints, rs_no_vec)]
 pub fn section_cdc_tree(data: &[u8], element_size: usize, is_root: bool) -> Hash {
-    debug_assert!((1..=64).contains(&element_size),
-        "element_size {element_size} out of [1, 64]");
-    debug_assert!(data.len().is_multiple_of(element_size),
-        "data length {} not a multiple of element_size {element_size}", data.len());
+    debug_assert!(
+        (1..=64).contains(&element_size),
+        "element_size {element_size} out of [1, 64]"
+    );
+    debug_assert!(
+        data.len().is_multiple_of(element_size),
+        "data length {} not a multiple of element_size {element_size}",
+        data.len()
+    );
 
     let n = data.len() / element_size;
 
@@ -213,10 +219,10 @@ pub fn section_cdc_tree(data: &[u8], element_size: usize, is_root: bool) -> Hash
 #[cfg(test)]
 mod tests {
     extern crate std;
-    use std::vec;
     use super::*;
-    use crate::tree::hash_node;
     use crate::params::OUTPUT_BYTES;
+    use crate::tree::hash_node;
+    use std::vec;
 
     // ── Gear table verification ─────────────────────────────────────
 
@@ -285,7 +291,10 @@ mod tests {
     fn window_size_always_power_of_two() {
         for s in 1..=64usize {
             let w = window_size(s);
-            assert!(w.is_power_of_two(), "W={w} not power of two for element_size={s}");
+            assert!(
+                w.is_power_of_two(),
+                "W={w} not power of two for element_size={s}"
+            );
             assert!(w >= 64, "W must be >= 64");
         }
     }
@@ -378,7 +387,7 @@ mod tests {
         // which may coincide for uniform data).
         assert_ne!(window_size(1), window_size(4));
         assert_ne!(window_size(4), window_size(16));
-        assert_eq!(window_size(1), 4096);  // baseline
+        assert_eq!(window_size(1), 4096); // baseline
         assert_eq!(window_size(4), 1024);
         assert_eq!(window_size(16), 256);
     }

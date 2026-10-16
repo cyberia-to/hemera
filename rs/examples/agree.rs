@@ -26,7 +26,10 @@ fn unhex(s: &str) -> Vec<u8> {
     if s == "-" {
         return Vec::new();
     }
-    (0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).expect("hex")).collect()
+    (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&s[i..i + 2], 16).expect("hex"))
+        .collect()
 }
 
 fn main() {
@@ -37,10 +40,15 @@ fn main() {
         let mut parts = line.split_whitespace();
         match parts.next() {
             Some("p") => {
-                let limbs: Vec<u64> = parts.map(|x| u64::from_str_radix(x, 16).expect("limb")).collect();
+                let limbs: Vec<u64> = parts
+                    .map(|x| u64::from_str_radix(x, 16).expect("limb"))
+                    .collect();
                 let mut s: [Goldilocks; 16] = core::array::from_fn(|i| Goldilocks::new(limbs[i]));
                 permute(&mut s);
-                let v: Vec<String> = s.iter().map(|e| format!("{:016x}", e.as_canonical_u64())).collect();
+                let v: Vec<String> = s
+                    .iter()
+                    .map(|e| format!("{:016x}", e.as_canonical_u64()))
+                    .collect();
                 writeln!(out, "{}", v.join(" ")).unwrap();
             }
             Some("h") => {

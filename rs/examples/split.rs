@@ -13,9 +13,7 @@
 //! ```
 
 use cyber_hemera::field::Goldilocks;
-use cyber_hemera::permutation::{
-    HEMERA, Profile, permute_batch_profile, permute_profile,
-};
+use cyber_hemera::permutation::{HEMERA, Profile, permute_batch_profile, permute_profile};
 use std::hint::black_box;
 use std::time::Instant;
 fn t(name: &str, p: &Profile, batch: bool) {

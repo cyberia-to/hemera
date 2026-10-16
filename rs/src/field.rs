@@ -39,7 +39,8 @@ impl Goldilocks {
     #[inline]
     pub fn as_canonical_u64(self) -> u64 {
         // Mask, not branch: hash outputs of secret inputs pass through here.
-        self.value.wrapping_sub(P & u64::from(self.value >= P).wrapping_neg())
+        self.value
+            .wrapping_sub(P & u64::from(self.value >= P).wrapping_neg())
     }
 
     /// Compute x^2.
@@ -198,9 +199,8 @@ pub fn mds_light_permutation(state: &mut [Goldilocks; 16]) {
     }
 
     // Compute column sums (one per M4 column position).
-    let sums: [Goldilocks; 4] = core::array::from_fn(|k| {
-        (0..16).step_by(4).map(|j| state[j + k]).sum()
-    });
+    let sums: [Goldilocks; 4] =
+        core::array::from_fn(|k| (0..16).step_by(4).map(|j| state[j + k]).sum());
 
     // Add the appropriate column sum to each element.
     for (i, elem) in state.iter_mut().enumerate() {
@@ -300,12 +300,20 @@ mod tests {
     #[test]
     fn mat4_schedule_is_the_reference_matrix() {
         const M4: [[u64; 4]; 4] = [[5, 7, 1, 3], [4, 6, 1, 1], [1, 3, 5, 7], [1, 1, 4, 6]];
-        let inputs = [[1u64, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [3, P - 1, 1 << 40, 7]];
+        let inputs = [
+            [1u64, 0, 0, 0],
+            [0, 1, 0, 0],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1],
+            [3, P - 1, 1 << 40, 7],
+        ];
         for v in inputs {
             let mut x = v.map(Goldilocks::new);
             apply_mat4(&mut x);
             for r in 0..4 {
-                let want = (0..4).fold(0u128, |acc, c| acc + u128::from(M4[r][c]) * u128::from(v[c]));
+                let want = (0..4).fold(0u128, |acc, c| {
+                    acc + u128::from(M4[r][c]) * u128::from(v[c])
+                });
                 assert_eq!(x[r].as_canonical_u64(), (want % u128::from(P)) as u64);
             }
         }

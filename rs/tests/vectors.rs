@@ -16,11 +16,15 @@ use serde_json::Value;
 
 fn vectors() -> Value {
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../vectors/hemera.json");
-    serde_json::from_str(&std::fs::read_to_string(path).expect("vectors/hemera.json")).expect("json")
+    serde_json::from_str(&std::fs::read_to_string(path).expect("vectors/hemera.json"))
+        .expect("json")
 }
 
 fn unhex(s: &str) -> Vec<u8> {
-    (0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap()).collect()
+    (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap())
+        .collect()
 }
 
 fn digest(s: &str) -> Hash {
@@ -79,7 +83,11 @@ fn hash_vectors() {
             other => unhex(text(&v["inputs"][other])),
         };
         assert_eq!(hash(&msg).to_string(), text(want), "hash {name}");
-        assert_eq!(hash_secret(&msg).to_string(), text(want), "hash_secret {name}");
+        assert_eq!(
+            hash_secret(&msg).to_string(),
+            text(want),
+            "hash_secret {name}"
+        );
     }
 }
 
@@ -93,16 +101,31 @@ fn tree_vectors() {
             "4k_zeros" => vec![0u8; 4096],
             other => panic!("unknown tree vector {other}"),
         };
-        assert_eq!(fixed_chunk_root(&msg).to_string(), text(want), "tree {name}");
+        assert_eq!(
+            fixed_chunk_root(&msg).to_string(),
+            text(want),
+            "tree {name}"
+        );
     }
     for case in v["fixed_chunk_root"].as_array().unwrap() {
-        let data = vec![case["fill"].as_u64().unwrap() as u8; case["len"].as_u64().unwrap() as usize];
-        assert_eq!(fixed_chunk_root(&data).to_string(), text(&case["output"]), "{}", case["name"]);
+        let data =
+            vec![case["fill"].as_u64().unwrap() as u8; case["len"].as_u64().unwrap() as usize];
+        assert_eq!(
+            fixed_chunk_root(&data).to_string(),
+            text(&case["output"]),
+            "{}",
+            case["name"]
+        );
     }
     for case in v["root_hash"].as_array().unwrap() {
         let n = |k: &str| case[k].as_u64().unwrap() as usize;
         let data = pattern(n("len"), n("mul"), n("add"));
-        assert_eq!(root_hash(&data).to_string(), text(&case["output"]), "{}", case["name"]);
+        assert_eq!(
+            root_hash(&data).to_string(),
+            text(&case["output"]),
+            "{}",
+            case["name"]
+        );
     }
 }
 
@@ -144,10 +167,16 @@ fn keyed_derive_xof_vectors() {
     for case in v["xof"].as_array().unwrap() {
         let want = unhex(text(&case["output"]));
         let mut got = vec![0u8; want.len()];
-        Hasher::new().update(&unhex(text(&case["input"]))).finalize_xof().fill(&mut got);
+        Hasher::new()
+            .update(&unhex(text(&case["input"])))
+            .finalize_xof()
+            .fill(&mut got);
         assert_eq!(got, want, "{}", case["name"]);
         let mut ct = vec![0u8; want.len()];
-        Hasher::new_secret().update(&unhex(text(&case["input"]))).finalize_xof().fill(&mut ct);
+        Hasher::new_secret()
+            .update(&unhex(text(&case["input"])))
+            .finalize_xof()
+            .fill(&mut ct);
         assert_eq!(ct, want, "secret {}", case["name"]);
     }
 }
@@ -174,7 +203,11 @@ fn campaign_instance_vectors() {
             .iter()
             .map(|x| u64::from_str_radix(text(x), 16).unwrap())
             .collect();
-        assert_eq!(s.map(|e| e.as_canonical_u64()).to_vec(), want, "instance ({rf}, {rp})");
+        assert_eq!(
+            s.map(|e| e.as_canonical_u64()).to_vec(),
+            want,
+            "instance ({rf}, {rp})"
+        );
         let mut r = [0u64; 16];
         let mut consts = ext.clone();
         consts.extend_from_slice(&HEMERA.internal[..rp]);

@@ -70,7 +70,9 @@ fn det(rows: &[Vec<u64>]) -> u64 {
     let n = m.len();
     let mut d = 1u64;
     for c in 0..n {
-        let Some(piv) = (c..n).find(|&r| m[r][c] != 0) else { return 0 };
+        let Some(piv) = (c..n).find(|&r| m[r][c] != 0) else {
+            return 0;
+        };
         if piv != c {
             m.swap(piv, c);
             d = sub(0, d);
@@ -207,7 +209,11 @@ fn layers_are_the_specified_matrices() {
     let mi = read_layer(matmul_internal);
     for i in 0..T {
         for j in 0..T {
-            let want = if i == j { add(MATRIX_DIAG_16[i].as_canonical_u64(), 1) } else { 1 };
+            let want = if i == j {
+                add(MATRIX_DIAG_16[i].as_canonical_u64(), 1)
+            } else {
+                1
+            };
             assert_eq!(mi[i][j], want, "M_I[{i}][{j}]");
         }
     }
@@ -221,9 +227,18 @@ fn m4_is_mds() {
             for cols in (0..16u32).filter(|m| m.count_ones() as usize == k) {
                 let sub: Vec<Vec<u64>> = (0..4)
                     .filter(|r| rows >> r & 1 == 1)
-                    .map(|r| (0..4).filter(|c| cols >> c & 1 == 1).map(|c| M4[r][c]).collect())
+                    .map(|r| {
+                        (0..4)
+                            .filter(|c| cols >> c & 1 == 1)
+                            .map(|c| M4[r][c])
+                            .collect()
+                    })
                     .collect();
-                assert_ne!(det(&sub), 0, "singular minor rows {rows:04b} cols {cols:04b}");
+                assert_ne!(
+                    det(&sub),
+                    0,
+                    "singular minor rows {rows:04b} cols {cols:04b}"
+                );
                 minors += 1;
             }
         }
@@ -243,7 +258,10 @@ fn internal_powers_have_irreducible_characteristic_polynomials() {
     let mi = read_layer(matmul_internal);
     let mut power = mi;
     for i in 1..=2 * T {
-        assert!(irreducible(&charpoly(&power)), "charpoly(M_I^{i}) is reducible");
+        assert!(
+            irreducible(&charpoly(&power)),
+            "charpoly(M_I^{i}) is reducible"
+        );
         power = matmul(&mi, &power);
     }
 }

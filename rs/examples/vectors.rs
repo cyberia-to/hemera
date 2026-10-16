@@ -76,7 +76,12 @@ fn main() {
     for (name, input) in perms {
         let mut s = input.map(Goldilocks::new);
         permute(&mut s);
-        let fmt = |v: &[u64]| v.iter().map(|x| q(&format!("{x:016x}"))).collect::<Vec<_>>().join(", ");
+        let fmt = |v: &[u64]| {
+            v.iter()
+                .map(|x| q(&format!("{x:016x}")))
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
         let outv: Vec<u64> = s.iter().map(|e| e.as_canonical_u64()).collect();
         rows.push(format!(
             "    {{\"name\": {}, \"input\": [{}], \"output\": [{}]}}",
@@ -104,7 +109,10 @@ fn main() {
         h.push(format!("    {}: {}", q(name), q(&hash(msg).to_string())));
     }
     out.push(format!("  \"hash\": {{\n{}\n  }},", h.join(",\n")));
-    let inputs: Vec<String> = extra.iter().map(|(n, m)| format!("    {}: {}", q(n), q(&hex(m)))).collect();
+    let inputs: Vec<String> = extra
+        .iter()
+        .map(|(n, m)| format!("    {}: {}", q(n), q(&hex(m))))
+        .collect();
     out.push(format!("  \"inputs\": {{\n{}\n  }},", inputs.join(",\n")));
 
     // tree (fixed chunks), same names as 0.3
@@ -117,7 +125,10 @@ fn main() {
 
     // derive_key
     let dk = derive_key("test context", b"test material");
-    out.push(format!("  \"derive_key\": {{\n    \"test\": {}\n  }},", q(&hex(&dk))));
+    out.push(format!(
+        "  \"derive_key\": {{\n    \"test\": {}\n  }},",
+        q(&hex(&dk))
+    ));
     let long_ctx = "hemera 0.4 derive-key context longer than one 56-byte rate block";
     let mat = pattern(100, 3, 1);
     out.push(format!(
@@ -130,7 +141,11 @@ fn main() {
     // keyed_hash
     let key: [u8; 32] = core::array::from_fn(|i| i as u8);
     let mut k = Vec::new();
-    for (name, msg) in [("empty", Vec::new()), ("hello", b"hello".to_vec()), ("pattern_100", pattern(100, 5, 9))] {
+    for (name, msg) in [
+        ("empty", Vec::new()),
+        ("hello", b"hello".to_vec()),
+        ("pattern_100", pattern(100, 5, 9)),
+    ] {
         k.push(format!(
             "    {{\"name\": {}, \"key\": {}, \"input\": {}, \"output\": {}}}",
             q(name),
@@ -198,7 +213,10 @@ fn main() {
 
     // fixed_chunk_root, multi-chunk
     let mut f = Vec::new();
-    for (name, fill, len) in [("ab_3_chunks", 0xABu8, 3 * 4096usize), ("cd_5_chunks_partial", 0xCD, 4 * 4096 + 100)] {
+    for (name, fill, len) in [
+        ("ab_3_chunks", 0xABu8, 3 * 4096usize),
+        ("cd_5_chunks_partial", 0xCD, 4 * 4096 + 100),
+    ] {
         f.push(format!(
             "    {{\"name\": {}, \"fill\": {}, \"len\": {}, \"output\": {}}}",
             q(name),
@@ -207,11 +225,18 @@ fn main() {
             q(&fixed_chunk_root(&vec![fill; len]).to_string())
         ));
     }
-    out.push(format!("  \"fixed_chunk_root\": [\n{}\n  ],", f.join(",\n")));
+    out.push(format!(
+        "  \"fixed_chunk_root\": [\n{}\n  ],",
+        f.join(",\n")
+    ));
 
     // root_hash (CDC)
     let mut r = Vec::new();
-    for (name, len, mul, add) in [("hello_like_5", 5usize, 1usize, 104usize), ("pattern_10000", 10_000, 7, 3), ("pattern_20000", 20_000, 131, 17)] {
+    for (name, len, mul, add) in [
+        ("hello_like_5", 5usize, 1usize, 104usize),
+        ("pattern_10000", 10_000, 7, 3),
+        ("pattern_20000", 20_000, 131, 17),
+    ] {
         r.push(format!(
             "    {{\"name\": {}, \"len\": {}, \"mul\": {}, \"add\": {}, \"output\": {}}}",
             q(name),
@@ -227,7 +252,15 @@ fn main() {
     // first rf/2 rows of the initial and of the terminal external group,
     // first rp internal constants; input = zero state.
     let mut c = Vec::new();
-    for (rf, rp) in [(4usize, 8usize), (6, 16), (8, 24), (12, 24), (8, 22), (12, 32), (12, 48)] {
+    for (rf, rp) in [
+        (4usize, 8usize),
+        (6, 16),
+        (8, 24),
+        (12, 24),
+        (8, 22),
+        (12, 32),
+        (12, 48),
+    ] {
         let h = rf / 2;
         let half = HEMERA.external.len() / 2;
         let mut ext = HEMERA.external[..h * 16].to_vec();
@@ -235,13 +268,19 @@ fn main() {
         let prof = Profile::new(h, rp, &ext, &HEMERA.internal[..rp], HEMERA.diag);
         let mut s = [Goldilocks::new(0); 16];
         permute_profile(&mut s, &prof);
-        let limbs: Vec<String> = s.iter().map(|e| q(&format!("{:016x}", e.as_canonical_u64()))).collect();
+        let limbs: Vec<String> = s
+            .iter()
+            .map(|e| q(&format!("{:016x}", e.as_canonical_u64())))
+            .collect();
         c.push(format!(
             "    {{\"rf\": {rf}, \"rp\": {rp}, \"input\": \"zeros\", \"output\": [{}]}}",
             limbs.join(", ")
         ));
     }
-    out.push(format!("  \"campaign_instances\": [\n{}\n  ],", c.join(",\n")));
+    out.push(format!(
+        "  \"campaign_instances\": [\n{}\n  ],",
+        c.join(",\n")
+    ));
 
     out.push(format!("  \"0.3\": {V03}"));
     println!("{{\n{}\n}}", out.join("\n"));

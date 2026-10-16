@@ -85,11 +85,11 @@ impl Iterator for StepSponge {
 #[cfg(test)]
 mod tests {
     extern crate std;
-    use std::vec::Vec;
     use super::*;
     use crate::field::Goldilocks;
     use crate::params::{ROUNDS_TOTAL, WIDTH};
     use crate::permutation::permute;
+    use std::vec::Vec;
 
     fn zero_rate() -> Vec<Goldilocks> {
         std::vec![Goldilocks::ZERO; RATE]
@@ -180,7 +180,13 @@ mod tests {
         assert_eq!(states.len(), ROUNDS_TOTAL);
         // Consecutive round states must differ (permutation is not identity on any round).
         for i in 1..states.len() {
-            assert_ne!(states[i - 1], states[i], "rounds {} and {} produced identical states", i - 1, i);
+            assert_ne!(
+                states[i - 1],
+                states[i],
+                "rounds {} and {} produced identical states",
+                i - 1,
+                i
+            );
         }
     }
 }

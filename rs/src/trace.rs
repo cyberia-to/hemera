@@ -13,7 +13,8 @@
 //! ## Row count
 //!
 //! A plain sponge hashing N absorb blocks emits (N + 1) × 60 rows via
-//! [`Hasher::update_traced`] / [`Hasher::finalize_traced`].
+//! [`Hasher::update_traced`](crate::Hasher::update_traced) /
+//! [`Hasher::finalize_traced`](crate::Hasher::finalize_traced).
 
 use crate::field::Goldilocks;
 
@@ -41,16 +42,11 @@ pub trait RoundVisitor {
     /// After a full round: add_rc on all 16 elements + x⁷ S-box + M_E.
     ///
     /// `index` ∈ 0..12 — rounds 0–5 are the initial group; 6–11 are terminal.
-    fn full_round(
-        &mut self,
-        index: u8,
-        state: &[Goldilocks; 16],
-        witnesses: &FullRoundWitnesses,
-    );
+    fn full_round(&mut self, index: u8, state: &[Goldilocks; 16], witnesses: &FullRoundWitnesses);
 
-    /// After a partial round: add_rc on state[0] + x⁷ S-box on state[0] + M_I.
+    /// After a partial round: add_rc on `state[0]` + x⁷ S-box on `state[0]` + M_I.
     ///
     /// `index` ∈ 0..48. `witness` is `[x², x³]` of the S-box input `x`
-    /// (state[0] after its round constant).
+    /// (`state[0]` after its round constant).
     fn partial_round(&mut self, index: u8, state: &[Goldilocks; 16], witness: SboxWitnesses);
 }

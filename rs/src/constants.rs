@@ -24,6 +24,7 @@ pub const NUM_CONSTANTS: usize = ROUNDS_F * WIDTH + ROUNDS_P; // 240
 pub const NUM_EXTERNAL: usize = ROUNDS_F * WIDTH; // 192
 
 /// Round constants as raw u64 values (used by bootstrap verification and GPU).
+#[rustfmt::skip]
 pub const ROUND_CONSTANTS_U64: [u64; NUM_CONSTANTS] = [
     // ── External round 0 (initial) ──
     0x8BF262E620238C97, 0x41AF509E860145AF, 0xEC91406FE4C63B69, 0x267C07366E1F063B,

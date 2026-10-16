@@ -158,7 +158,10 @@ impl SparseTree {
         let bit_in_byte = 7 - (bit_pos % 8);
         sib_key[byte_idx] ^= 1 << bit_in_byte;
         let masked = mask_key(&sib_key, self.depth - level);
-        self.nodes.get(&(level, masked)).copied().unwrap_or(self.sentinel(level))
+        self.nodes
+            .get(&(level, masked))
+            .copied()
+            .unwrap_or(self.sentinel(level))
     }
 
     /// Insert or update a key-value pair. Returns the new root.
@@ -259,7 +262,12 @@ impl SparseTree {
     }
 
     /// Verify a compressed proof for inclusion (value = Some) or non-inclusion (value = None).
-    pub fn verify(proof: &CompressedSparseProof, value: Option<&[u8]>, root: &Hash, depth: u32) -> bool {
+    pub fn verify(
+        proof: &CompressedSparseProof,
+        value: Option<&[u8]>,
+        root: &Hash,
+        depth: u32,
+    ) -> bool {
         let sentinels = sentinel_table(depth);
         Self::verify_with_sentinels(proof, value, root, depth, &sentinels)
     }
@@ -494,10 +502,10 @@ mod tests {
     fn key_bit_extraction() {
         let mut key = [0u8; 32];
         key[0] = 0b1010_0000;
-        assert!(key_bit(&key, 0));   // MSB = 1
-        assert!(!key_bit(&key, 1));  // 0
-        assert!(key_bit(&key, 2));   // 1
-        assert!(!key_bit(&key, 3));  // 0
+        assert!(key_bit(&key, 0)); // MSB = 1
+        assert!(!key_bit(&key, 1)); // 0
+        assert!(key_bit(&key, 2)); // 1
+        assert!(!key_bit(&key, 3)); // 0
     }
 
     #[test]
