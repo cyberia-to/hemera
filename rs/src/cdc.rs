@@ -179,9 +179,9 @@ fn cdc_boundaries(data: &[u8], element_size: usize, n: usize) -> Vec<usize> {
 /// Multiple chunks → left-balanced tree of leaf hashes.
 #[allow(unknown_lints, rs_no_vec)]
 pub fn section_cdc_tree(data: &[u8], element_size: usize, is_root: bool) -> Hash {
-    debug_assert!(element_size >= 1 && element_size <= 64,
+    debug_assert!((1..=64).contains(&element_size),
         "element_size {element_size} out of [1, 64]");
-    debug_assert!(data.len() % element_size == 0,
+    debug_assert!(data.len().is_multiple_of(element_size),
         "data length {} not a multiple of element_size {element_size}", data.len());
 
     let n = data.len() / element_size;
