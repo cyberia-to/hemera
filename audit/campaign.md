@@ -56,8 +56,8 @@ point the campaign at it. the reasoning in one line each: the 0.3 profile's
 only argument (degree p − 2 per inverse round) is withdrawn by the repo's
 own research and refuted here by a measured attack on its partial layer;
 the hybrid S-box puts hemera outside every published bound and every
-bounty, so ninety days of public silence about it would measure attention,
-not strength; v2 keeps native throughput (~2 304 against ~2 224
+bounty, so ninety days of public silence about it would measure only how
+few people looked; v2 keeps native throughput (~2 304 against ~2 224
 multiplications per permutation) and pays only in-circuit (+76 % S-box
 constraints per permutation), a cost the roadmap shrinks; and rounds are
 the one parameter that cannot be raised after genesis without rehashing
