@@ -91,6 +91,40 @@ plan:
 result: hemera is `hash(data) → particle` and nothing else. one mode, no
 `state[11]` variance, no `state[14]` typing.
 
+## 4. one profile — no second round count, because
+
+the same rule that removes modes removes profiles. a tempting refinement
+of [[profile-v2]] is two round counts of one permutation: a heavy profile
+for permanent identities (particle, neuron, link, state roots) and a light
+one for the ephemeral hashing inside proofs (column Merkle, Fiat–Shamir,
+recursion). rejected, for four reasons, recorded here so the question
+does not reopen:
+
+1. **it is mode variance by another name.** two round counts are two
+   permutations: two objects to analyse, two bounties to fund, two attack
+   surfaces, and a domain tag selecting the profile — a version byte
+   through the back door, which [[Hemera]] has no algorithm agility
+   precisely to avoid.
+2. **the saving is confined to the ephemeral share, and that share is
+   shrinking by design.** the endgame of this roadmap is ~3 hemera calls
+   per execution: bulk commitment is [[Brakedown]]'s job, tree hashing
+   leaves hemera, state verification goes polynomial. a lighter profile
+   saves a fraction of a part that is already going to zero.
+3. **native cost is identical.** the inverse chain that made the
+   experimental profile cheap in-circuit made it expensive natively
+   (~2224 multiplications per permutation); a heavy x⁷ profile with
+   doubled margin lands at ~2304. there is no native throughput to buy.
+4. **anything ephemeral enough to deserve a lighter hash is ephemeral
+   enough to need no hemera at all.** that work belongs to the
+   polynomial commitment or an algebraic challenge ([[algebraic-fiat-shamir]]),
+   not to a second permutation.
+
+so the permanent profile is the only profile; its margin is paid
+everywhere; and the price is bounded by the hash share of a proof —
++76% per permutation on S-box constraints, a few percent at the stack
+level once the roadmap lands. the mirror of this decision in the
+protocol paper is `cyber/whitepaper.md` §4.4.
+
 ## open question
 
 does anything beyond radio need a fast symmetric MAC / KDF that mudra
