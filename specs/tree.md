@@ -160,7 +160,7 @@ noun_id = hemera(Lens.commit(noun) ‖ tag)
 where:
   Lens.commit(noun) = Brakedown commitment over the noun's content polynomial
   tag               = domain separator (e.g., PARTICLE, SIGNAL, CARD)
-  hemera()          = one sponge call (~736 constraints)
+  hemera()          = one sponge call (~1,440 constraints per permutation)
 ```
 
 This replaces the recursive `hemera_node(H(left), H(right))` construction for noun addressing. The Lens commitment captures the entire noun in one algebraic object. Hemera wraps it with a domain tag, binding the commitment to its semantic role. Cost: one Lens commit (bulk polynomial work) + one hemera call (domain binding). No tree traversal.
@@ -201,12 +201,12 @@ All four tree types share the same internal node construction. The content tree 
 
 Constraint cost in a STARK circuit:
 
-| Operation | Permutations | Constraints (≈736/perm) |
+| Operation | Permutations | Constraints (≈1,440/perm, hemera 0.4) |
 |---|---|---|
-| hash_leaf (4 KB chunk) | 75 | 55,200 |
-| hash_node (internal) | 1 | 736 |
-| Merkle proof (depth d) | d | 736d |
-| 1 GB file tree root | ≈20M | ≈15B |
+| hash_leaf (4 KB chunk) | 75 | 108,000 |
+| hash_node (internal) | 1 | 1,440 |
+| Merkle proof (depth d) | d | 1,440d |
+| 1 GB file tree root | ≈20M | ≈29B |
 
 One primitive, one circuit, one security analysis. Every tree in the stack benefits from the same audit, the same optimization, and the same hardware acceleration.
 
@@ -333,7 +333,7 @@ At 32 bytes per hash, proving 32 contiguous chunks from a 2^20-leaf tree: indivi
 
 For k contiguous leaves: N_internal ≈ d + k − 1. The batch verifier calls `hash_node` once per unique internal node instead of once per proof per level.
 
-In a STARK circuit: batch verification of 32 contiguous chunks costs (20 + 31) × 736 = 37,536 constraints. Individual verification costs 32 × 20 × 736 = 470,720 constraints. Same 12.5× reduction in proving cost.
+In a proof circuit: batch verification of 32 contiguous chunks costs (20 + 31) × 1,440 = 73,440 constraints. Individual verification costs 32 × 20 × 1,440 = 921,600 constraints. Same 12.5× reduction in proving cost.
 
 ### API
 

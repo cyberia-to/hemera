@@ -6,6 +6,8 @@ status: draft
 breaks_hash: no
 date: 2026-03-20
 ---
+> written against hemera 0.3 (16 partial rounds, x⁻¹ on state[0]). in 0.4 the partial S-box is x⁷ and there are 48 partial rounds; the linear-evolution idea carries over with R_P = 48.
+
 # partial-round collapse
 
 states [1..15] evolve linearly during all 16 partial rounds. precompute the composed linear map. break the sequential dependency for 15 of 16 state elements. ~4× prover wall-clock speedup.
