@@ -14,7 +14,7 @@
 //! independently by `audit/campaign/hemera_ref.py` (the Python model).
 
 use cyber_hemera::field::{Goldilocks, P};
-use cyber_hemera::permutation::permute;
+use cyber_hemera::permutation::{HEMERA, Profile, permute, permute_profile};
 use cyber_hemera::tree::{fixed_chunk_root, hash_leaf, hash_node, root_hash};
 use cyber_hemera::{Hash, Hasher, derive_key, hash, keyed_hash};
 
@@ -222,6 +222,26 @@ fn main() {
         ));
     }
     out.push(format!("  \"root_hash\": [\n{}\n  ],", r.join(",\n")));
+
+    // reduced-round instances of the campaign (audit/campaign.md §4.1):
+    // first rf/2 rows of the initial and of the terminal external group,
+    // first rp internal constants; input = zero state.
+    let mut c = Vec::new();
+    for (rf, rp) in [(4usize, 8usize), (6, 16), (8, 24), (12, 24), (8, 22), (12, 32), (12, 48)] {
+        let h = rf / 2;
+        let half = HEMERA.external.len() / 2;
+        let mut ext = HEMERA.external[..h * 16].to_vec();
+        ext.extend_from_slice(&HEMERA.external[half..half + h * 16]);
+        let prof = Profile::new(h, rp, &ext, &HEMERA.internal[..rp], HEMERA.diag);
+        let mut s = [Goldilocks::new(0); 16];
+        permute_profile(&mut s, &prof);
+        let limbs: Vec<String> = s.iter().map(|e| q(&format!("{:016x}", e.as_canonical_u64()))).collect();
+        c.push(format!(
+            "    {{\"rf\": {rf}, \"rp\": {rp}, \"input\": \"zeros\", \"output\": [{}]}}",
+            limbs.join(", ")
+        ));
+    }
+    out.push(format!("  \"campaign_instances\": [\n{}\n  ],", c.join(",\n")));
 
     out.push(format!("  \"0.3\": {V03}"));
     println!("{{\n{}\n}}", out.join("\n"));

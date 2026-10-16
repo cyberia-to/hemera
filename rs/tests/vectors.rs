@@ -9,7 +9,7 @@
 //! also checks the frozen `"0.3"` section against its 0.3 model.
 
 use cyber_hemera::field::{Goldilocks, P};
-use cyber_hemera::permutation::{permute, permute_ct};
+use cyber_hemera::permutation::{HEMERA, Profile, permute, permute_ct, permute_profile};
 use cyber_hemera::tree::{fixed_chunk_root, hash_leaf, hash_node, root_hash};
 use cyber_hemera::{Hash, Hasher, derive_key, hash, hash_secret, keyed_hash};
 use serde_json::Value;
@@ -150,6 +150,42 @@ fn keyed_derive_xof_vectors() {
         Hasher::new_secret().update(&unhex(text(&case["input"]))).finalize_xof().fill(&mut ct);
         assert_eq!(ct, want, "secret {}", case["name"]);
     }
+}
+
+/// Reduced-round instances of the campaign: the first rf/2 rows of each
+/// external group and the first rp internal constants of the frozen set.
+#[test]
+fn campaign_instance_vectors() {
+    let v = vectors();
+    let cases = v["campaign_instances"].as_array().unwrap();
+    assert_eq!(cases.len(), 7);
+    for case in cases {
+        let rf = case["rf"].as_u64().unwrap() as usize;
+        let rp = case["rp"].as_u64().unwrap() as usize;
+        let half = HEMERA.external.len() / 2;
+        let mut ext = HEMERA.external[..rf / 2 * 16].to_vec();
+        ext.extend_from_slice(&HEMERA.external[half..half + rf / 2 * 16]);
+        let prof = Profile::new(rf / 2, rp, &ext, &HEMERA.internal[..rp], HEMERA.diag);
+        let mut s = [Goldilocks::new(0); 16];
+        permute_profile(&mut s, &prof);
+        let want: Vec<u64> = case["output"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| u64::from_str_radix(text(x), 16).unwrap())
+            .collect();
+        assert_eq!(s.map(|e| e.as_canonical_u64()).to_vec(), want, "instance ({rf}, {rp})");
+        let mut r = [0u64; 16];
+        let mut consts = ext.clone();
+        consts.extend_from_slice(&HEMERA.internal[..rp]);
+        cyber_hemera::reference::permute_generic(&mut r, rf / 2, rp, &consts, HEMERA.diag);
+        assert_eq!(r.to_vec(), want, "reference ({rf}, {rp})");
+    }
+    // the full instance is the permutation itself
+    let mut z = [Goldilocks::new(0); 16];
+    permute(&mut z);
+    let full = cases.last().unwrap()["output"].as_array().unwrap();
+    assert_eq!(format!("{:016x}", z[0].as_canonical_u64()), text(&full[0]));
 }
 
 /// The 0.3 record stays in the file, untouched, beside the current vectors.

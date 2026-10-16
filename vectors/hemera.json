@@ -65,6 +65,15 @@
     {"name": "pattern_10000", "len": 10000, "mul": 7, "add": 3, "output": "616f6dc4b936db3b79b1006ad8ac058707dce81276fc70afafb6089693610ea6"},
     {"name": "pattern_20000", "len": 20000, "mul": 131, "add": 17, "output": "15001e93f97d1701a221daf8e73464298e2e9a3b576a343b5ac162911f7fa19e"}
   ],
+  "campaign_instances": [
+    {"rf": 4, "rp": 8, "input": "zeros", "output": ["6c142b817968dc8e", "c38fcf46c2b281cd", "517e22f4480ce7fb", "fff711b426e8bee4", "58d7b4001d64ceb6", "533c774618a3ed71", "15755304221ff831", "cb273bf8b1fc3a8f", "280c6da317368cbf", "1302a10a74e83f79", "2b4c1246a8e07158", "68e284e511520b76", "2090fbc6573e60ce", "40290834f99a8912", "a959b8eed3e62757", "2dbc9dd8a4114ede"]},
+    {"rf": 6, "rp": 16, "input": "zeros", "output": ["a165fa62b8b49671", "3cc30853c94aac9e", "141a6008fda4fe54", "99ec35e3d046c284", "3629ecf52383d282", "03191f87fb4d8901", "d459155030bb248f", "40f699f6cd7ddc1b", "e4fe1dc648d5153b", "409f60be1d1b7a7b", "6390a5b9bf9b0b90", "b0f658d5a50d6c79", "b92f16e833744eff", "c93297580aeb852a", "c17882bffecac317", "d47c957e0d00b18b"]},
+    {"rf": 8, "rp": 24, "input": "zeros", "output": ["489aed5dc7a942af", "e9fb3897c8f12fed", "fe710c064738eb41", "3b4f9d41760b3229", "4adab566661cbec5", "c3107ce4057698fa", "2a955f7bce8234e5", "c0250f61b892faeb", "48f3096e571b5a26", "8842d25eee38769f", "23a7b1d20d33b6a3", "4f7a58a0548c7eae", "b267f811d5bcf95d", "40e047e53dc1aeeb", "994d3ecc69a94f6f", "805b3f648e842eea"]},
+    {"rf": 12, "rp": 24, "input": "zeros", "output": ["0719315687d809b6", "eceb0097bc547948", "3298b750f9d45fa8", "599919607251ccac", "d162859b075c27b5", "d9ee514caa1d4b9e", "0b756c99494d1dc1", "4fe9853bd35dbaa4", "58acc7a81de2b815", "db07af0cf939795a", "f972281ebda89e61", "2dcc0110fb5f1600", "a223bc5d2e5ba4f0", "11d445e217346ea7", "ca5e642c4626b4f6", "26b0357a19d7c9d1"]},
+    {"rf": 8, "rp": 22, "input": "zeros", "output": ["a25d98d08b644ecc", "f8314e29ceea8884", "ee6eb42e9c97a79f", "acc12ae2f6594ed4", "81c028b923476ced", "ae46747c20ebc32d", "a39cdf06b5939546", "ccf3c77321c4900b", "a4ae5330100a83f7", "a7e2ac163f366587", "51271e6091f33739", "0eac15a8460bf62f", "a63541eca7649bab", "d3f617e365c775c7", "3dcad24cc2d611f9", "af591329c7b417df"]},
+    {"rf": 12, "rp": 32, "input": "zeros", "output": ["c65257904dbd20af", "873ce953736588b1", "758ddc4daf89b6dc", "cf8c6c021d7c56a8", "0cdac08a974fecbb", "6977ac5df997815c", "3041d017a75cc49e", "a0a86a606fe3b5cb", "87f9d99752c61d7c", "ac95b495fa65fc0a", "4cbe7da11be1ebbf", "80a485ccc622c73d", "730eb4339208f9cb", "f6c1a8d06c28a866", "14e55c719088d246", "d027014ac63b2e89"]},
+    {"rf": 12, "rp": 48, "input": "zeros", "output": ["895cbbb878ed7b95", "4d9447e9b10d0a16", "eda4b52a1341bdfa", "ecb0dde11b61b8f7", "882a552953fff61a", "301b343adb1d0f0d", "d3ca66a578b75857", "3be5ae56adc25b69", "3546e64a96c3aae1", "d68bd20423ae7095", "5eb69c0eb8b3397e", "40f3c6e8e6485294", "c90ce42c6d96dadf", "6ce65e1d2915ab36", "c6f8b4499590fb1e", "be3974adef258033"]}
+  ],
   "0.3": {
     "version": "0.3.1",
     "hash": {

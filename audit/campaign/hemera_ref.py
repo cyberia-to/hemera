@@ -281,6 +281,19 @@ def rust_table(path, start, end=']'):
 V03.rc, _, _ = bootstrap(V03, checked=False)
 V04.rc, V04_COUNTER, V04_REPORT = bootstrap(V04)
 
+def instance(rf, rp, prof=None):
+    """Reduced-round instance (R_F, R_P) of the frozen 0.4 constants
+    (audit/campaign.md §4.1): the first R_F/2 rows of the initial external
+    group, the first R_F/2 rows of the terminal group, the first R_P
+    internal constants. instance(12, 48) is the permutation itself."""
+    prof = prof or V04
+    h, half = rf // 2, prof.n_external // 2
+    ext = prof.rc[:h*16] + prof.rc[half:half + h*16]
+    red = Profile(f'{prof.name}({rf},{rp})', h, rp, prof.partial, prof.m4, prof.diag)
+    red.rc = ext + prof.rc[prof.n_external:prof.n_external + rp]
+    return red
+
+
 # Backwards-compatible names for audit/campaign/cico1.py (the 0.3 record).
 RC, DIAG = V03.rc, DIAG16
 
@@ -330,6 +343,9 @@ def check_vectors(prof, vec, cdc_gear):
     for e in vec.get('derive_key_cases', []):
         eq('derive_key/' + e['name'], _hex(derive_key(prof, e['context'].encode(), bytes.fromhex(e['material']))),
            e['output'])
+    for e in vec.get('campaign_instances', []):
+        got = ['%016x' % x for x in instance(e['rf'], e['rp'], prof).permute([0] * 16)]
+        eq(f"campaign_instances/({e['rf']},{e['rp']})", got, e['output'])
     for e in vec.get('xof', []):
         out = Sponge(prof).update(bytes.fromhex(e['input'])).xof(len(e['output']) // 2)
         eq('xof/' + e['name'], _hex(out), e['output'])
