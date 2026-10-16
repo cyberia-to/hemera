@@ -88,6 +88,11 @@ medians, ns per operation.
 | 1024 × hash_leaf 144 B (loop) | 11 115 | 10 913 | 5 598 | 5 545 | 1.99× |
 | 1024 × hash_leaf_batch 144 B | 3 036 | 2 947 | 5 304 | 4 932 | 0.57× |
 
+the table was measured on commit `fe1d64b`; the CI clean-up that followed
+(rustfmt, clippy) was checked against it with 4 more alternating rounds
+(load 55–90): permute single minimum 1 358 ns (merged) against 1 374 ns
+(measured build), `permute_batch` 1 214 against 1 214 ns — no change.
+
 permutations per second on one core: 0.3 ≈ 0.34 M single / 1.37 M
 batched; 0.4 ≈ 0.74 M single / 0.81 M batched.
 
