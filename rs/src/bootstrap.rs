@@ -70,7 +70,7 @@ fn absorb_seed(seed: &[u8]) -> [Goldilocks; WIDTH] {
 
     // Absorb via Goldilocks field addition.
     for i in 0..RATE {
-        state[i] = state[i] + rate_block[i];
+        state[i] += rate_block[i];
     }
 
     // Store message length in capacity (state[10]), matching sponge convention.

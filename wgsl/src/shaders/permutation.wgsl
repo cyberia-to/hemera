@@ -13,23 +13,28 @@ fn load_diag(idx: u32) -> vec2<u32> {
     return vec2<u32>(matrix_diag[off], matrix_diag[off + 1u]);
 }
 
-// 4×4 circulant MDS matrix [2,3,1,1]
+// 4×4 MDS block of the Poseidon2 external layer (reference matrix):
+// [5 7 1 3; 4 6 1 1; 1 3 5 7; 1 1 4 6], the schedule of field::apply_mat4.
 fn apply_mat4(x: ptr<function, array<vec2<u32>, 4>>) {
     let x0 = (*x)[0]; let x1 = (*x)[1]; let x2 = (*x)[2]; let x3 = (*x)[3];
 
-    let t01 = gl_add(x0.x, x0.y, x1.x, x1.y);
-    let t23 = gl_add(x2.x, x2.y, x3.x, x3.y);
-    let t0123 = gl_add(t01.x, t01.y, t23.x, t23.y);
-    let t01123 = gl_add(t0123.x, t0123.y, x1.x, x1.y);
-    let t01233 = gl_add(t0123.x, t0123.y, x3.x, x3.y);
+    let t0 = gl_add(x0.x, x0.y, x1.x, x1.y);
+    let t1 = gl_add(x2.x, x2.y, x3.x, x3.y);
+    let d1 = gl_double(x1.x, x1.y);
+    let d3 = gl_double(x3.x, x3.y);
+    let t2 = gl_add(d1.x, d1.y, t1.x, t1.y);
+    let t3 = gl_add(d3.x, d3.y, t0.x, t0.y);
+    let q1 = gl_double(t1.x, t1.y);
+    let q1b = gl_double(q1.x, q1.y);
+    let q0 = gl_double(t0.x, t0.y);
+    let q0b = gl_double(q0.x, q0.y);
+    let t4 = gl_add(q1b.x, q1b.y, t3.x, t3.y);
+    let t5 = gl_add(q0b.x, q0b.y, t2.x, t2.y);
 
-    let dbl_x0 = gl_double(x0.x, x0.y);
-    let dbl_x2 = gl_double(x2.x, x2.y);
-
-    (*x)[3] = gl_add(t01233.x, t01233.y, dbl_x0.x, dbl_x0.y);
-    (*x)[1] = gl_add(t01123.x, t01123.y, dbl_x2.x, dbl_x2.y);
-    (*x)[0] = gl_add(t01123.x, t01123.y, t01.x, t01.y);
-    (*x)[2] = gl_add(t01233.x, t01233.y, t23.x, t23.y);
+    (*x)[0] = gl_add(t3.x, t3.y, t5.x, t5.y);
+    (*x)[1] = t5;
+    (*x)[2] = gl_add(t2.x, t2.y, t4.x, t4.y);
+    (*x)[3] = t4;
 }
 
 // External MDS: M4 per 4-element chunk + column sums
@@ -75,7 +80,7 @@ fn matmul_internal(s: ptr<function, array<vec2<u32>, 16>>) {
     }
 }
 
-// Full permutation: initial MDS → 4 full → 16 partial → 4 full
+// Full permutation: initial M_E → 6 full → 48 partial → 6 full, x^7 everywhere
 fn permute_state(s: ptr<function, array<vec2<u32>, 16>>) {
     mds_external(s);
 
@@ -94,7 +99,7 @@ fn permute_state(s: ptr<function, array<vec2<u32>, 16>>) {
     for (var r = 0u; r < ROUNDS_P; r++) {
         let rc = load_rc(internal_rc_offset + r);
         (*s)[0] = gl_add((*s)[0].x, (*s)[0].y, rc.x, rc.y);
-        (*s)[0] = gl_inv((*s)[0].x, (*s)[0].y);
+        (*s)[0] = gl_pow7((*s)[0].x, (*s)[0].y);
         matmul_internal(s);
     }
 
