@@ -31,7 +31,7 @@ use alloc::vec::Vec;
 use crate::async_io::{self, AsyncRead, AsyncWrite};
 use crate::params::{CHUNK_SIZE, OUTPUT_BYTES};
 use crate::sponge::Hash;
-use crate::stream::{left_subtree_chunks, HEADER_SIZE, PAIR_SIZE};
+use crate::stream::{HEADER_SIZE, PAIR_SIZE, left_subtree_chunks};
 use crate::tree::{hash_leaf, hash_node};
 
 /// Item yielded by the async streaming decoder.
@@ -86,6 +86,18 @@ pub struct StreamDecoder<R> {
     done: bool,
 }
 
+impl<R> core::fmt::Debug for StreamDecoder<R> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("StreamDecoder")
+            .field("root_hash", &self.root_hash)
+            .field("data_len", &self.data_len)
+            .field("num_chunks", &self.num_chunks)
+            .field("yielded", &self.yielded)
+            .field("done", &self.done)
+            .finish_non_exhaustive()
+    }
+}
+
 impl<R: AsyncRead + Unpin> StreamDecoder<R> {
     /// Create a decoder for a combined pre-order stream.
     ///
@@ -96,7 +108,7 @@ impl<R: AsyncRead + Unpin> StreamDecoder<R> {
         let n = if data_len == 0 {
             1
         } else {
-            ((data_len as usize + CHUNK_SIZE - 1) / CHUNK_SIZE) as u64
+            (data_len as usize).div_ceil(CHUNK_SIZE) as u64
         };
         Self {
             reader,
@@ -135,8 +147,7 @@ impl<R: AsyncRead + Unpin> StreamDecoder<R> {
                 // Single chunk: read directly, verify as root.
                 return self.read_single_chunk().await;
             }
-            self.stack
-                .push((0, self.num_chunks, true, self.root_hash.clone()));
+            self.stack.push((0, self.num_chunks, true, self.root_hash));
         }
 
         // Process stack until we yield a leaf chunk.
@@ -225,14 +236,9 @@ impl<R: AsyncRead + Unpin> StreamDecoder<R> {
         let split = left_subtree_chunks(count as usize) as u64;
 
         // Push RIGHT first (stack is LIFO — left will be processed first).
-        self.stack.push((
-            offset + split,
-            count - split,
-            false,
-            right_hash,
-        ));
         self.stack
-            .push((offset, split, false, left_hash));
+            .push((offset + split, count - split, false, right_hash));
+        self.stack.push((offset, split, false, left_hash));
 
         Ok(())
     }
@@ -304,7 +310,7 @@ where
     let n = if data_len == 0 {
         1
     } else {
-        ((data_len as usize + CHUNK_SIZE - 1) / CHUNK_SIZE) as u64
+        (data_len as usize).div_ceil(CHUNK_SIZE) as u64
     };
 
     if n <= 1 {
@@ -312,8 +318,12 @@ where
         async_io::read_exact(&mut reader, &mut buf)
             .await
             .map_err(StreamError::Io)?;
-        async_io::write_all(&mut writer, &buf).await.map_err(StreamError::Io)?;
-        async_io::flush(&mut writer).await.map_err(StreamError::Io)?;
+        async_io::write_all(&mut writer, &buf)
+            .await
+            .map_err(StreamError::Io)?;
+        async_io::flush(&mut writer)
+            .await
+            .map_err(StreamError::Io)?;
         return Ok(hash_leaf(&buf, 0, true));
     }
 
@@ -330,7 +340,9 @@ where
     async_io::write_all(&mut writer, &encoded[HEADER_SIZE..])
         .await
         .map_err(StreamError::Io)?;
-    async_io::flush(&mut writer).await.map_err(StreamError::Io)?;
+    async_io::flush(&mut writer)
+        .await
+        .map_err(StreamError::Io)?;
 
     Ok(root)
 }

@@ -4,14 +4,15 @@
 // crystal-domain: comp
 // ---
 //! Randomized differential test: every optimised path against the frozen
-//! oracle in `cyber_hemera::reference` (definitional square-and-multiply
-//! inverse, 0.3.1 arithmetic), compared on canonical values / bytes.
+//! oracle in `cyber_hemera::reference` (the 0.4 permutation from its
+//! definition: explicit matrix products, plain x⁷), compared on canonical
+//! values / bytes.
 //!
 //! Sizes: `HEMERA_DIFF_N` inputs per family (default 1 000 000 in release
 //! builds, 10 000 in debug). Families: permutation (single and batched),
 //! hash (random lengths 0..=200 bytes), node compression (`hash_node`,
-//! single and batched, both root flags), leaf hashing, and a profile with
-//! the shape of the x⁷ RF 6+6 / RP 48 proposal.
+//! single and batched, both root flags), leaf hashing, and other round
+//! shapes over the same kernel (reduced-round instances).
 //!
 //! ```text
 //! cargo test --release -p cyber-hemera --test differential -- --nocapture
@@ -19,7 +20,7 @@
 
 use cyber_hemera::field::{Goldilocks, P};
 use cyber_hemera::permutation::{
-    PartialSbox, Profile, permute, permute_batch, permute_batch_profile, permute_profile,
+    Profile, permute, permute_batch, permute_batch_profile, permute_profile,
 };
 use cyber_hemera::reference;
 use cyber_hemera::tree::{hash_leaf, hash_leaf_batch, hash_node, hash_node_batch};
@@ -256,42 +257,41 @@ fn node_and_leaf_match_reference() {
     );
 }
 
-/// A profile with the shape of the profile-v2 proposal (x⁷ everywhere,
-/// RF 6+6, RP 48). Constants are pseudo-random placeholders: the test
-/// checks that the kernels are generic in round counts and S-box kind,
-/// not any parameter choice.
+/// Other round shapes over the same kernel — the Poseidon2 reference
+/// shape (RF 4+4, RP 22), a reduced campaign instance (RF 2+2, RP 8) and
+/// the degenerate ends (no partial rounds; no full rounds) — with
+/// pseudo-random constants: the kernels are generic in round counts.
 #[test]
-fn v2_shaped_profile_matches_reference() {
+fn other_round_shapes_match_reference() {
     let mut r = Rng(0xC0FFEE);
-    let consts: Vec<u64> = (0..12 * 16 + 48).map(|_| r.next() % P).collect();
     let diag = reference::DIAG;
-    let (ext, int) = consts.split_at(12 * 16);
-    let profile = Profile::new(6, 48, PartialSbox::Pow7, ext, int, &diag);
-    let inv_profile = Profile::new(6, 48, PartialSbox::Inverse, ext, int, &diag);
     let total = n() / 10;
-    for (prof, inverse) in [(profile, false), (inv_profile, true)] {
+    for (rf_half, rp) in [(4usize, 22usize), (2, 8), (3, 0), (0, 5)] {
+        let consts: Vec<u64> = (0..2 * rf_half * 16 + rp).map(|_| r.next() % P).collect();
+        let (ext, int) = consts.split_at(2 * rf_half * 16);
+        let prof = Profile::new(rf_half, rp, ext, int, &diag);
         let mut batch = Vec::new();
         let mut want = Vec::new();
         for k in 0..total {
             let raw = r.state();
             let mut expect = raw;
-            reference::permute_generic(&mut expect, 6, 48, inverse, &consts, &diag);
+            reference::permute_generic(&mut expect, rf_half, rp, &consts, &diag);
             let mut s = raw.map(Goldilocks::new);
             permute_profile(&mut s, &prof);
-            assert_eq!(canon(s), expect);
+            assert_eq!(canon(s), expect, "shape ({rf_half}, {rp})");
             batch.push(raw.map(Goldilocks::new));
             want.push(expect);
             if batch.len() == 29 || k + 1 == total {
                 permute_batch_profile(&mut batch, &prof);
                 for (g, w) in batch.iter().zip(&want) {
-                    assert_eq!(canon(*g), *w);
+                    assert_eq!(canon(*g), *w, "batched shape ({rf_half}, {rp})");
                 }
                 batch.clear();
                 want.clear();
             }
         }
     }
-    println!("v2-shaped profiles (x^7 and x^-1 partial): {total} states each");
+    println!("round shapes (4,22) (2,8) (3,0) (0,5): {total} states each");
 }
 
 #[test]
@@ -338,11 +338,11 @@ fn leaf_batch_matches_reference() {
 fn traced_and_stepped_equal_permute() {
     use cyber_hemera::StepSponge;
     use cyber_hemera::permutation::permute_traced;
-    use cyber_hemera::trace::{FullRoundWitnesses, RoundVisitor};
+    use cyber_hemera::trace::{FullRoundWitnesses, RoundVisitor, SboxWitnesses};
     struct Nop;
     impl RoundVisitor for Nop {
         fn full_round(&mut self, _: u8, _: &[Goldilocks; 16], _: &FullRoundWitnesses) {}
-        fn partial_round(&mut self, _: u8, _: &[Goldilocks; 16], _: Goldilocks) {}
+        fn partial_round(&mut self, _: u8, _: &[Goldilocks; 16], _: SboxWitnesses) {}
     }
     let mut r = Rng(0x7EACE);
     for _ in 0..n() / 10 {

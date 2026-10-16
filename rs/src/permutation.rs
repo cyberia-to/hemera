@@ -5,24 +5,25 @@
 // ---
 //! Poseidon2 permutation for Goldilocks t=16.
 //!
-//! Hemera parameters: R_F=8 (4+4), R_P=16, full-round S-box=x^7, partial S-box=x^(-1).
+//! Hemera 0.4: R_F = 12 (6 + 6), R_P = 48, S-box x⁷ in every round.
 
 use crate::backend::{Ct, Fast};
-use crate::constants::{NUM_CONSTANTS, ROUND_CONSTANTS};
+use crate::constants::{NUM_CONSTANTS, NUM_EXTERNAL, ROUND_CONSTANTS};
 use crate::field::{Goldilocks, matmul_internal, mds_light_permutation};
 use crate::kernel::{Lanes, permute_lanes};
-pub use crate::profile::{HEMERA, PartialSbox, Profile};
-use crate::trace::{FullRoundWitnesses, RoundVisitor};
+use crate::params::{ROUNDS_F, ROUNDS_P};
+pub use crate::profile::{HEMERA, Profile};
+use crate::trace::{RoundVisitor, SboxWitnesses};
 
-/// Number of external (full) round constants: R_F * WIDTH = 8 * 16 = 128.
-const NUM_EXTERNAL: usize = 128;
+/// Full rounds on each side of the partial rounds.
+const RF_HALF: usize = ROUNDS_F / 2; // 6
 
 /// Lanes per batched kernel call (see `permute_batch`).
 pub const BATCH_LANES: usize = 16;
 
 /// Apply the Poseidon2 permutation in-place using the standard Hemera constants.
 ///
-/// Structure: initial MDS → 4 full rounds → 16 partial rounds → 4 full rounds.
+/// Structure: initial M_E → 6 full rounds → 48 partial rounds → 6 full rounds.
 /// Output elements are canonical.
 pub fn permute(state: &mut [Goldilocks; 16]) {
     permute_profile(state, &HEMERA);
@@ -57,8 +58,8 @@ pub fn permute_ct(state: &mut [Goldilocks; 16]) {
 ///
 /// Equal, state by state, to calling [`permute`] on each; runs
 /// [`BATCH_LANES`] permutations interleaved per kernel call (a shorter
-/// tail in groups of 8, 4, 2) and shares one field inversion per partial
-/// round across each group (Montgomery's trick).
+/// tail in groups of 8, 4, 2), so independent multiplications of
+/// different states fill the pipeline beside each state's serial chain.
 pub fn permute_batch(states: &mut [[Goldilocks; 16]]) {
     permute_batch_profile(states, &HEMERA);
 }
@@ -81,8 +82,8 @@ fn run_groups<'s, const L: usize>(
     states: &'s mut [[Goldilocks; 16]],
     profile: &Profile<'_>,
 ) -> &'s mut [[Goldilocks; 16]] {
-    let mut chunks = states.chunks_exact_mut(L);
-    for chunk in &mut chunks {
+    let (groups, rest) = states.as_chunks_mut::<L>();
+    for chunk in groups {
         let mut s: Lanes<L> = core::array::from_fn(|i| core::array::from_fn(|l| chunk[l][i].raw()));
         permute_lanes::<Fast, L>(&mut s, profile);
         for (l, st) in chunk.iter_mut().enumerate() {
@@ -91,69 +92,47 @@ fn run_groups<'s, const L: usize>(
             }
         }
     }
-    chunks.into_remainder()
+    rest
 }
 
 /// Apply the Poseidon2 permutation with caller-supplied round constants.
 ///
 /// Used by `bootstrap.rs` to run Hemera₀ (all-zero constants).
-/// `constants` = 128 external then 16 internal; any representatives.
+/// `constants` = 192 external then 48 internal; any representatives.
 pub fn permute_with_constants(state: &mut [Goldilocks; 16], constants: &[Goldilocks]) {
     let mut raw = [0u64; NUM_CONSTANTS];
     assert_eq!(
         constants.len(),
         NUM_CONSTANTS,
-        "permute_with_constants: 144 constants"
+        "permute_with_constants: 240 constants"
     );
     for (r, c) in raw.iter_mut().zip(constants) {
         *r = c.as_canonical_u64();
     }
     let (external, internal) = raw.split_at(NUM_EXTERNAL);
-    let profile = Profile::new(
-        HEMERA.rf_half,
-        HEMERA.rp,
-        HEMERA.partial,
-        external,
-        internal,
-        HEMERA.diag,
-    );
+    let profile = Profile::new(HEMERA.rf_half, HEMERA.rp, external, internal, HEMERA.diag);
     permute_profile(state, &profile);
 }
 
 /// Execute one round of the permutation in-place.
 ///
-/// `round` is 0-indexed over all 24 rounds:
-/// - 0..4:  initial full rounds (after the initial MDS, which is applied separately)
-/// - 4..20: partial rounds
-/// - 20..24: terminal full rounds
+/// `round` is 0-indexed over all 60 rounds:
+/// - 0..6:   initial full rounds (after the initial M_E, which is applied separately)
+/// - 6..54:  partial rounds
+/// - 54..60: terminal full rounds
 ///
-/// The initial MDS step must be applied once before `permute_one_round(state, 0)`.
+/// The initial M_E step must be applied once before `permute_one_round(state, 0)`.
 /// See `StepSponge::absorb`, which handles this.
 pub(crate) fn permute_one_round(state: &mut [Goldilocks; 16], round: usize) {
     let (external, internal) = ROUND_CONSTANTS.split_at(NUM_EXTERNAL);
-    let (initial_rc, terminal_rc) = external.split_at(NUM_EXTERNAL / 2);
-
-    if round < 4 {
-        let rc = &initial_rc[round * 16..(round + 1) * 16];
-        for i in 0..16 {
-            state[i] += rc[i];
-            state[i] = state[i].pow7();
-        }
-        mds_light_permutation(state);
-    } else if round < 20 {
-        let pr = round - 4;
-        state[0] += internal[pr];
-        state[0] = state[0].inv();
-        matmul_internal(state);
+    if round < RF_HALF {
+        full_round_step(state, &external[round * 16..(round + 1) * 16]);
+    } else if round < RF_HALF + ROUNDS_P {
+        partial_round_step(state, internal[round - RF_HALF]);
     } else {
-        let tr = round - 20;
-        let rc = &terminal_rc[tr * 16..(tr + 1) * 16];
-        for i in 0..16 {
-            state[i] += rc[i];
-            state[i] = state[i].pow7();
-        }
-        mds_light_permutation(state);
-        if round == 23 {
+        let r = round - ROUNDS_P; // external row RF_HALF..ROUNDS_F
+        full_round_step(state, &external[r * 16..(r + 1) * 16]);
+        if round == ROUNDS_F + ROUNDS_P - 1 {
             canonicalize(state);
         }
     }
@@ -169,58 +148,65 @@ fn canonicalize(state: &mut [Goldilocks; 16]) {
 
 /// Apply the Poseidon2 permutation in-place, calling `visitor` once per round.
 ///
-/// Emits 24 callbacks total in order: full_round 0–3, partial_round 0–15, full_round 4–7.
-/// The initial MDS step is linear and does not emit a callback. The final
-/// state is returned canonical, bit-identical to [`permute`].
+/// Emits 60 callbacks in order: full_round 0–5, partial_round 0–47,
+/// full_round 6–11. The initial M_E step is linear and does not emit a
+/// callback. The final state is returned canonical, bit-identical to
+/// [`permute`].
 pub fn permute_traced<V: RoundVisitor>(state: &mut [Goldilocks; 16], visitor: &mut V) {
     let (external, internal) = ROUND_CONSTANTS.split_at(NUM_EXTERNAL);
-    let (initial_rc, terminal_rc) = external.split_at(NUM_EXTERNAL / 2);
-
     mds_light_permutation(state);
-
-    for round in 0..4u8 {
-        let rc = &initial_rc[round as usize * 16..(round as usize + 1) * 16];
+    let rows = external.as_chunks::<16>().0;
+    for (round, rc) in rows.iter().take(RF_HALF).enumerate() {
         let witnesses = full_round_step(state, rc);
-        visitor.full_round(round, state, &witnesses);
+        visitor.full_round(round as u8, state, &witnesses);
     }
-
-    for round in 0..16u8 {
-        state[0] += internal[round as usize];
-        state[0] = state[0].inv();
-        let sbox_out = state[0];
-        matmul_internal(state);
-        visitor.partial_round(round, state, sbox_out);
+    for (round, &c) in internal.iter().enumerate() {
+        let witness = partial_round_step(state, c);
+        visitor.partial_round(round as u8, state, witness);
     }
-
-    for round in 0..4u8 {
-        let rc = &terminal_rc[round as usize * 16..(round as usize + 1) * 16];
+    for (round, rc) in rows.iter().enumerate().skip(RF_HALF) {
         let witnesses = full_round_step(state, rc);
-        visitor.full_round(round + 4, state, &witnesses);
+        visitor.full_round(round as u8, state, &witnesses);
     }
     canonicalize(state);
 }
 
-/// Add round constants, apply x^7 S-box to all 16 elements, apply MDS.
+/// `[x², x³]` of an S-box input `x` (the degree-3 witness, see `trace`).
+#[inline]
+fn sbox_with_witness(x: Goldilocks) -> (Goldilocks, SboxWitnesses) {
+    let x2 = x * x;
+    let x3 = x2 * x;
+    (x3 * (x2 * x2), [x2, x3])
+}
+
+/// Add round constants, x⁷ on all 16 elements, M_E.
 /// Returns per-element witnesses `[x², x³]` for the pre-S-box state.
 #[inline]
-fn full_round_step(state: &mut [Goldilocks; 16], rc: &[Goldilocks]) -> FullRoundWitnesses {
+fn full_round_step(state: &mut [Goldilocks; 16], rc: &[Goldilocks]) -> [SboxWitnesses; 16] {
     let mut witnesses = [[Goldilocks::ZERO; 2]; 16];
     for i in 0..16 {
-        state[i] += rc[i];
-        let x2 = state[i] * state[i];
-        let x3 = x2 * state[i];
-        let x4 = x2 * x2;
-        witnesses[i] = [x2, x3];
-        state[i] = x3 * x4; // x^7
+        let (y, w) = sbox_with_witness(state[i] + rc[i]);
+        state[i] = y;
+        witnesses[i] = w;
     }
     mds_light_permutation(state);
     witnesses
 }
 
+/// Add the round constant to `state[0]`, x⁷ on it, M_I.
+/// Returns the witness `[x², x³]` of the pre-S-box `state[0]`.
+#[inline]
+fn partial_round_step(state: &mut [Goldilocks; 16], c: Goldilocks) -> SboxWitnesses {
+    let (y, w) = sbox_with_witness(state[0] + c);
+    state[0] = y;
+    matmul_internal(state);
+    w
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::trace::{FullRoundWitnesses, RoundVisitor};
+    use crate::trace::{FullRoundWitnesses, RoundVisitor, SboxWitnesses};
 
     struct RoundCounter {
         full: u8,
@@ -231,7 +217,7 @@ mod tests {
         fn full_round(&mut self, _: u8, _: &[Goldilocks; 16], _: &FullRoundWitnesses) {
             self.full += 1;
         }
-        fn partial_round(&mut self, _: u8, _: &[Goldilocks; 16], _: Goldilocks) {
+        fn partial_round(&mut self, _: u8, _: &[Goldilocks; 16], _: SboxWitnesses) {
             self.partial += 1;
         }
     }
@@ -249,16 +235,16 @@ mod tests {
         permute_traced(&mut state_traced, &mut counter);
 
         assert_eq!(state_plain, state_traced);
-        assert_eq!(counter.full, 8);
-        assert_eq!(counter.partial, 16);
+        assert_eq!(counter.full, 12);
+        assert_eq!(counter.partial, 48);
     }
 
     #[test]
     fn trace_round_indices_are_ordered() {
         struct IndexRecorder {
-            full_indices: [u8; 8],
+            full_indices: [u8; 12],
             full_count: usize,
-            partial_indices: [u8; 16],
+            partial_indices: [u8; 48],
             partial_count: usize,
         }
         impl RoundVisitor for IndexRecorder {
@@ -266,7 +252,7 @@ mod tests {
                 self.full_indices[self.full_count] = index;
                 self.full_count += 1;
             }
-            fn partial_round(&mut self, index: u8, _: &[Goldilocks; 16], _: Goldilocks) {
+            fn partial_round(&mut self, index: u8, _: &[Goldilocks; 16], _: SboxWitnesses) {
                 self.partial_indices[self.partial_count] = index;
                 self.partial_count += 1;
             }
@@ -274,17 +260,17 @@ mod tests {
 
         let mut state = [Goldilocks::ZERO; 16];
         let mut rec = IndexRecorder {
-            full_indices: [0; 8],
+            full_indices: [0; 12],
             full_count: 0,
-            partial_indices: [0; 16],
+            partial_indices: [0; 48],
             partial_count: 0,
         };
         permute_traced(&mut state, &mut rec);
 
-        for i in 0..8u8 {
+        for i in 0..12u8 {
             assert_eq!(rec.full_indices[i as usize], i, "full round index {i}");
         }
-        for i in 0..16u8 {
+        for i in 0..48u8 {
             assert_eq!(
                 rec.partial_indices[i as usize], i,
                 "partial round index {i}"
@@ -293,15 +279,27 @@ mod tests {
     }
 
     #[test]
-    fn full_round_witnesses_correct() {
-        struct WitnessChecker;
-        impl RoundVisitor for WitnessChecker {
-            fn full_round(&mut self, _: u8, _: &[Goldilocks; 16], _: &FullRoundWitnesses) {}
-            fn partial_round(&mut self, _: u8, _: &[Goldilocks; 16], _: Goldilocks) {}
+    fn sbox_witnesses_are_consistent() {
+        // [x², x³] of one x: (x³)² = (x²)³ for every S-box, full and partial.
+        struct WitnessChecker {
+            checked: usize,
         }
-        // Just confirm it compiles and runs without panic.
+        impl RoundVisitor for WitnessChecker {
+            fn full_round(&mut self, _: u8, _: &[Goldilocks; 16], w: &FullRoundWitnesses) {
+                for [x2, x3] in w {
+                    assert_eq!(*x3 * *x3, *x2 * *x2 * *x2);
+                    self.checked += 1;
+                }
+            }
+            fn partial_round(&mut self, _: u8, _: &[Goldilocks; 16], [x2, x3]: SboxWitnesses) {
+                assert_eq!(x3 * x3, x2 * x2 * x2);
+                self.checked += 1;
+            }
+        }
         let mut state = [Goldilocks::new(7); 16];
-        permute_traced(&mut state, &mut WitnessChecker);
+        let mut checker = WitnessChecker { checked: 0 };
+        permute_traced(&mut state, &mut checker);
+        assert_eq!(checker.checked, 12 * 16 + 48);
     }
 
     #[test]

@@ -12,9 +12,9 @@
 //! been reviewed by third-party cryptographers. Do not use in production
 //! systems where cryptographic guarantees are required. Use at your own risk.
 //!
-//! **The Hemera hash is not finalized and may change.** Hash outputs, round
-//! constants, and the sponge construction are subject to breaking changes
-//! until a stable release.
+//! **Profile 0.4 is the candidate frozen for the phase-1 root chain**
+//! (genesis 2026-11-05) and the object of the public cryptanalysis campaign
+//! (`audit/campaign.md`). Its outputs differ from 0.3 everywhere.
 //!
 //! ---
 //!
@@ -26,10 +26,10 @@
 //!
 //! - **Field**: Goldilocks (p = 2^64 - 2^32 + 1)
 //! - **State width**: t = 16
-//! - **Full rounds**: R_F = 8
-//! - **Partial rounds**: R_P = 16
-//! - **Full-round S-box**: x^7
-//! - **Partial-round S-box**: x^(-1) (field inversion)
+//! - **Full rounds**: R_F = 12 (6 + 6)
+//! - **Partial rounds**: R_P = 48
+//! - **S-box**: x^7 in every round
+//! - **Linear layers**: Poseidon2 reference (`circ(2·M4, M4, M4, M4)` and `1 + diag(d)`)
 //! - **Rate**: 8 elements (56 input bytes per block)
 //! - **Capacity**: 8 elements
 //! - **Output**: 4 elements (32 bytes)
@@ -55,39 +55,39 @@ extern crate alloc;
 extern crate std;
 
 mod arith;
+#[cfg(feature = "async")]
+pub mod async_io;
 mod backend;
 pub mod batch;
-pub mod stream;
 pub mod bootstrap;
 pub mod cdc;
 pub mod constants;
 mod encoding;
 pub mod field;
+mod kernel;
 pub mod merkle;
 mod params;
-mod kernel;
 pub mod permutation;
 mod profile;
 #[doc(hidden)]
 pub mod reference;
-mod sponge;
 pub mod sparse;
+mod sponge;
 pub mod step_sponge;
-pub mod trace;
-pub mod tree;
-#[cfg(feature = "async")]
-pub mod async_io;
+pub mod stream;
 #[cfg(feature = "async")]
 pub mod stream_async;
+pub mod trace;
+pub mod tree;
 
 // Re-export all Hemera parameters so downstream crates never hardcode them.
+pub use merkle::{Side, merkle_verify_path};
 pub use params::{
     CAPACITY, CHUNK_SIZE, COLLISION_BITS, OUTPUT_BYTES, OUTPUT_ELEMENTS, RATE, RATE_BYTES,
     ROUNDS_F, ROUNDS_P, ROUNDS_TOTAL, SBOX_DEGREE, WIDTH,
 };
-pub use merkle::{merkle_verify_path, Side};
-pub use step_sponge::StepSponge;
 pub use sponge::{Hash, Hasher, OutputReader};
+pub use step_sponge::StepSponge;
 
 /// Hash the input bytes and return a 32-byte digest.
 pub fn hash(input: &[u8]) -> Hash {
@@ -131,8 +131,8 @@ pub fn derive_key(context: &str, key_material: &[u8]) -> [u8; OUTPUT_BYTES] {
 #[cfg(test)]
 mod tests {
     extern crate std;
-    use std::{vec, vec::Vec};
     use super::*;
+    use std::{vec, vec::Vec};
 
     #[test]
     fn hash_basic() {

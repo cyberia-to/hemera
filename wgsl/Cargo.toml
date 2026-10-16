@@ -5,7 +5,7 @@
 # ---
 [package]
 name = "cyber-hemera-wgsl"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 description = "GPU backend for Hemera — Poseidon2 via wgpu compute shaders"
 license-file = "../LICENSE"
@@ -21,7 +21,7 @@ readme = "../README.md"
 workspace = true
 
 [dependencies]
-cyber-hemera = { path = "../rs", version = "0.3.0" }
+cyber-hemera = { path = "../rs", version = "0.4.0" }
 wgpu = "28"
 bytemuck = { version = "1", features = ["derive"] }
 

@@ -6,27 +6,18 @@
 //! Permutation profile: the parameters the fast kernels are generic over.
 //!
 //! A profile fixes the round structure of a width-16 Poseidon2 instance
-//! over Goldilocks — full rounds per side, partial rounds, the partial
-//! S-box kind, the round constants and the internal diagonal. The
-//! external layer is always the Poseidon2 circulant of 4×4 blocks
-//! (`field::mds_light_permutation`) and the internal layer always
-//! `1 + diag(d)` (`field::matmul_internal`). The live profile is
-//! [`HEMERA`] (RF 4+4, RP 16, partial x⁻¹); the kernels take any profile,
-//! so a change of round counts or of the partial S-box (e.g. the x⁷
-//! RF 6+6 / RP 48 proposal) is a new `Profile` constant, not new code.
+//! over Goldilocks with x⁷ in every round — full rounds per side, partial
+//! rounds, the round constants and the internal diagonal. The external
+//! layer is always `circ(2·M4, M4, M4, M4)` (`field::mds_light_permutation`)
+//! and the internal layer always `1 + diag(d)` (`field::matmul_internal`).
+//! The live profile is [`HEMERA`] (RF 6+6, RP 48); other round counts
+//! (reduced-round instances of the cryptanalysis campaign, the split
+//! benchmark) are other `Profile` values over the same kernel.
 
 use crate::arith::P;
-use crate::constants::ROUND_CONSTANTS_U64;
+use crate::constants::{NUM_EXTERNAL, ROUND_CONSTANTS_U64};
 use crate::field::MATRIX_DIAG_16;
-
-/// S-box of the partial rounds (full rounds always use x⁷).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PartialSbox {
-    /// x ↦ x^(p−2), 0 ↦ 0.
-    Inverse,
-    /// x ↦ x⁷.
-    Pow7,
-}
+use crate::params::{ROUNDS_F, ROUNDS_P};
 
 /// Round structure and constants of a width-16 permutation.
 #[derive(Clone, Copy, Debug)]
@@ -35,8 +26,6 @@ pub struct Profile<'a> {
     pub rf_half: usize,
     /// Partial rounds.
     pub rp: usize,
-    /// Partial-round S-box.
-    pub partial: PartialSbox,
     /// `2·rf_half` rows of 16 external constants, round-major.
     pub external: &'a [u64],
     /// `rp` internal constants.
@@ -52,7 +41,6 @@ impl<'a> Profile<'a> {
     pub const fn new(
         rf_half: usize,
         rp: usize,
-        partial: PartialSbox,
         external: &'a [u64],
         internal: &'a [u64],
         diag: &'a [u64; 16],
@@ -75,7 +63,6 @@ impl<'a> Profile<'a> {
         Self {
             rf_half,
             rp,
-            partial,
             external,
             internal,
             diag,
@@ -94,14 +81,10 @@ const DIAG: [u64; 16] = {
     d
 };
 
-/// Number of external constants of the live profile.
-const NUM_EXTERNAL: usize = 128;
-
-/// The live hemera profile: RF 4+4, RP 16, partial S-box x⁻¹.
+/// The live hemera profile 0.4: RF 6+6, RP 48, x⁷ in every round.
 pub const HEMERA: Profile<'static> = Profile::new(
-    4,
-    16,
-    PartialSbox::Inverse,
+    ROUNDS_F / 2,
+    ROUNDS_P,
     ROUND_CONSTANTS_U64.split_at(NUM_EXTERNAL).0,
     ROUND_CONSTANTS_U64.split_at(NUM_EXTERNAL).1,
     &DIAG,

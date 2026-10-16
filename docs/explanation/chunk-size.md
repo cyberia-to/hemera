@@ -32,8 +32,8 @@ set from L1 is a hard performance boundary.
 
 ## 4. zheng proof granularity
 
-75 permutations x ~736 constraints = ~55,200 constraints per
-leaf. Large enough to amortize proof overhead, small enough to
+75 permutations x ~1,440 constraints = ~108,000 constraints per
+leaf (hemera 0.4). Large enough to amortize proof overhead, small enough to
 prove individual chunks without excessive trace length.
 
 ## 5. Tree depth and proof size

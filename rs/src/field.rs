@@ -6,7 +6,8 @@
 //! Goldilocks prime field (p = 2^64 - 2^32 + 1).
 //!
 //! Minimal implementation covering the operations hemera needs:
-//! addition, subtraction, multiplication, and the x^7 S-box.
+//! addition, subtraction, multiplication, the x^7 S-box and the two
+//! linear layers of the permutation.
 
 use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 
@@ -38,7 +39,8 @@ impl Goldilocks {
     #[inline]
     pub fn as_canonical_u64(self) -> u64 {
         // Mask, not branch: hash outputs of secret inputs pass through here.
-        self.value.wrapping_sub(P & u64::from(self.value >= P).wrapping_neg())
+        self.value
+            .wrapping_sub(P & u64::from(self.value >= P).wrapping_neg())
     }
 
     /// Compute x^2.
@@ -47,67 +49,13 @@ impl Goldilocks {
         self * self
     }
 
-    /// Compute x^7 (the Poseidon2 full-round S-box for Goldilocks).
+    /// Compute x^7 (the hemera S-box, every round).
     #[inline]
     pub fn pow7(self) -> Self {
         let x2 = self.square();
         let x3 = x2 * self;
         let x4 = x2.square();
         x3 * x4
-    }
-
-    /// Compute x^(-1) = x^(p-2) (the Poseidon2 partial-round S-box).
-    ///
-    /// Uses Fermat's little theorem: x^(-1) = x^(p-2) mod p.
-    /// Convention: 0^(-1) = 0 (permutation over F_p).
-    #[inline]
-    pub fn inv(self) -> Self {
-        // x^(p-2) by the 75-multiply addition chain (acpu gl_inv) instead
-        // of naive square-and-multiply (~125 serial muls). The partial
-        // rounds of the Poseidon2 permutation call this once each, and the
-        // permutation is the single hottest primitive in the stack — every
-        // saved serial multiply here is felt from Brakedown to the graph.
-        // Bit-identical result: same Fermat exponent, better chain.
-        if self.as_canonical_u64() == 0 {
-            return Self::ZERO;
-        }
-        let x = self;
-        // chain of 2^k-1 powers up to x^(2^31-1)
-        let x2 = x * x;
-        let x3 = x2 * x;
-        let x4 = x2 * x2;
-        let x7 = x3 * x4;
-        let x6 = x3 * x3;
-        let x12 = x6 * x6;
-        let x15 = x12 * x3; // 2^4-1
-        let x30 = x15 * x15;
-        let x60 = x30 * x30;
-        let x120 = x60 * x60;
-        let x127 = x120 * x7; // 2^7-1
-        let x254 = x127 * x127;
-        let x255 = x254 * x; // 2^8-1
-        let mut t = x255;
-        for _ in 0..7 {
-            t = t * t;
-        }
-        let x_2p15m1 = t * x127; // 2^15-1
-        let x_2p16m2 = x_2p15m1 * x_2p15m1;
-        let x_2p16m1 = x_2p16m2 * x; // 2^16-1
-        t = x_2p16m1;
-        for _ in 0..15 {
-            t = t * t;
-        }
-        let x_2p31m1 = t * x_2p15m1; // 2^31-1
-        // x^(2^32-1)
-        let x_2p32m2 = x_2p31m1 * x_2p31m1;
-        let x_epsilon = x_2p32m2 * x;
-        // x^((2^31-1)*2^33)
-        t = x_2p31m1;
-        for _ in 0..33 {
-            t = t * t;
-        }
-        // p-2 = (2^31-1)*2^33 + 2^32-1
-        t * x_epsilon
     }
 
     /// The raw representative in `[0, 2^64)` (not necessarily canonical).
@@ -212,42 +160,47 @@ fn reduce128(x: u128) -> Goldilocks {
 
 // ── MDS and diffusion matrices ──────────────────────────────────────
 
-/// Apply the 4x4 MDS matrix used in Poseidon2 external rounds:
+/// Apply the 4×4 MDS block of the Poseidon2 external layer (Poseidon2
+/// paper, Appendix B; the Horizen Labs reference matrix):
 /// ```text
-/// [ 2 3 1 1 ]
-/// [ 1 2 3 1 ]
-/// [ 1 1 2 3 ]
-/// [ 3 1 1 2 ]
+/// [ 5 7 1 3 ]
+/// [ 4 6 1 1 ]
+/// [ 1 3 5 7 ]
+/// [ 1 1 4 6 ]
 /// ```
+/// Eight additions and four doublings (the paper's schedule).
 #[inline(always)]
 pub fn apply_mat4(x: &mut [Goldilocks; 4]) {
-    let t01 = x[0] + x[1];
-    let t23 = x[2] + x[3];
-    let t0123 = t01 + t23;
-    let t01123 = t0123 + x[1];
-    let t01233 = t0123 + x[3];
-    x[3] = t01233 + x[0].double();
-    x[1] = t01123 + x[2].double();
-    x[0] = t01123 + t01;
-    x[2] = t01233 + t23;
+    let t0 = x[0] + x[1];
+    let t1 = x[2] + x[3];
+    let t2 = x[1].double() + t1;
+    let t3 = x[3].double() + t0;
+    let t4 = t1.double().double() + t3;
+    let t5 = t0.double().double() + t2;
+    let t6 = t3 + t5;
+    let t7 = t2 + t4;
+    x[0] = t6;
+    x[1] = t5;
+    x[2] = t7;
+    x[3] = t4;
 }
 
-/// Apply the external MDS layer for a width-16 state.
+/// Apply the external linear layer M_E for a width-16 state.
 ///
-/// Multiplies by the 16×16 circulant-of-4×4 matrix:
-/// `[[2M M ... M], [M 2M ... M], ..., [M M ... 2M]]`
-/// where M is the 4×4 MDS matrix.
+/// Multiplies by the 16×16 block matrix
+/// `[[2M M M M], [M 2M M M], [M M 2M M], [M M M 2M]]`
+/// where M is the 4×4 MDS block of [`apply_mat4`] (Poseidon2 §5.1). M_E is
+/// invertible and MDS block by block — see `specs/matrices.md`.
 #[inline]
 pub fn mds_light_permutation(state: &mut [Goldilocks; 16]) {
     // Apply M4 to each consecutive 4-element chunk.
-    for chunk in state.chunks_exact_mut(4) {
-        apply_mat4(chunk.try_into().unwrap());
+    for chunk in state.as_chunks_mut::<4>().0 {
+        apply_mat4(chunk);
     }
 
     // Compute column sums (one per M4 column position).
-    let sums: [Goldilocks; 4] = core::array::from_fn(|k| {
-        (0..16).step_by(4).map(|j| state[j + k]).sum()
-    });
+    let sums: [Goldilocks; 4] =
+        core::array::from_fn(|k| (0..16).step_by(4).map(|j| state[j + k]).sum());
 
     // Add the appropriate column sum to each element.
     for (i, elem) in state.iter_mut().enumerate() {
@@ -255,9 +208,16 @@ pub fn mds_light_permutation(state: &mut [Goldilocks; 16]) {
     }
 }
 
-/// Diagonal elements of the internal diffusion matrix for Goldilocks t=16.
+/// Diagonal of the internal matrix M_I = 1 + diag(d) for Goldilocks t = 16,
+/// where 1 is the all-ones matrix.
 ///
-/// The full matrix is M_I = 1 + diag(d), where 1 is the all-ones matrix.
+/// The Poseidon2 reference instance (Horizen Labs `MAT_DIAG16_M_1`, also
+/// Plonky3 `MATRIX_DIAG_16_GOLDILOCKS`): the 47th diagonal proposed by the
+/// Grain LFSR of the Poseidon2 parameter script (field 1, S-box 0, n 64,
+/// t 16, R_F 8, R_P 22), the first whose powers M_I^1 … M_I^32 all have an
+/// irreducible characteristic polynomial. Derivation and conditions:
+/// `specs/matrices.md`, `audit/campaign/poseidon2_params.py`,
+/// `rs/tests/poseidon2_conditions.rs`.
 pub const MATRIX_DIAG_16: [Goldilocks; 16] = [
     Goldilocks::new(0xde9b91a467d6afc0),
     Goldilocks::new(0xc5f16b9c76a9be17),
@@ -292,31 +252,6 @@ pub fn matmul_internal(state: &mut [Goldilocks; 16]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// The addition chain must equal naive x^(p-2) everywhere — checked
-    /// against x*inv(x)==1 over a spread of values including edge cases.
-    #[test]
-    fn inv_chain_matches_fermat() {
-        let mut v = [0u64; 72];
-        v[..8].copy_from_slice(&[1, 2, 3, P - 1, P - 2, 0xFFFF_FFFF, 1 << 32, u64::MAX % P]);
-        let mut x = 0x9e3779b97f4a7c15u64;
-        for slot in v[8..].iter_mut() {
-            x = x.wrapping_mul(0xbf58476d1ce4e5b9).rotate_left(31);
-            *slot = x % P;
-        }
-        for &raw in &v {
-            if raw == 0 {
-                continue;
-            }
-            let a = Goldilocks::new(raw);
-            assert_eq!(
-                (a * a.inv()).as_canonical_u64(),
-                1,
-                "inv broken at {raw}"
-            );
-        }
-        assert_eq!(Goldilocks::ZERO.inv().as_canonical_u64(), 0);
-    }
 
     #[test]
     fn field_add_basic() {
@@ -360,6 +295,30 @@ mod tests {
         assert_eq!((a * a).as_canonical_u64(), 1);
     }
 
+    /// The addition schedule of `apply_mat4` is the matrix
+    /// [[5,7,1,3],[4,6,1,1],[1,3,5,7],[1,1,4,6]] applied to the vector.
+    #[test]
+    fn mat4_schedule_is_the_reference_matrix() {
+        const M4: [[u64; 4]; 4] = [[5, 7, 1, 3], [4, 6, 1, 1], [1, 3, 5, 7], [1, 1, 4, 6]];
+        let inputs = [
+            [1u64, 0, 0, 0],
+            [0, 1, 0, 0],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1],
+            [3, P - 1, 1 << 40, 7],
+        ];
+        for v in inputs {
+            let mut x = v.map(Goldilocks::new);
+            apply_mat4(&mut x);
+            for r in 0..4 {
+                let want = (0..4).fold(0u128, |acc, c| {
+                    acc + u128::from(M4[r][c]) * u128::from(v[c])
+                });
+                assert_eq!(x[r].as_canonical_u64(), (want % u128::from(P)) as u64);
+            }
+        }
+    }
+
     #[test]
     fn pow7_basic() {
         let x = Goldilocks::new(2);
@@ -374,39 +333,6 @@ mod tests {
     #[test]
     fn pow7_one() {
         assert_eq!(Goldilocks::new(1).pow7().as_canonical_u64(), 1);
-    }
-
-    #[test]
-    fn inv_basic() {
-        // 2 * inv(2) = 1
-        let x = Goldilocks::new(2);
-        let x_inv = x.inv();
-        assert_eq!((x * x_inv).as_canonical_u64(), 1);
-    }
-
-    #[test]
-    fn inv_one() {
-        assert_eq!(Goldilocks::new(1).inv().as_canonical_u64(), 1);
-    }
-
-    #[test]
-    fn inv_zero() {
-        assert_eq!(Goldilocks::ZERO.inv().as_canonical_u64(), 0);
-    }
-
-    #[test]
-    fn inv_roundtrip() {
-        let x = Goldilocks::new(42);
-        let x_inv = x.inv();
-        assert_eq!((x * x_inv).as_canonical_u64(), 1);
-        assert_eq!(x_inv.inv().as_canonical_u64(), x.as_canonical_u64());
-    }
-
-    #[test]
-    fn inv_p_minus_one() {
-        // (p-1)^(-1) = p-1 since (p-1)^2 = 1 mod p
-        let a = Goldilocks::new(P - 1);
-        assert_eq!(a.inv().as_canonical_u64(), P - 1);
     }
 
     #[test]
