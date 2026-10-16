@@ -3,37 +3,36 @@
 // crystal-type: source
 // crystal-domain: comp
 // ---
-//! Hemera — Poseidon2 parameter set over the Goldilocks field.
+//! Hemera — Poseidon2 parameter set over the Goldilocks field (profile 0.4).
 //!
 //! Single source of truth for every constant in the protocol.
-//! The WGSL shader (`gpu/poseidon2.wgsl`) duplicates a subset of
+//! The WGSL shaders (`wgsl/src/shaders/params.wgsl`) duplicate a subset of
 //! these values because WGSL cannot import Rust; keep them in sync.
 //!
 //! ```text
 //! ┌──────────────────────────────────────────────────────────┐
-//! │  HEMERA — Complete Specification                         │
+//! │  HEMERA 0.4 — Complete Specification                     │
 //! │                                                          │
-//! │  Field:           p = 2⁶⁴ − 2³² + 1 (Goldilocks)       │
-//! │  Full-round S-box: d = 7  (x → x⁷)                     │
-//! │  Partial S-box:   x⁻¹    (field inversion)              │
-//! │  State width:     t = 16                      = 2⁴       │
-//! │  Full rounds:     R_F = 8  (4 + 4)            = 2³       │
-//! │  Partial rounds:  R_P = 16                    = 2⁴       │
-//! │  Rate:            r = 8  elements              = 2³       │
-//! │  Input rate:      56 bytes/block (7 B/element) = 7 × 2³   │
-//! │  Capacity:        c = 8  elements (64 bytes)   = 2³       │
-//! │  Output:          4  elements (32 bytes)       = 2²       │
+//! │  Field:           p = 2⁶⁴ − 2³² + 1 (Goldilocks)         │
+//! │  S-box:           x⁷ in every round (full and partial)   │
+//! │  State width:     t = 16                                 │
+//! │  Full rounds:     R_F = 12  (6 + 6)                      │
+//! │  Partial rounds:  R_P = 48                               │
+//! │  External layer:  circ(2·M4, M4, M4, M4), M4 Poseidon2   │
+//! │  Internal layer:  1 + diag(d), d Poseidon2 reference     │
+//! │  Rate:            r = 8  elements                        │
+//! │  Input rate:      56 bytes/block (7 B/element)           │
+//! │  Capacity:        c = 8  elements (64 bytes)             │
+//! │  Output:          4  elements (32 bytes)                 │
 //! │                                                          │
-//! │  Full round constants:    8 × 16 = 128        = 2⁷       │
-//! │  Partial round constants: 16                  = 2⁴       │
-//! │  Total constants:         144                 = 9 × 2⁴   │
-//! │  Total rounds:            24                  = 3 × 2³   │
+//! │  Full round constants:    12 × 16 = 192                  │
+//! │  Partial round constants: 48                             │
+//! │  Total constants:         240                            │
+//! │  Total rounds:            60                             │
 //! │                                                          │
-//! │  Classical collision resistance:  256 bits     = 2⁸       │
-//! │  Quantum collision resistance:   170 bits                │
-//! │  Algebraic degree:               2¹⁰⁴⁶                   │
-//! │                                                          │
-//! │  Every parameter that appears in code is a power of 2.   │
+//! │  Collision (32-byte digest): 2¹²⁸ classical, 2⁸⁵·³ BHT   │
+//! │  Preimage  (32-byte digest): 2²⁵⁶ classical, 2¹²⁸ Grover │
+//! │  Algebraic margin: measured by the campaign, not claimed │
 //! └──────────────────────────────────────────────────────────┘
 //! ```
 
@@ -44,16 +43,16 @@ use crate::field::Goldilocks;
 /// Width of the Poseidon2 state (number of Goldilocks field elements).
 pub const WIDTH: usize = 16;
 
-/// Number of full (external) rounds — 4 initial + 4 final.
-pub const ROUNDS_F: usize = 8;
+/// Number of full (external) rounds — 6 initial + 6 final.
+pub const ROUNDS_F: usize = 12;
 
 /// Number of partial (internal) rounds.
-pub const ROUNDS_P: usize = 16;
+pub const ROUNDS_P: usize = 48;
 
 /// Total number of rounds per permutation (R_F + R_P).
-pub const ROUNDS_TOTAL: usize = ROUNDS_F + ROUNDS_P; // 24
+pub const ROUNDS_TOTAL: usize = ROUNDS_F + ROUNDS_P; // 60
 
-/// Full-round S-box degree (x → x^d).
+/// S-box degree (x → x^d), every round: the least d with gcd(d, p − 1) = 1.
 pub const SBOX_DEGREE: usize = 7;
 
 // ── Sponge parameters ───────────────────────────────────────────────
@@ -102,8 +101,9 @@ pub const MAX_TREE_DEPTH: usize = 64;
 
 // ── Security properties (informational) ─────────────────────────────
 
-/// Classical collision resistance in bits.
-pub const COLLISION_BITS: usize = 256;
+/// Classical collision resistance of the 32-byte digest in bits
+/// (birthday bound on p⁴ ≈ 2²⁵⁶ outputs). Quantum (BHT): ≈ 85.3 bits.
+pub const COLLISION_BITS: usize = 128;
 
 // ── Permutation entry point ─────────────────────────────────────────
 

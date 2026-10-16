@@ -6,7 +6,7 @@
 //! Round-by-round Poseidon2 sponge for STARK trace generation.
 //!
 //! `StepSponge` implements `Iterator<Item=[Goldilocks; WIDTH]>`, yielding
-//! the full post-round state for each of the 24 permutation rounds. Used
+//! the full post-round state for each of the 60 permutation rounds. Used
 //! by nox's pattern-15 trace emitter so each round becomes one trace row.
 //!
 //! ```text
@@ -24,7 +24,7 @@ use crate::permutation::permute_one_round;
 /// Round-by-round Poseidon2 permutation.
 ///
 /// Call `absorb` to initialize, then iterate (or call `step` in a loop)
-/// to advance one round at a time. After all 24 rounds, `done()` is true
+/// to advance one round at a time. After all 60 rounds, `done()` is true
 /// and `squeeze()` returns `state[0]`.
 #[derive(Debug)]
 pub struct StepSponge {
@@ -113,7 +113,7 @@ mod tests {
 
     #[test]
     fn matches_atomic_permute() {
-        // StepSponge stepping all 24 rounds must produce the same final state
+        // StepSponge stepping all 60 rounds must produce the same final state
         // as a single `permute()` call on the same initial state.
         let rate: Vec<Goldilocks> = (0..RATE as u64).map(Goldilocks::new).collect();
 

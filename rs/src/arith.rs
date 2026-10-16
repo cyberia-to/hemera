@@ -77,7 +77,7 @@ pub(crate) fn reduce_wide(x: u128) -> u64 {
 /// `a · b`, bit-identical to `reduce_wide(a as u128 * b as u128)`.
 ///
 /// On aarch64 the reduction is scheduled by hand for latency, the cost
-/// that bounds the inverse S-box chain:
+/// that bounds the serial S-box chain of the partial rounds:
 ///
 /// - `t1 = hi_lo · ε` is formed as `(hi << 32) − (hi & ε)` (the shift drops
 ///   `hi_hi` for free), ready one cycle after `umulh`;
@@ -273,84 +273,12 @@ pub(crate) fn pow7_t<A: Arith>(x: u64) -> u64 {
     A::mul_t(x3, x4)
 }
 
-/// x^7: depth 3 (x², then x³ ‖ x⁴, then x⁷), 4 multiplications.
+/// x^7 in latency form: depth 3 (x², then x³ ‖ x⁴, then x⁷), 4
+/// multiplications. The partial-round S-box, on the serial path.
 #[inline(always)]
 pub(crate) fn pow7<A: Arith>(x: u64) -> u64 {
     let x2 = A::mul(x, x);
     let x3 = A::mul(x2, x);
     let x4 = A::mul(x2, x2);
     A::mul(x3, x4)
-}
-
-/// Square `x` `n` times.
-#[inline(always)]
-fn sqn<A: Arith>(mut x: u64, n: usize) -> u64 {
-    for _ in 0..n {
-        x = A::mul(x, x);
-    }
-    x
-}
-
-/// Square `x` `n` times, calling `fill(k)` for the next pending task `k`
-/// after every `every`-th squaring.
-#[inline(always)]
-fn sqn_fill<A: Arith, F: FnMut(usize)>(
-    mut x: u64,
-    n: usize,
-    every: usize,
-    fill: &mut F,
-    next: &mut usize,
-    tasks: usize,
-) -> u64 {
-    for k in 1..=n {
-        x = A::mul(x, x);
-        if k % every == 0 && *next < tasks {
-            fill(*next);
-            *next += 1;
-        }
-    }
-    x
-}
-
-/// x^(p−2) for nonzero `x`, by an addition chain of depth 69.
-///
-/// With `a_k = x^(2^k − 1)`: `a_{j+k} = a_j^(2^k) · a_k`, and
-/// `p − 2 = (2^31 − 1)·2^33 + (2^32 − 1)`, so `x^(p−2) = a_31^(2^33) · a_32`.
-/// Depth (serial multiplications): a2 2 · a3 3 · a4 5 · a7 9 · a8 10 ·
-/// a15 18 · a16 19 · a31 35 · result 35+33+1 = 69, against 71 for the
-/// 75-multiplication chain in `field.rs` (85 multiplications here; the
-/// extra ones run beside the critical path). Every serial multiplication
-/// saved is saved 16 times per permutation.
-///
-/// `tasks` independent work items are interleaved into the chain:
-/// `fill(0), …, fill(tasks − 1)` are each called exactly once, in order, spread over the long squaring runs (every 3rd squaring of
-/// the last 48), and any not yet issued are run after the chain. The
-/// chain is latency-bound (one multiplication in flight); placing
-/// independent work between its steps in program order lets it execute
-/// in the chain's shadow instead of after it — the out-of-order window
-/// is too small to find work issued after a 69-deep chain.
-#[inline(always)]
-pub(crate) fn inv_nonzero_fill<A: Arith, F: FnMut(usize)>(
-    x: u64,
-    fill: &mut F,
-    tasks: usize,
-) -> u64 {
-    let mut next = 0;
-    let x2 = A::mul(x, x);
-    let a2 = A::mul(x2, x); // x^3
-    let x4 = A::mul(x2, x2);
-    let a3 = A::mul(x4, a2); // x^7
-    let a4 = A::mul(sqn::<A>(a2, 2), a2); // x^15
-    let a7 = A::mul(sqn::<A>(a4, 3), a3);
-    let a8 = A::mul(sqn::<A>(a4, 4), a4);
-    let a15 = A::mul(sqn::<A>(a8, 7), a7);
-    let a16 = A::mul(sqn::<A>(a8, 8), a8);
-    let a31 = A::mul(sqn_fill::<A, F>(a16, 15, 3, fill, &mut next, tasks), a15);
-    let a32 = A::mul(A::mul(a31, a31), x);
-    let r = A::mul(sqn_fill::<A, F>(a31, 33, 3, fill, &mut next, tasks), a32);
-    while next < tasks {
-        fill(next);
-        next += 1;
-    }
-    r
 }

@@ -12,9 +12,9 @@
 //! been reviewed by third-party cryptographers. Do not use in production
 //! systems where cryptographic guarantees are required. Use at your own risk.
 //!
-//! **The Hemera hash is not finalized and may change.** Hash outputs, round
-//! constants, and the sponge construction are subject to breaking changes
-//! until a stable release.
+//! **Profile 0.4 is the candidate frozen for the phase-1 root chain**
+//! (genesis 2026-11-05) and the object of the public cryptanalysis campaign
+//! (`audit/campaign.md`). Its outputs differ from 0.3 everywhere.
 //!
 //! ---
 //!
@@ -26,10 +26,10 @@
 //!
 //! - **Field**: Goldilocks (p = 2^64 - 2^32 + 1)
 //! - **State width**: t = 16
-//! - **Full rounds**: R_F = 8
-//! - **Partial rounds**: R_P = 16
-//! - **Full-round S-box**: x^7
-//! - **Partial-round S-box**: x^(-1) (field inversion)
+//! - **Full rounds**: R_F = 12 (6 + 6)
+//! - **Partial rounds**: R_P = 48
+//! - **S-box**: x^7 in every round
+//! - **Linear layers**: Poseidon2 reference (`circ(2·M4, M4, M4, M4)` and `1 + diag(d)`)
 //! - **Rate**: 8 elements (56 input bytes per block)
 //! - **Capacity**: 8 elements
 //! - **Output**: 4 elements (32 bytes)

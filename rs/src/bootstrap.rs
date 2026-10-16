@@ -10,14 +10,21 @@
 //! the derivation algorithm and a verification test that the static
 //! constants in `constants.rs` match the bootstrap output.
 //!
-//! # Algorithm
+//! # Algorithm (`specs/bootstrap.md`)
 //!
-//! 1. Create Hemera₀ = Poseidon2 with all 144 round constants = 0
-//! 2. Run Hemera₀ as a sponge: absorb GENESIS_SEED with 0x01 padding
-//! 3. Squeeze 144 field elements as round constants for the final Hemera
+//! 1. Hemera₀ = the 0.4 permutation (M_E, M_I, x⁷, RF 6+6, RP 48) with all
+//!    240 round constants = 0.
+//! 2. For counter k = 0, 1, …: seed_k = GENESIS_SEED (k = 0) or
+//!    GENESIS_SEED ‖ k as one byte (k ≥ 1). Absorb seed_k through Hemera₀
+//!    as a plain-hash sponge (0x01 padding, length in state[10]) and
+//!    squeeze 240 field elements, 8 per permutation.
+//! 3. Accept the first set that passes the constant checks
+//!    ([`constant_checks`]): canonical, nonzero, pairwise distinct. The
+//!    shipped constants are accepted at k = 0.
+//! 4. First 192 elements → external constants, next 48 → internal.
 
 use crate::constants::NUM_CONSTANTS;
-use crate::field::Goldilocks;
+use crate::field::{Goldilocks, P};
 use crate::params::{RATE, RATE_BYTES, WIDTH};
 use crate::permutation::permute_with_constants;
 
@@ -28,21 +35,34 @@ use crate::permutation::permute_with_constants;
 /// in ASCII is the human meaning; the specification is the hex literals.
 pub const GENESIS_SEED: &[u8] = &[0x63, 0x79, 0x62, 0x65, 0x72];
 
+/// Counter at which the shipped constants were accepted.
+pub const BOOTSTRAP_COUNTER: u8 = 0;
+
 /// All-zero round constants for Hemera₀.
 const ZERO_CONSTANTS: [Goldilocks; NUM_CONSTANTS] = [Goldilocks::ZERO; NUM_CONSTANTS];
 
-/// Create Hemera₀ and return the sponge state after absorbing the genesis seed.
-///
-/// This is the shared bootstrap logic used by both the CPU verification
-/// and the GPU round constant export.
-pub fn bootstrap_sponge_state() -> [Goldilocks; WIDTH] {
-    // Absorb the genesis seed through Hemera₀ sponge.
+/// The bootstrap seed for counter `k`: the genesis seed, then `k` as one
+/// byte when `k ≥ 1`. Returns the buffer and the seed length.
+fn seed_for(k: u8) -> ([u8; 6], usize) {
+    let mut seed = [0u8; 6];
+    seed[..GENESIS_SEED.len()].copy_from_slice(GENESIS_SEED);
+    if k == 0 {
+        (seed, GENESIS_SEED.len())
+    } else {
+        seed[GENESIS_SEED.len()] = k;
+        (seed, GENESIS_SEED.len() + 1)
+    }
+}
+
+/// Hemera₀ sponge state after absorbing `seed` (one padded block).
+fn absorb_seed(seed: &[u8]) -> [Goldilocks; WIDTH] {
+    debug_assert!(seed.len() < RATE_BYTES);
     let mut state = [Goldilocks::ZERO; WIDTH];
 
     // Pad: seed || 0x01 || 0x00* to RATE_BYTES (56 bytes).
     let mut padded = [0u8; RATE_BYTES];
-    padded[..GENESIS_SEED.len()].copy_from_slice(GENESIS_SEED);
-    padded[GENESIS_SEED.len()] = 0x01;
+    padded[..seed.len()].copy_from_slice(seed);
+    padded[seed.len()] = 0x01;
 
     // Encode padded bytes as rate elements (7 bytes per element).
     let mut rate_block = [Goldilocks::ZERO; RATE];
@@ -54,38 +74,65 @@ pub fn bootstrap_sponge_state() -> [Goldilocks; WIDTH] {
     }
 
     // Store message length in capacity (state[10]), matching sponge convention.
-    state[RATE + 2] = Goldilocks::new(GENESIS_SEED.len() as u64);
+    state[RATE + 2] = Goldilocks::new(seed.len() as u64);
 
-    // Permute with Hemera₀.
     permute_with_constants(&mut state, &ZERO_CONSTANTS);
-
     state
 }
 
-/// Squeeze the 144 round constants as raw u64 values from the bootstrap sponge.
-///
-/// Returns the canonical Goldilocks representations in the exact order consumed
-/// by `new_from_rng`: 128 external (8 rounds × 16 elements) then 16 internal.
-pub fn bootstrap_constants_u64() -> [u64; NUM_CONSTANTS] {
-    let mut state = bootstrap_sponge_state();
+/// Hemera₀ sponge state after absorbing the genesis seed (counter 0).
+pub fn bootstrap_sponge_state() -> [Goldilocks; WIDTH] {
+    absorb_seed(GENESIS_SEED)
+}
 
+/// Squeeze `NUM_CONSTANTS` elements from Hemera₀ after absorbing `seed`:
+/// 8 rate elements per permutation, in the order the permutation consumes
+/// them (192 external, then 48 internal).
+pub fn squeeze_constants(seed: &[u8]) -> [u64; NUM_CONSTANTS] {
+    let mut state = absorb_seed(seed);
     let mut constants = [0u64; NUM_CONSTANTS];
-    let mut pos = RATE; // force initial squeeze
-    let mut filled = 0usize;
-
-    for i in 0..NUM_CONSTANTS {
-        if pos >= RATE {
-            if filled > 0 {
-                permute_with_constants(&mut state, &ZERO_CONSTANTS);
-            }
-            pos = 0;
+    for (i, c) in constants.iter_mut().enumerate() {
+        if i > 0 && i % RATE == 0 {
+            permute_with_constants(&mut state, &ZERO_CONSTANTS);
         }
-        constants[i] = state[pos].as_canonical_u64();
-        pos += 1;
-        filled += 1;
+        *c = state[i % RATE].as_canonical_u64();
     }
-
     constants
+}
+
+/// The constant checks of the bootstrap, in order:
+/// C1 every constant canonical (< p), C2 every constant nonzero,
+/// C3 constants pairwise distinct. Returns one verdict per check.
+///
+/// The Poseidon2 subspace-trail conditions are conditions on the internal
+/// matrix (an M_I whose powers have irreducible characteristic polynomials
+/// has no invariant subspace for any constants); they are checked on the
+/// matrices themselves (`rs/tests/poseidon2_conditions.rs`).
+pub fn constant_checks(c: &[u64; NUM_CONSTANTS]) -> [bool; 3] {
+    let canonical = c.iter().all(|&x| x < P);
+    let nonzero = c.iter().all(|&x| x != 0);
+    let mut sorted = *c;
+    sorted.sort_unstable();
+    let distinct = sorted.windows(2).all(|w| w[0] != w[1]);
+    [canonical, nonzero, distinct]
+}
+
+/// Run the bootstrap search: the first counter whose constant set passes
+/// every check, with that set; `None` if no counter in 0..=255 does.
+pub fn bootstrap() -> Option<(u8, [u64; NUM_CONSTANTS])> {
+    (0..=u8::MAX).find_map(|k| {
+        let (seed, len) = seed_for(k);
+        let c = squeeze_constants(&seed[..len]);
+        constant_checks(&c).iter().all(|&ok| ok).then_some((k, c))
+    })
+}
+
+/// The constants squeezed at [`BOOTSTRAP_COUNTER`] — the shipped round
+/// constants (`static_constants_match_bootstrap` checks that the search of
+/// [`bootstrap`] accepts exactly this set).
+pub fn bootstrap_constants_u64() -> [u64; NUM_CONSTANTS] {
+    let (seed, len) = seed_for(BOOTSTRAP_COUNTER);
+    squeeze_constants(&seed[..len])
 }
 
 #[cfg(test)]
@@ -100,12 +147,8 @@ mod tests {
     /// broken. Run this after any change to params, encoding, or bootstrap.
     #[test]
     fn static_constants_match_bootstrap() {
-        let derived = bootstrap_constants_u64();
-        assert_eq!(
-            derived.len(),
-            ROUND_CONSTANTS_U64.len(),
-            "constant count mismatch"
-        );
+        let (k, derived) = bootstrap().expect("a counter passes the checks");
+        assert_eq!(k, BOOTSTRAP_COUNTER, "accepted at a different counter");
         for (i, (&derived, &static_val)) in
             derived.iter().zip(ROUND_CONSTANTS_U64.iter()).enumerate()
         {
@@ -117,32 +160,33 @@ mod tests {
     }
 
     #[test]
-    fn bootstrap_constants_count() {
-        let constants = bootstrap_constants_u64();
-        let expected = NUM_CONSTANTS;
-        assert_eq!(constants.len(), expected);
+    fn shipped_constants_pass_every_check() {
+        assert_eq!(constant_checks(&ROUND_CONSTANTS_U64), [true; 3]);
+    }
+
+    #[test]
+    fn checks_reject_bad_sets() {
+        let mut c = ROUND_CONSTANTS_U64;
+        c[17] = 0;
+        assert_eq!(constant_checks(&c), [true, false, true]);
+        let mut c = ROUND_CONSTANTS_U64;
+        c[239] = c[0];
+        assert_eq!(constant_checks(&c), [true, true, false]);
+        let mut c = ROUND_CONSTANTS_U64;
+        c[5] = P;
+        assert!(!constant_checks(&c)[0]);
+    }
+
+    #[test]
+    fn counter_seeds_differ() {
+        assert_eq!(seed_for(0), ([0x63, 0x79, 0x62, 0x65, 0x72, 0], 5));
+        assert_eq!(seed_for(1), ([0x63, 0x79, 0x62, 0x65, 0x72, 1], 6));
+        assert_ne!(squeeze_constants(&seed_for(1).0[..6]), ROUND_CONSTANTS_U64);
     }
 
     #[test]
     fn bootstrap_constants_deterministic() {
-        let c1 = bootstrap_constants_u64();
-        let c2 = bootstrap_constants_u64();
-        assert_eq!(c1, c2);
-    }
-
-    #[test]
-    fn bootstrap_constants_nonzero() {
-        let constants = bootstrap_constants_u64();
-        assert!(constants.iter().any(|&c| c != 0));
-    }
-
-    #[test]
-    fn bootstrap_constants_are_canonical() {
-        let constants = bootstrap_constants_u64();
-        let p: u64 = 0xFFFF_FFFF_0000_0001;
-        for (i, &c) in constants.iter().enumerate() {
-            assert!(c < p, "constant[{i}] = {c} >= p");
-        }
+        assert_eq!(bootstrap_constants_u64(), bootstrap_constants_u64());
     }
 
     /// Pinned first 4 round constants from self-bootstrapping.
@@ -152,10 +196,10 @@ mod tests {
     #[test]
     fn bootstrap_pinned_first_constants() {
         let constants = bootstrap_constants_u64();
-        assert_eq!(constants[0], 0x7E6EF67C13BC8100);
-        assert_eq!(constants[1], 0x3A658EE0B11555F9);
-        assert_eq!(constants[2], 0x42F4F5D6BE505B01);
-        assert_eq!(constants[3], 0x8D6E969951FEA22C);
+        assert_eq!(constants[0], 0x8BF262E620238C97);
+        assert_eq!(constants[1], 0x41AF509E860145AF);
+        assert_eq!(constants[2], 0xEC91406FE4C63B69);
+        assert_eq!(constants[3], 0x267C07366E1F063B);
     }
 
     #[test]
