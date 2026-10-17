@@ -23,9 +23,8 @@ hemera is specified: x⁻¹ partial S-box, 16 partial rounds, 32-byte output, ~7
 |----------|--------------|:------------:|--------|
 | [[partial-round-collapse]] | no | no | precompute linear evolution: 4× prover wall-clock |
 | [[constraint-free-mds]] | no | no | absorb MDS into CCS wiring: 26% fewer constraints (~544) |
-| [[algebraic-fiat-shamir]] | no | no | algebraic challenge derivation: 8.7× fewer hemera calls |
 
-batched-proving and folded-sponge removed — polynomial nouns reduce hemera to ~3 calls per execution, making batch/fold optimizations unnecessary.
+batched-proving, folded-sponge and algebraic challenge derivation were removed with the retired zheng design; the per-execution hemera call count belongs to [[soft3/proposals/proof-system-repair|the proof-system repair]].
 
 ## scope expansion proposals
 
@@ -40,33 +39,28 @@ batched-proving and folded-sponge removed — polynomial nouns reduce hemera to 
 ```
                         hemera (current)      + optimizations (all)
 constraints/perm:       ~736                  ~544 (wired MDS)
-FS calls (20-round):    20 × 736 = 14,720    1 × 736 + 19 × 50 = 1,686
+FS calls (20-round):    20 × 736 = 14,720    —
 ```
 
 ## endgame role
 
-hemera becomes the identity layer: content identity (hash), content typing (capacity), content availability (erasure). polynomial commitments ([[Brakedown]]) handle the high-volume proof work — proof binding and state verification with ZERO hemera calls.
+hemera becomes the identity layer: content identity (hash), content typing (capacity), content availability (erasure). polynomial commitments handle the high-volume proof work; their openings authenticate through hemera Merkle paths, see [[soft3/proposals/proof-system-repair|the proof-system repair]].
 
 ```
-always hemera:     H(particle) identity, H(cyberlink), Fiat-Shamir seed
+always hemera:     H(particle) identity, H(cyberlink), Fiat-Shamir challenges
                    type-integrated hashing (capacity slot → type IS identity)
                    erasure encoding (RS over Goldilocks → availability codec)
-algebraic:         proof challenges (algebraic FS), state verification (polynomial)
-eliminated:        tree hashing (Brakedown is Merkle-free), DAS proofs (Lens openings)
+                   Merkle trees of polynomial commitments
 ```
-
-key composition: with ~3 hemera calls per execution, each permutation folds into the [[HyperNova]] accumulator (~30 field ops) during [[proof-carrying computation|proof-carrying]] execution.
 
 ## cross-repo dependencies
 
 | zheng proposal | hemera interaction |
 |------------------|--------------------|
-| [[proof-carrying]] | each hemera permutation (~3 per execution) = one fold step |
-| [[brakedown-pcs]] | Merkle-free Lens eliminates hemera tree overhead entirely |
+| [[soft3/proposals/proof-system-repair\|proof-system repair]] | hemera is the one hash: Merkle trees, Fiat-Shamir, program digests |
 
 | bbg proposal | hemera interaction |
 |--------------|-------------------|
-| [[algebraic-nmt]] | polynomial state reduces hemera state calls from 144K to 0 per block |
 | [[signal-first]] | signals content-addressed via hemera; hemera identity IS signal identity |
 
 ## lifecycle
