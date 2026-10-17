@@ -31,6 +31,7 @@ use std::num::NonZeroU64;
 
 use cyber_hemera::field::Goldilocks;
 use cyber_hemera::sparse::CompressedSparseProof;
+use cyber_hemera::stream::left_subtree_chunks;
 use cyber_hemera::tree::{InclusionProof, Sibling};
 use cyber_hemera::{CHUNK_SIZE, Hash, OUTPUT_BYTES, OUTPUT_ELEMENTS, WIDTH};
 use wgpu::util::DeviceExt;
@@ -1050,11 +1051,6 @@ fn left_balanced_decompose(n: usize) -> Vec<(usize, usize)> {
         remaining -= split;
     }
     result
-}
-
-fn left_subtree_chunks(count: usize) -> usize {
-    debug_assert!(count > 1);
-    1 << (usize::BITS - (count - 1).leading_zeros() - 1)
 }
 
 /// Recursive outboard subtree using pre-computed leaf hashes (CPU hash_node).

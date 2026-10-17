@@ -260,11 +260,13 @@ fn main() {
             process::exit(cmd_prove_batch(&args[1], &indices));
         }
         Some("verify-batch") => {
-            if args.len() != 3 {
-                eprintln!("hemera: verify-batch requires <data-file> <proof-file>");
+            if args.len() != 4 {
+                eprintln!(
+                    "hemera: verify-batch requires <data-file> <proof-file> <expected-root-hex>"
+                );
                 process::exit(1);
             }
-            process::exit(cmd_verify_batch(&args[1], &args[2]));
+            process::exit(cmd_verify_batch(&args[1], &args[2], &args[3]));
         }
         Some("sparse") => {
             if args.len() < 2 {
@@ -715,7 +717,15 @@ fn cmd_prove_batch(path: &str, indices: &[u64]) -> i32 {
     0
 }
 
-fn cmd_verify_batch(data_path: &str, proof_path: &str) -> i32 {
+fn cmd_verify_batch(data_path: &str, proof_path: &str, expected_root_hex: &str) -> i32 {
+    let expected_root = match parse_hash(expected_root_hex) {
+        Some(h) => h,
+        None => {
+            eprintln!("hemera: invalid expected root hash: {expected_root_hex}");
+            return 1;
+        }
+    };
+
     let data = match fs::read(data_path) {
         Ok(d) => d,
         Err(e) => {
@@ -782,7 +792,10 @@ fn cmd_verify_batch(data_path: &str, proof_path: &str) -> i32 {
         }
     }
 
-    let root = match root {
+    // The proof's own `root:` line is carried into the struct but never
+    // trusted — verification below checks against expected_root, the
+    // hash the caller supplied independently on the command line.
+    let proof_root = match root {
         Some(r) => r,
         None => {
             eprintln!("hemera: no root hash found in proof file");
@@ -815,11 +828,11 @@ fn cmd_verify_batch(data_path: &str, proof_path: &str) -> i32 {
         indices,
         siblings,
         num_chunks,
-        root,
+        root: proof_root,
     };
 
     let t = Instant::now();
-    let valid = cyber_hemera::batch::verify_batch(&chunks_data, &proof);
+    let valid = cyber_hemera::batch::verify_batch(&chunks_data, &proof, &expected_root);
     let elapsed = t.elapsed();
 
     print_timing(Backend::Cpu, elapsed);
@@ -1046,7 +1059,7 @@ fn parse_hash(hex: &str) -> Option<cyber_hemera::Hash> {
 }
 
 fn parse_hex_fixed<const N: usize>(hex: &str) -> Option<[u8; N]> {
-    if hex.len() != N * 2 {
+    if !hex.is_ascii() || hex.len() != N * 2 {
         return None;
     }
     let mut out = [0u8; N];
@@ -1084,7 +1097,7 @@ fn print_usage() {
   hemera decode file.hemera <hash>   Decode and verify stream
   hemera outboard file.txt [-o out]  Compute outboard hash tree
   hemera prove-batch file 0 1 3      Batch inclusion proof
-  hemera verify-batch file proof.txt Verify batch proof
+  hemera verify-batch file proof.txt <root>  Verify batch proof against <root>
   hemera sparse hash-leaf <key> file Sparse leaf hash
   hemera sparse verify proof root    Verify sparse proof
   hemera sparse sentinel [depth]     Show sentinel root hash
@@ -1097,4 +1110,27 @@ fn print_usage() {
 \x1b[0m
   -h, --help  Print this help"
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_hex_fixed_rejects_non_ascii_without_panicking() {
+        // a multi-byte UTF-8 char can keep the string's byte length equal
+        // to N*2 (so the length check does not catch it) while landing a
+        // `&hex[i*2..i*2+2]` slice boundary mid-character; the function
+        // must return None, not panic.
+        let crafted = format!("{}é{}", "a".repeat(61), "a");
+        assert_eq!(crafted.len(), 64);
+        assert_eq!(parse_hex_fixed::<32>(&crafted), None);
+        assert_eq!(parse_hash(&crafted), None);
+    }
+
+    #[test]
+    fn parse_hex_fixed_accepts_valid_hex() {
+        let valid = "a".repeat(64);
+        assert!(parse_hex_fixed::<32>(&valid).is_some());
+    }
 }

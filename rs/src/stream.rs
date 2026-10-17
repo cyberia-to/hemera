@@ -92,7 +92,7 @@ fn encode_subtree(
     is_root: bool,
     out: &mut Vec<u8>,
 ) -> Hash {
-    debug_assert!(count > 0);
+    assert!(count > 0, "encode_subtree: count must be > 0, got 0");
 
     if count == 1 {
         let start = offset * CHUNK_SIZE;
@@ -131,6 +131,16 @@ pub fn decode(encoded: &[u8], expected_root: &Hash) -> Result<Vec<u8>, DecodeErr
     }
 
     let data_len = u64::from_le_bytes(encoded[..HEADER_SIZE].try_into().unwrap()) as usize;
+    // The stream embeds every data byte directly, interleaved with hash
+    // pairs, so a well-formed encoding can never be shorter than its own
+    // declared length. Reject an inflated data_len here, before it can
+    // drive `Vec::with_capacity` below — otherwise a tampered header
+    // claiming a huge length aborts the process on allocation instead of
+    // returning `Truncated`. `saturating_sub` avoids relying on
+    // `HEADER_SIZE + data_len` not overflowing `usize`.
+    if encoded.len().saturating_sub(HEADER_SIZE) < data_len {
+        return Err(DecodeError::Truncated);
+    }
     let n = if data_len == 0 {
         1
     } else {
@@ -140,9 +150,6 @@ pub fn decode(encoded: &[u8], expected_root: &Hash) -> Result<Vec<u8>, DecodeErr
 
     if n <= 1 {
         // Single chunk: just the raw data after the header.
-        if encoded.len() < HEADER_SIZE + data_len {
-            return Err(DecodeError::Truncated);
-        }
         let chunk = &encoded[HEADER_SIZE..HEADER_SIZE + data_len];
         let cv = hash_leaf(chunk, 0, true);
         if cv != *expected_root {
@@ -178,7 +185,7 @@ fn decode_subtree(
     data_len: usize,
     out: &mut Vec<u8>,
 ) -> Result<(), DecodeError> {
-    debug_assert!(count > 0);
+    assert!(count > 0, "decode_subtree: count must be > 0, got 0");
 
     if count == 1 {
         let start = offset * CHUNK_SIZE;
@@ -261,7 +268,7 @@ fn outboard_subtree(
     is_root: bool,
     out: &mut Vec<u8>,
 ) -> Hash {
-    debug_assert!(count > 0);
+    assert!(count > 0, "outboard_subtree: count must be > 0, got 0");
 
     if count == 1 {
         let start = offset * CHUNK_SIZE;
@@ -327,7 +334,10 @@ fn verify_outboard_subtree(
     is_root: bool,
     expected: &Hash,
 ) -> Result<(), DecodeError> {
-    debug_assert!(count > 0);
+    assert!(
+        count > 0,
+        "verify_outboard_subtree: count must be > 0, got 0"
+    );
 
     if count == 1 {
         let start = offset * CHUNK_SIZE;
@@ -370,7 +380,10 @@ fn verify_outboard_subtree(
 
 /// Left subtree size for a left-balanced binary tree with `count` leaves.
 pub fn left_subtree_chunks(count: usize) -> usize {
-    debug_assert!(count > 1);
+    assert!(
+        count > 1,
+        "left_subtree_chunks: count must be > 1, got {count}"
+    );
     1 << (usize::BITS - (count - 1).leading_zeros() - 1)
 }
 
@@ -465,6 +478,42 @@ mod tests {
         // Truncate the encoded data
         let truncated = &encoded[..encoded.len() - 100];
         assert_eq!(decode(truncated, &root), Err(DecodeError::Truncated));
+    }
+
+    /// A tampered header claiming a huge `data_len` on a small real buffer
+    /// must be rejected before it drives `Vec::with_capacity(data_len)` —
+    /// a multi-terabyte allocation attempt would abort the process instead
+    /// of returning `Truncated`. Covers the multi-chunk path, which (unlike
+    /// the single-chunk path) had no length check ahead of the allocation.
+    #[test]
+    fn decode_inflated_header_on_multi_chunk_rejected() {
+        let data = vec![0x42; CHUNK_SIZE * 2];
+        let (root, mut encoded) = encode(&data);
+        encoded[..HEADER_SIZE].copy_from_slice(&(1u64 << 40).to_le_bytes());
+        assert_eq!(decode(&encoded, &root), Err(DecodeError::Truncated));
+    }
+
+    /// Same class, at the boundary the header-length arithmetic must not
+    /// overflow `usize` on: a near-`u64::MAX` declared length.
+    #[test]
+    fn decode_near_max_header_rejected() {
+        let data = vec![0x42; CHUNK_SIZE * 2];
+        let (root, mut encoded) = encode(&data);
+        encoded[..HEADER_SIZE].copy_from_slice(&(u64::MAX - 4).to_le_bytes());
+        assert_eq!(decode(&encoded, &root), Err(DecodeError::Truncated));
+    }
+
+    /// A header-only buffer declaring a huge length takes the n <= 1
+    /// branch; the length check must fire before `HEADER_SIZE + data_len`
+    /// wraps and the single-chunk slice is taken.
+    #[test]
+    fn decode_oversized_header_len_rejected_single_chunk() {
+        let mut encoded = vec![0u8; HEADER_SIZE];
+        encoded[..HEADER_SIZE].copy_from_slice(&u64::MAX.to_le_bytes());
+        assert_eq!(
+            decode(&encoded, &Hash::from_bytes([0; OUTPUT_BYTES])),
+            Err(DecodeError::Truncated)
+        );
     }
 
     #[test]
@@ -576,5 +625,70 @@ mod tests {
             let (root, ob) = outboard(&data);
             verify_outboard(&data, &ob, &root).unwrap();
         }
+    }
+
+    // `left_subtree_chunks` is `pub`, so it is reachable directly by any
+    // caller with a `count` its own recursive callers never produce.
+    // `debug_assert!` would compile out in release, silently returning
+    // `1 << 63` (from `(0usize - 1).leading_zeros()` wrapping to
+    // `usize::MAX`) instead of failing — promoted to `assert!` so this
+    // is caught in every build profile.
+
+    #[test]
+    #[should_panic(expected = "count must be > 1")]
+    fn left_subtree_chunks_rejects_zero() {
+        left_subtree_chunks(0);
+    }
+
+    #[test]
+    #[should_panic(expected = "count must be > 1")]
+    fn left_subtree_chunks_rejects_one() {
+        left_subtree_chunks(1);
+    }
+
+    #[test]
+    fn left_subtree_chunks_valid_counts() {
+        // Largest power of two strictly less than count.
+        assert_eq!(left_subtree_chunks(2), 1);
+        assert_eq!(left_subtree_chunks(3), 2);
+        assert_eq!(left_subtree_chunks(4), 2);
+        assert_eq!(left_subtree_chunks(5), 4);
+        assert_eq!(left_subtree_chunks(1024), 512);
+    }
+
+    // The four recursive subtree walkers share the same invariant,
+    // upheld today only by `left_subtree_chunks` never returning a split
+    // that empties either side. Promoted alongside it as defense in
+    // depth: none of them has a production caller that can pass 0, but
+    // a future one should fail loudly here, not corrupt data silently.
+
+    #[test]
+    #[should_panic(expected = "encode_subtree: count must be > 0")]
+    fn encode_subtree_rejects_zero() {
+        let mut out = Vec::new();
+        encode_subtree(b"", 0, 0, true, &mut out);
+    }
+
+    #[test]
+    #[should_panic(expected = "decode_subtree: count must be > 0")]
+    fn decode_subtree_rejects_zero() {
+        let mut pos = 0usize;
+        let mut out = Vec::new();
+        let expected = Hash::from_bytes([0; OUTPUT_BYTES]);
+        let _ = decode_subtree(b"", &mut pos, 0, 0, true, &expected, 0, &mut out);
+    }
+
+    #[test]
+    #[should_panic(expected = "outboard_subtree: count must be > 0")]
+    fn outboard_subtree_rejects_zero() {
+        let mut out = Vec::new();
+        outboard_subtree(b"", 0, 0, true, &mut out);
+    }
+
+    #[test]
+    #[should_panic(expected = "verify_outboard_subtree: count must be > 0")]
+    fn verify_outboard_subtree_rejects_zero() {
+        let expected = Hash::from_bytes([0; OUTPUT_BYTES]);
+        let _ = verify_outboard_subtree(b"", b"", &mut 0usize, 0, 0, true, &expected);
     }
 }
