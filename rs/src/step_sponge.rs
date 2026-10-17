@@ -36,7 +36,8 @@ impl StepSponge {
     /// Initialize the sponge: XOR `rate` into state[0..rate.len()], apply
     /// the initial MDS, then set round = 0 ready for stepping.
     ///
-    /// `rate.len()` must be ≤ `RATE` (8 elements). Capacity elements stay zero.
+    /// `rate.len()` must be ≤ `RATE` (8 elements); panics otherwise, so a
+    /// longer slice can never spill into the capacity. Capacity elements stay zero.
     pub fn absorb(rate: &[Goldilocks]) -> Self {
         assert!(rate.len() <= RATE, "rate slice longer than RATE");
         let mut state = [Goldilocks::ZERO; WIDTH];
@@ -50,7 +51,7 @@ impl StepSponge {
 
     /// Execute one round and return the post-round state.
     ///
-    /// Panics in debug builds if called after `done()`.
+    /// Panics if called after `done()`, in every build profile.
     pub fn step(&mut self) -> [Goldilocks; WIDTH] {
         assert!(!self.done(), "step() called after permutation complete");
         permute_one_round(&mut self.state, self.round);
@@ -66,7 +67,7 @@ impl StepSponge {
 
     /// Returns `state[0]` — the primary output element — after all rounds.
     ///
-    /// Panics in debug builds if called before `done()`.
+    /// Panics if called before `done()`, in every build profile.
     pub fn squeeze(&self) -> Goldilocks {
         assert!(self.done(), "squeeze() called before permutation complete");
         self.state[0]
