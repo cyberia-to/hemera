@@ -334,7 +334,10 @@ fn verify_outboard_subtree(
     is_root: bool,
     expected: &Hash,
 ) -> Result<(), DecodeError> {
-    assert!(count > 0, "verify_outboard_subtree: count must be > 0, got 0");
+    assert!(
+        count > 0,
+        "verify_outboard_subtree: count must be > 0, got 0"
+    );
 
     if count == 1 {
         let start = offset * CHUNK_SIZE;
@@ -377,7 +380,10 @@ fn verify_outboard_subtree(
 
 /// Left subtree size for a left-balanced binary tree with `count` leaves.
 pub fn left_subtree_chunks(count: usize) -> usize {
-    assert!(count > 1, "left_subtree_chunks: count must be > 1, got {count}");
+    assert!(
+        count > 1,
+        "left_subtree_chunks: count must be > 1, got {count}"
+    );
     1 << (usize::BITS - (count - 1).leading_zeros() - 1)
 }
 
