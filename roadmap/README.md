@@ -30,7 +30,6 @@ batched-proving, folded-sponge and algebraic challenge derivation were removed w
 
 | proposal | in reference? | breaks hash? | target |
 |----------|--------------|:------------:|--------|
-| [[erasure-coding]] | no | no | Reed-Solomon erasure coding over Goldilocks: same field, same NTT, data availability codec |
 | [[capacity-typing]] | no | no | type tags in reserved capacity slot state[14]: type-integrated hashing, type confusion prevention |
 | [[semantic-hashing]] | no | **yes** | section tree identity for .cyb containers: flat hash → section tree, changes particle_id for structured files |
 
@@ -44,12 +43,11 @@ FS calls (20-round):    20 × 736 = 14,720    —
 
 ## endgame role
 
-hemera becomes the identity layer: content identity (hash), content typing (capacity), content availability (erasure). polynomial commitments handle the high-volume proof work; their openings authenticate through hemera Merkle paths, see [[soft3/proposals/proof-system-repair|the proof-system repair]].
+hemera becomes the identity layer: content identity (hash), content typing (capacity). availability — erasure coding and sampling over the same field — is [[foculus]]'s ([[foculus/specs/erasure|erasure]], moved 2026-10-07): hemera hashes the shards, foculus decides how many and which to sample. polynomial commitments handle the high-volume proof work; their openings authenticate through hemera Merkle paths, see [[soft3/proposals/proof-system-repair|the proof-system repair]].
 
 ```
 always hemera:     H(particle) identity, H(cyberlink), Fiat-Shamir challenges
                    type-integrated hashing (capacity slot → type IS identity)
-                   erasure encoding (RS over Goldilocks → availability codec)
                    Merkle trees of polynomial commitments
 ```
 
