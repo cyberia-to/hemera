@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Changed (breaking)
+
+- `batch::verify_batch(chunks, proof, expected_root)` checks the reconstructed root against a caller-supplied root, like `tree::verify_proof`; `proof.root` is prover-controlled and no longer trusted. CLI: `hemera verify-batch <data> <proof> <root>`
+
+### Fixed
+
+- `stream::decode` rejects a header whose declared length exceeds the buffer before allocating or computing `HEADER_SIZE + data_len` (a tampered header aborted the process instead of returning `Truncated`)
+- Invariant checks that were `debug_assert!` now hold in release builds: `StepSponge::absorb/step/squeeze`, the `stream` subtree walkers and `stream::left_subtree_chunks`; `cyber-hemera-wgsl` uses the shared `left_subtree_chunks` instead of a private copy
+- CLI: a non-ASCII hash argument of the right byte length is rejected instead of panicking on a mid-character slice
+
+### Tests
+
+- `stream_async` header mismatch, truncation and zero-length paths; `async_io` read/write/flush loops and error paths
+
 ## [0.4.0] — 2026-10-16
 
 Profile 0.4: the permutation changes, every output changes. Integration line `release/0.4`; `main` stays 0.3 until the owner promotes. The 0.3 vectors are kept under `"0.3"` in `vectors/hemera.json`. Decision and evidence: `audit/campaign.md` §0, §3.2; receipt `audit/profile-0.4-2026-10.md`.
