@@ -274,7 +274,7 @@ Sibling ordering is depth-first, left-before-right — matching the recursive tr
 The verifier follows the same recursive tree walk as construction:
 
 ```
-verify_batch(chunks, proof) → bool:
+verify_batch(chunks, proof, expected_root) → bool:
 
     verify_subtree(chunks, indices, siblings, cursor, offset, count, is_root):
         local ← indices that fall in [offset, offset+count)
@@ -303,10 +303,10 @@ verify_batch(chunks, proof) → bool:
 
     cursor ← 0
     computed_root ← verify_subtree(chunks, proof.indices, proof.siblings, cursor, 0, N, true)
-    return computed_root = proof.root AND cursor = len(proof.siblings)
+    return computed_root = expected_root AND cursor = len(proof.siblings)
 ```
 
-The verifier recomputes the root from chunk data and consumed siblings. If any sibling remains unconsumed or the reconstructed root mismatches, verification fails.
+The verifier recomputes the root from chunk data and consumed siblings. If any sibling remains unconsumed or the reconstructed root mismatches, verification fails. The root it compares against is `expected_root`, which the caller obtains independently (as with `verify_proof`); `proof.root` is data the prover controls and is never consulted, so a forged proof cannot pass by relabelling its own root.
 
 ### Size Analysis
 
@@ -339,7 +339,7 @@ In a proof circuit: batch verification of 32 contiguous chunks costs (20 + 31) �
 
 ```rust
 pub fn prove_batch(data: &[u8], indices: &[u64]) -> (Hash, BatchInclusionProof);
-pub fn verify_batch(chunks: &[&[u8]], proof: &BatchInclusionProof) -> bool;
+pub fn verify_batch(chunks: &[&[u8]], proof: &BatchInclusionProof, expected_root: &Hash) -> bool;
 ```
 
 `prove_batch` with a single index produces the same sibling set as `prove`. `prove_range(start, end)` is equivalent to `prove_batch(data, &(start..end).collect())`.
