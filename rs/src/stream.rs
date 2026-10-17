@@ -497,6 +497,19 @@ mod tests {
         assert_eq!(decode(&encoded, &root), Err(DecodeError::Truncated));
     }
 
+    /// A header-only buffer declaring a huge length takes the n <= 1
+    /// branch; the length check must fire before `HEADER_SIZE + data_len`
+    /// wraps and the single-chunk slice is taken.
+    #[test]
+    fn decode_oversized_header_len_rejected_single_chunk() {
+        let mut encoded = vec![0u8; HEADER_SIZE];
+        encoded[..HEADER_SIZE].copy_from_slice(&u64::MAX.to_le_bytes());
+        assert_eq!(
+            decode(&encoded, &Hash::from_bytes([0; OUTPUT_BYTES])),
+            Err(DecodeError::Truncated)
+        );
+    }
+
     #[test]
     fn decode_tampered_data_fails() {
         let data = vec![0x42; CHUNK_SIZE * 2];
