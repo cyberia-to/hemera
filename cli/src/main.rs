@@ -1059,7 +1059,7 @@ fn parse_hash(hex: &str) -> Option<cyber_hemera::Hash> {
 }
 
 fn parse_hex_fixed<const N: usize>(hex: &str) -> Option<[u8; N]> {
-    if hex.len() != N * 2 {
+    if !hex.is_ascii() || hex.len() != N * 2 {
         return None;
     }
     let mut out = [0u8; N];
@@ -1110,4 +1110,27 @@ fn print_usage() {
 \x1b[0m
   -h, --help  Print this help"
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_hex_fixed_rejects_non_ascii_without_panicking() {
+        // a multi-byte UTF-8 char can keep the string's byte length equal
+        // to N*2 (so the length check does not catch it) while landing a
+        // `&hex[i*2..i*2+2]` slice boundary mid-character; the function
+        // must return None, not panic.
+        let crafted = format!("{}é{}", "a".repeat(61), "a");
+        assert_eq!(crafted.len(), 64);
+        assert_eq!(parse_hex_fixed::<32>(&crafted), None);
+        assert_eq!(parse_hash(&crafted), None);
+    }
+
+    #[test]
+    fn parse_hex_fixed_accepts_valid_hex() {
+        let valid = "a".repeat(64);
+        assert!(parse_hex_fixed::<32>(&valid).is_some());
+    }
 }
