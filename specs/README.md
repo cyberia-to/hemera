@@ -18,9 +18,9 @@ alias: Hemera reference, Hemera specification, Hemera spec, Hemera_Hash_Primitiv
 
 Hemera is the cryptographic hash primitive for [[cyber]], a knowledge graph for planetary-scale collective intelligence. It instantiates the [[Poseidon2]] permutation over the [[Goldilocks field]] (p = 2^64 - 2^32 + 1) with state width t = 16, full-round S-box x⁷, partial-round S-box x⁻¹ (field inversion), and 16 partial rounds (R_P = 16).
 
-The construction provides 256-bit classical collision resistance and 170-bit quantum collision resistance. Algebraic degree 7⁸ × (p−2)¹⁶ ≈ 2^1046 places the permutation far beyond any foreseeable attack capability — 2^918 bits of margin over 128-bit security. Every [[particles|particle]] address in the network, every node in every proof tree, and every commitment in every [[zheng]] proof derives from the same permutation.
+The 8-element capacity (512 bits) bounds generic attacks on the sponge far above any output length. Collision resistance is set by the 32-byte (4-element) output: 128-bit classical (birthday on p⁴ ≈ 2^256 digests) and ~85-bit quantum (BHT) — see the hash row of the [[zheng]] soundness ledger (`zheng/specs/soundness.md`). Hemera profile v2 ([hemera#15](https://github.com/cyberia-to/hemera/pull/15)) proposes longer identity digests for post-quantum collision resistance; Merkle nodes inside a proof stay 32 bytes. Algebraic degree 7⁸ × (p−2)¹⁶ ≈ 2^1046 places the permutation far beyond any foreseeable attack capability — 2^918 bits of margin over 128-bit security. Every [[particles|particle]] address in the network, every node in every proof tree, and every commitment in every [[zheng]] proof derives from the same permutation.
 
-Hemera is the domain separation layer and trust anchor. Lens (Brakedown) handles bulk commitment — polynomial evaluation, batch openings, erasure coding. Hemera wraps Lens commitments with domain tags, providing identity binding and Fiat-Shamir seeding. Per execution, hemera is called ~3 times: (a) domain separation wrapper: hemera(Lens.commit(noun) ‖ tag) — one call per noun identity. (b) Fiat-Shamir seed — one call per proof. (c) Brakedown binding — one call per Lens commit (internal to Lens). The heavy work is polynomial arithmetic; hemera is the thin trust layer on top.
+Hemera is the domain separation layer and trust anchor, and the only hash in the proof system. [[lens]] commits polynomials as Reed–Solomon codewords (WHIR, TensorRs); hemera builds the Merkle trees of those commitments, the authentication paths of every opening, and the Fiat–Shamir transcript of every [[zheng]] proof, and wraps commitments with domain tags for identity binding. The number of hemera calls therefore scales with the opening's queries, not with a fixed count per execution: the succinct opening of the hash.tri fixture costs ≈ 480 permutations. Hemera speed is a leading term of zheng verify time.
 
 One function. One mode (sponge). 32 bytes output. ~736 constraints per permutation. These parameters are Hemera. If any parameter differs, it is not Hemera.
 
@@ -49,8 +49,8 @@ One function. One mode (sponge). 32 bytes output. ~736 constraints per permutati
 │  Constraints per permutation: ~736                        │
 │  Binary node:             1 permutation (32+32 ≤ rate)    │
 │                                                          │
-│  Classical collision resistance:  256 bits     = 2⁸       │
-│  Quantum collision resistance:   170 bits                │
+│  Classical collision resistance:  128 bits     = 2⁷       │
+│  Quantum collision resistance:   ~85 bits (BHT)          │
 │  Algebraic degree:               2¹⁰⁴⁶                   │
 │  Security margin:                2⁹¹⁸ over 128-bit       │
 │                                                          │
@@ -64,7 +64,7 @@ One function. One mode (sponge). 32 bytes output. ~736 constraints per permutati
 
 **x⁻¹ partial S-box.** field inversion replaces x⁷ in the 16 partial rounds. algebraic degree jumps from 7⁶⁴ ≈ 2¹⁸⁰ to 7⁸ × (p−2)¹⁶ ≈ 2¹⁰⁴⁶. partial rounds drop from 64 to 16 (4× fewer). constraints per permutation drop from ~1,152 to ~736 (36% reduction). MPC/FHE multiplicative depth drops from 216 to 40 (5.4× reduction). same wall-clock — fewer rounds but inversion costs more per round.
 
-**32-byte output.** 4 elements instead of 8. 2× faster tree hashing (binary node fits in one rate block: 32+32=64 bytes ≤ 8×8=64 bytes). 2× less storage for roots and proofs. 256-bit collision resistance preserved (capacity is 8 elements = 64 bytes, unchanged). the output is a hash, not an encryption — 32 bytes is standard (SHA-256, Blake3, Keccak-256).
+**32-byte output.** 4 elements instead of 8. 2× faster tree hashing (binary node fits in one rate block: 32+32=64 bytes ≤ 8×8=64 bytes). 2× less storage for roots and proofs. capacity stays 8 elements = 64 bytes, unchanged; collision resistance of the 32-byte output is 128-bit classical, ~85-bit quantum (BHT). the output is a hash, not an encryption — 32 bytes is standard (SHA-256, Blake3, Keccak-256).
 
 **16 partial rounds.** the minimum for security with x⁻¹ S-box. full rounds (8) provide diffusion across all 16 state elements. partial rounds (16) provide algebraic depth on element 0 only. the combination gives algebraic degree 2¹⁰⁴⁶ with only 24 total rounds.
 
@@ -89,6 +89,6 @@ One function. One mode (sponge). 32 bytes output. ~736 constraints per permutati
 - [[nox]] — the VM where Hemera executes as a jet
 - [[tri-kernel]] — probability engine consuming Hemera outputs
 - [[cyber/proofs]] — [[zheng]] proof system built on Hemera
-- [[BBG]] — authenticated state whose Lens commitment uses Hemera for binding
-- [[Brakedown]] — Lens (polynomial commitment scheme), one Hemera call for binding hash
+- [[BBG]] — authenticated state whose Lens commitments are hemera Merkle trees
+- [[lens]] — polynomial commitment schemes (WHIR, TensorRs); hemera builds their Merkle trees and authentication paths
 - [[cyber/whitepaper]] — section 4 Hemera chapter

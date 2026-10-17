@@ -113,6 +113,43 @@ impl fmt::Debug for Hash {
     }
 }
 
+/// Plain-mode `Hasher::new().update(m).finalize_state()` for several
+/// messages of equal length, their permutations batched
+/// (`permutation::permute_batch`). `states[k]` receives the finalized
+/// state of `msgs[k]`.
+pub(crate) fn finalize_states_equal_len(msgs: &[&[u8]], states: &mut [[Goldilocks; WIDTH]]) {
+    assert_eq!(msgs.len(), states.len());
+    let Some(first) = msgs.first() else { return };
+    let len = first.len();
+    assert!(msgs.iter().all(|m| m.len() == len), "equal lengths");
+    for st in states.iter_mut() {
+        *st = Hasher::new().state;
+    }
+    let mut block = [Goldilocks::new(0); RATE];
+    let full = len / RATE_BYTES;
+    for b in 0..full {
+        for (st, m) in states.iter_mut().zip(msgs) {
+            bytes_to_rate_block(&m[b * RATE_BYTES..(b + 1) * RATE_BYTES], &mut block);
+            for (s, e) in st.iter_mut().zip(block) {
+                *s += e;
+            }
+        }
+        crate::permutation::permute_batch(states);
+    }
+    for (st, m) in states.iter_mut().zip(msgs) {
+        let rem = &m[full * RATE_BYTES..];
+        let mut padded = [0u8; RATE_BYTES];
+        padded[..rem.len()].copy_from_slice(rem);
+        padded[rem.len()] = 0x01;
+        bytes_to_rate_block(&padded, &mut block);
+        for (s, e) in st.iter_mut().zip(block) {
+            *s += e;
+        }
+        st[CAPACITY_START + 2] = Goldilocks::new(len as u64);
+    }
+    crate::permutation::permute_batch(states);
+}
+
 /// A streaming Poseidon2 hasher.
 ///
 /// Supports three modes via domain separation:
@@ -128,6 +165,20 @@ pub struct Hasher {
     buf: [u8; RATE_BYTES],
     buf_len: usize,
     absorbed: u64,
+    /// Secret-input mode: every permutation runs the constant-time kernel.
+    /// Set by the keyed, derive-key and secret constructors; not settable
+    /// otherwise.
+    ct: bool,
+}
+
+/// One permutation in the hasher's mode.
+#[inline]
+fn permute_mode(state: &mut [Goldilocks; WIDTH], ct: bool) {
+    if ct {
+        crate::permutation::permute_ct(state);
+    } else {
+        params::permute(state);
+    }
 }
 
 impl Hasher {
@@ -140,10 +191,21 @@ impl Hasher {
             buf: [0u8; RATE_BYTES],
             buf_len: 0,
             absorbed: 0,
+            ct: false,
         }
     }
 
-    /// Create a new hasher in keyed hash mode.
+    /// A plain-mode hasher for secret input: same output as [`Hasher::new`],
+    /// every permutation constant time. Use it (or `hash_secret`) whenever
+    /// the message is key material — seeds, entropy, private scalars.
+    pub fn new_secret() -> Self {
+        Self {
+            ct: true,
+            ..Self::new()
+        }
+    }
+
+    /// Create a new hasher in keyed hash mode (constant time).
     ///
     /// The key is absorbed as the first block (before any user data).
     pub fn new_keyed(key: &[u8; OUTPUT_BYTES]) -> Self {
@@ -156,12 +218,13 @@ impl Hasher {
             buf: [0u8; RATE_BYTES],
             buf_len: 0,
             absorbed: 0,
+            ct: true,
         };
         hasher.update(key.as_slice());
         hasher
     }
 
-    /// Create a new hasher in derive-key mode.
+    /// Create a new hasher in derive-key mode (constant time).
     ///
     /// First hashes the context string to produce a context key, then
     /// sets up a second hasher seeded with that key for absorbing key material.
@@ -173,12 +236,14 @@ impl Hasher {
             buf: [0u8; RATE_BYTES],
             buf_len: 0,
             absorbed: 0,
+            ct: true,
         };
         hasher.update(context.as_bytes());
         hasher
     }
 
-    /// Create a derive-key hasher for the material phase, seeded by a context hash.
+    /// Create a derive-key hasher for the material phase, seeded by a context
+    /// hash (constant time).
     pub fn new_derive_key_material(context_hash: &Hash) -> Self {
         let mut state = [Goldilocks::new(0); WIDTH];
         state[CAPACITY_START + 3] = Goldilocks::new(DOMAIN_DERIVE_KEY_MATERIAL);
@@ -188,13 +253,14 @@ impl Hasher {
             let val = u64::from_le_bytes(chunk.try_into().unwrap());
             state[i] = Goldilocks::new(val);
         }
-        params::permute(&mut state);
+        crate::permutation::permute_ct(&mut state);
 
         Self {
             state,
             buf: [0u8; RATE_BYTES],
             buf_len: 0,
             absorbed: 0,
+            ct: true,
         }
     }
 
@@ -226,7 +292,7 @@ impl Hasher {
         for (i, block_elem) in block.iter().enumerate() {
             self.state[i] = self.state[i] + *block_elem;
         }
-        params::permute(&mut self.state);
+        permute_mode(&mut self.state, self.ct);
     }
 
     /// Apply padding and produce the finalized state.
@@ -255,13 +321,14 @@ impl Hasher {
         // Encode total length in capacity.
         state[CAPACITY_START + 2] = Goldilocks::new(self.absorbed);
 
-        params::permute(&mut state);
+        permute_mode(&mut state, self.ct);
         state
     }
 
     /// Absorb `data`, calling `visitor` for each permutation triggered.
     ///
     /// Mirrors [`update`] exactly — use in place of `update` when building a trace.
+    /// Not constant time in any mode: tracing is witness generation.
     pub fn update_traced<V: crate::trace::RoundVisitor>(
         &mut self,
         mut data: &[u8],
@@ -294,6 +361,7 @@ impl Hasher {
     ///
     /// If the input required absorb permutations, trace those via [`update_traced`];
     /// this method traces only the padding+finalize permutation.
+    /// Not constant time in any mode: tracing is witness generation.
     pub fn finalize_traced<V: crate::trace::RoundVisitor>(&self, visitor: &mut V) -> Hash {
         let mut state = self.state;
         let mut padded = [0u8; RATE_BYTES];
@@ -329,6 +397,7 @@ impl Hasher {
         let state = self.finalize_state();
         OutputReader {
             state,
+            ct: self.ct,
             buffer: [0u8; OUTPUT_BYTES],
             buffer_pos: OUTPUT_BYTES, // empty — will squeeze on first read
         }
@@ -356,6 +425,7 @@ impl fmt::Debug for Hasher {
 /// then permuting to produce more output.
 pub struct OutputReader {
     state: [Goldilocks; WIDTH],
+    ct: bool,
     buffer: [u8; OUTPUT_BYTES],
     buffer_pos: usize,
 }
@@ -385,7 +455,7 @@ impl OutputReader {
             .unwrap();
         self.buffer = hash_to_bytes(&output_elems);
         self.buffer_pos = 0;
-        params::permute(&mut self.state);
+        permute_mode(&mut self.state, self.ct);
     }
 }
 
