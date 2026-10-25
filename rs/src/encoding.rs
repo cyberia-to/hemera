@@ -78,9 +78,9 @@ pub(crate) fn bytes_to_cv(bytes: &[u8; OUTPUT_BYTES]) -> [Goldilocks; OUTPUT_ELE
 #[cfg(test)]
 mod tests {
     extern crate std;
-    use std::vec;
     use super::*;
     use crate::params::RATE_BYTES;
+    use std::vec;
 
     #[test]
     fn roundtrip_hash_bytes() {
@@ -142,7 +142,10 @@ mod tests {
         let max_7byte: u64 = (1u64 << 56) - 1;
         // Goldilocks prime: p = 2^64 - 2^32 + 1 = 0xFFFF_FFFF_0000_0001
         let p: u64 = 0xFFFF_FFFF_0000_0001;
-        assert!(max_7byte < p, "7-byte max must be less than Goldilocks prime");
+        assert!(
+            max_7byte < p,
+            "7-byte max must be less than Goldilocks prime"
+        );
     }
 
     #[test]

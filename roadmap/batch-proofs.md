@@ -59,9 +59,9 @@ the savings depend on spatial locality. contiguous ranges compress well. scatter
 // prove
 let (root, proof) = batch::prove_batch(data, &[0, 1, 5, 7]);
 
-// verify
+// verify against a root obtained independently of the proof
 let chunks = [&data[0..4096], &data[4096..8192], /* ... */];
-assert!(batch::verify_batch(&chunks, &proof));
+assert!(batch::verify_batch(&chunks, &proof, &trusted_root));
 ```
 
 ## verification

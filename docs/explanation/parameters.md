@@ -33,79 +33,64 @@ d=7 is the minimum invertible exponent. Multiplicative depth is 3 (computed as x
 
 ## state width: t=16, r=8, c=8
 
-The ecosystem standard t=12 gives exactly 128-bit collision resistance with capacity 4 — zero margin.
+The width-12 Goldilocks instances common in the ecosystem use capacity 4 (256 bits). Hemera uses capacity 8 (512 bits): the generic sponge bounds sit at 2^256 classical and ≈ 2^170 quantum, above every digest length Hemera offers, so the digest — not the capacity — is what binds.
 
-BHT quantum collision search at cap=4 is 2^85, insufficient for a permanent system.
-
-Security comparison:
-
-| metric | cap=4 (t=12) | cap=8 (t=16) |
-|---|---|---|
-| classical collision | 2^128 | 2^256 |
-| BHT quantum collision | 2^85 | 2^171 |
-| classical preimage | 2^256 | 2^512 |
-| Grover quantum preimage | 2^128 | 2^256 |
-
-Throughput is identical: both have rate r=8 = 56 input bytes per permutation call.
-
-## round counts: R_F=8, R_P=16
-
-Full rounds (R_F=8): the wide trail strategy guarantees at least 8 active S-boxes across 4 full rounds. Differential probability per S-box is at most 6/2^64. Over 8 active S-boxes: (6/2^64)^8 ~ 2^-480. full rounds use x⁷ S-box.
-
-Partial rounds (R_P=16): use x⁻¹ (field inversion) instead of x⁷. algebraic degree per partial round is (p-2) ≈ 2^64. after 16 partial rounds: (p-2)^16 ≈ 2^1024. combined with full rounds (7^8): total degree ≈ 7^8 × (p-2)^16 ≈ 2^1046. the x⁻¹ S-box achieves far higher algebraic degree with far fewer rounds — 16 instead of 64.
-
-security margin: 2^1046 / 2^128 = 2^918 bits over 128-bit security target. no known or foreseeable algebraic attack comes close.
-
-context: the Ethereum Foundation bounty program has not produced attacks on Poseidon2 at standard round counts. Hemera's x⁻¹ partial S-box with R_P=16 provides 2^918 margin — more than any other Poseidon2 instantiation.
-
-## round structure: 8 + 16 = 24
-
-total 24 = 3 × 2³. every component is a power of 2 (R_F=8=2³, R_P=16=2⁴). the round structure: 4 initial full rounds + 16 partial rounds + 4 terminal full rounds.
-
-Loop bounds and array sizes are powers of 2:
-
-- R_F = 8 (2^3)
-- R_P = 16 (2^4)
-- half-full = 4 (2^2)
-
-R_P=16 provides 2^918 bits of security margin over the 128-bit target. the x⁻¹ partial S-box achieves far higher algebraic degree per round than x⁷, requiring fewer rounds for equivalent security.
-
-## computational elegance
-
-Every parameter that appears as a loop bound, array size, or memory layout is a power of 2:
-
-| parameter | value | power of 2 | code role |
+| metric | 32-byte digest (Hemera) | 48-byte digest | 64-byte digest |
 |---|---|---|---|
-| p (Goldilocks) | 2^64 - 2^32 + 1 | reduction via shifts | field arithmetic |
-| t (state width) | 16 | 2^4 | array size, SIMD width |
-| c (capacity) | 8 | 2^3 | security parameter |
-| r (rate) | 8 | 2^3 | absorption loop bound |
-| R_F (full rounds) | 8 | 2^3 | outer loop bound |
-| R_P (partial rounds) | 16 | 2^4 | inner loop bound, constant array size |
-| output (bytes) | 32 | 2^5 | output buffer size |
-| element (bytes) | 8 | 2^3 | memory stride |
+| classical collision | 2^128 | 2^192 | 2^256 |
+| BHT quantum collision | 2^85.3 | 2^128 | 2^170 (capacity-bound) |
+| classical preimage | 2^256 | 2^256 (capacity) | 2^256 (capacity) |
+| Grover quantum preimage | 2^128 | 2^128 | 2^128 |
 
-Only non-power-of-2 values: derived sums (24 total rounds, 144 total constants), input rate (56 = 7 x 8 bytes), and the S-box exponent d=7.
+the 32-byte digest caps collision at 2^128 classical and preimage at p⁴ ≈ 2^256; a capacity of 8 elements does not raise either. Throughput is set by the rate: r = 8 = 56 input bytes per permutation call.
 
-The Goldilocks prime forces 7 twice: as the S-box exponent (minimum invertible) and in the encoding rate (56 bytes = 7 field elements of 8 bytes each).
+## S-box everywhere: x⁷
 
-SIMD-aligned memory access, clean loop unrolling, cache-line alignment — all follow from the power-of-2 discipline.
+Hemera 0.4 applies x⁷ in every round, full and partial — the Poseidon2 reference S-box for Goldilocks, the one every published bound, round-number inequality and bounty instance is written for.
 
-The permutation loop structure:
+Hemera 0.3 used x⁻¹ (field inversion) in its partial rounds and argued from degree: p − 2 per partial round, "7⁸ × (p−2)¹⁶ ≈ 2^1046". That number is the unreduced composition degree, and an attacker never meets it. Carried as a rational function of one input, an inverse round only doubles the degree, so the 0.3 permutation has a one-variable CICO degree of 7⁸ · 2¹⁶ ≈ 2^38.46 — below p — and a reduced instance with all sixteen inverse rounds was solved by rational interpolation in 92 seconds (`audit/campaign.md` §3.2). The degree argument is withdrawn; the 0.3 profile is kept only as a record.
+
+## round counts: R_F = 12, R_P = 48
+
+The counts follow a rule set against the published attacks (`audit/campaign.md` §3.3):
+
+- **full rounds**: each outer layer keeps at least three times the full rounds a published attack crosses or skips. The round-skipping technique of Bariant et al. (ToSC 2022) skips two; ePrint 2026/1692 crosses one. 3 × 2 = 6 per side → R_F = 12.
+- **partial rounds**: at least 1.5 times the longest published subspace trail through the internal layer, ≈ 30 nonlinear rounds at t = 16 (ePrint 2026/1792). 1.5 × 30 = 45 → R_P = 48.
+
+The Poseidon2 round-number inequalities (`audit/campaign/p2rounds.py`, the Horizen Labs script re-implemented) need only R_P ≥ 14 at R_F = 12; the reference instance for Goldilocks t = 16 is (8, 22). Hemera pays 1.7× the reference rounds for margin that is fixed at genesis: rounds are the one parameter that cannot be raised later without rehashing the graph.
+
+Margins against each attack line are in [[permutation]] § round numbers and margins. The algebraic margin is measured by the cryptanalysis campaign, not claimed.
+
+## round structure: 6 + 48 + 6 = 60
 
 ```
-for _ in 0..4:        // half-full rounds (power of 2)
-    add_constants()
-    sbox_full()        // 16 S-boxes (power of 2)
-    mds()
+M_E                   // initial linear layer
+for _ in 0..6:        // initial full rounds
+    add_constants()   // 16 constants
+    sbox_full()       // 16 × x⁷
+    M_E()
 
-for _ in 0..16:       // partial rounds (power of 2)
-    add_constant()
-    sbox_single()      // 1 S-box
-    mds()
+for _ in 0..48:       // partial rounds
+    add_constant()    // 1 constant
+    sbox_single()     // 1 × x⁷ on state[0]
+    M_I()
 
-for _ in 0..4:        // half-full rounds (power of 2)
+for _ in 0..6:        // terminal full rounds
     add_constants()
     sbox_full()
-    mds()
+    M_E()
 ```
+
+240 constants (192 external, 48 internal), 240 S-boxes, 1,728 multiplications per permutation (768 in full-round S-boxes, 192 in partial-round S-boxes, 768 in the internal layer). The power-of-two discipline of earlier versions (R_F = 8, R_P = 16) yields to the round rule: 12 and 48 are what the attacks ask for.
+
+## cost
+
+| | hemera 0.3 | hemera 0.4 |
+|---|---|---|
+| S-boxes | 128 x⁷ + 16 x⁻¹ | 240 x⁷ |
+| constraints (hemera accounting: 4 per x⁷, 2 per x⁻¹, ~8 per linear layer) | ~736 | ~1,440 |
+| native multiplications | ~2,224 (inverse chains) | 1,728 |
+| one permutation, M4 Max | 2.97 µs | 1.35 µs |
+| batched, per permutation, M4 Max | 0.73 µs (one inversion shared across 16 lanes) | 1.23 µs |
+
+measurements: `audit/profile-0.4-2026-10.md`.

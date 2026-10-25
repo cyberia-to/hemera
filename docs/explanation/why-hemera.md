@@ -9,7 +9,7 @@ alias: Why Hemera, permanence constraint, design philosophy
 
 Hemera is a particle-addressing primitive: a permutation and a tree, fused into one construction. the permutation provides cryptographic strength. the tree provides scale, streaming, and structure. together they form a closed system — from raw bytes to permanent identity to verifiable proof — with nothing else in the dependency chain.
 
-Hemera uses Poseidon2 because it operates directly over the [[Goldilocks field]] — the same field that runs the [[zheng]] prover, the FHE encryption, the neural inference, and the quantum circuits in [[cyber]]. no field conversion at any boundary. ~736 constraints per hash in a STARK circuit vs ~50,000-100,000 for BLAKE3. the hash is native to the field. the field is native to the proof system. the proof system is native to the execution layer. one algebraic substrate from content to commitment to proof to consensus.
+Hemera uses Poseidon2 because it operates directly over the [[Goldilocks field]] — the same field that runs the [[zheng]] prover, the FHE encryption, the neural inference, and the quantum circuits in [[cyber]]. no field conversion at any boundary. ~1,440 constraints per permutation in a proof circuit vs ~50,000-100,000 for BLAKE3. the hash is native to the field. the field is native to the proof system. the proof system is native to the execution layer. one algebraic substrate from content to commitment to proof to consensus.
 
 eight design principles shape every decision. each is a deliberate departure from how the ZK ecosystem builds hash primitives today.
 
@@ -27,7 +27,7 @@ every Poseidon2 deployment in production today — SP1, RISC Zero, Starknet, Plo
 | adversary budget | current computational | future computational + quantum |
 | cost of parameter error | reissue proofs | lose the graph |
 
-parameters chosen at genesis are permanent commitments — and this applies to the tree equally. the 4 KB chunk size, the binary left-balanced shape, the two-pass leaf construction, the capacity flag layout — all are as permanent as the round counts. the threat model is not "what attacks exist today" but "what attacks will exist over the lifetime of the system." this asymmetry drives every decision: wider state (t=16 vs t=12), more rounds (R_P=16 vs R_P=22), doubled capacity (c=8 vs c=4). the cost is ~38% slower native hashing and ~3.2× proving cost. Moore's law eliminates any constant-factor penalty in two years. a broken hash function is permanent.
+parameters chosen at genesis are permanent commitments — and this applies to the tree equally. the 4 KB chunk size, the binary left-balanced shape, the two-pass leaf construction, the capacity flag layout — all are as permanent as the round counts. the threat model is not "what attacks exist today" but "what attacks will exist over the lifetime of the system." this asymmetry drives every decision: wider state (t=16 vs t=12), more rounds than the reference instance (R_F=12, R_P=48 vs 8, 22), doubled capacity (c=8 vs c=4). the cost is ~1.7× the reference rounds and ~1,440 constraints per permutation. Moore's law eliminates any constant-factor penalty in two years. a broken hash function is permanent.
 
 there is no version byte. there is no escape hatch. if Hemera is ever broken, the response is full graph rehash — every particle, every cyberlink, every commitment. [[storage proofs]] make this possible. versioning headers do not save you — they waste bytes multiplied by 10²⁴ cyberlinks.
 
@@ -69,7 +69,7 @@ this is why there are no CID headers. a Hemera output with a multicodec prefix i
 
 ## self-reference
 
-Hemera generates her own round constants. the permutation structure (S-box x⁷, matrices M_E and M_I, round flow 4+16+4) is fully defined before constants exist. with all 144 constants set to zero, the permutation is already a well-defined nonlinear function — Hemera₀. feed the genesis seed `[0x63, 0x79, 0x62, 0x65, 0x72]` through Hemera₀ as a sponge, squeeze 144 field elements. those are the round constants. done.
+Hemera generates her own round constants. the permutation structure (S-box x⁷ in every round, matrices M_E and M_I, round flow 6+48+6) is fully defined before constants exist. with all 240 constants set to zero, the permutation is already a well-defined nonlinear function — Hemera₀. feed the genesis seed `[0x63, 0x79, 0x62, 0x65, 0x72]` through Hemera₀ as a sponge, squeeze 240 field elements, check them (canonical, nonzero, distinct). those are the round constants. done.
 
 ```
 algebraic structure → Hemera₀ → constants → Hemera
@@ -128,19 +128,19 @@ this is why Poseidon2 and not BLAKE3, not Keccak, not SHA-256. those are faster 
 
 Hemera's parameters are not arbitrary. they emerge from the Goldilocks prime as mathematical consequences — and they are beautiful.
 
-**the double seven.** the number 7 appears twice, for two independent reasons. the S-box must be a bijection over F_p, requiring gcd(d, p−1) = 1. for Goldilocks: p−1 = 2³² × (2³² − 1), which has factors 2, 3, 5. d=3 fails (gcd=3). d=5 fails (gcd=5). d=7 is the minimum invertible exponent. separately, the input encoding must map bytes to field elements without conditional reduction. the maximum 7-byte value is 2⁵⁶ − 1 < p. the maximum 8-byte value can exceed p. 7 bytes is the maximum whole-byte count that fits [0, p) unconditionally. the same mathematical structure — the Goldilocks prime — constrains both the nonlinear layer and the encoding layer to the same number. this is not a design choice. it is a consequence of the field.
+**the double seven.** the number 7 appears twice, for two independent reasons. the S-box must be a bijection over F_p, requiring gcd(d, p−1) = 1. for Goldilocks: p−1 = 2³² × 3 × 5 × 17 × 257 × 65537. d=3 fails (gcd=3). d=5 fails (gcd=5). d=7 is the minimum invertible exponent. separately, the input encoding must map bytes to field elements without conditional reduction. the maximum 7-byte value is 2⁵⁶ − 1 < p. the maximum 8-byte value can exceed p. 7 bytes is the maximum whole-byte count that fits [0, p) unconditionally. the same mathematical structure — the Goldilocks prime — constrains both the nonlinear layer and the encoding layer to the same number. this is not a design choice. it is a consequence of the field.
 
-**the powers of two.** every structural parameter in Hemera is a power of 2:
+**the powers of two, and where they stop.** the sponge geometry is powers of 2:
 
 ```
 t  = 16 = 2⁴     state width
-R_F = 8 = 2³     full rounds
-R_P = 16 = 2⁴    partial rounds
 r  = 8  = 2³     rate elements
 c  = 8  = 2³     capacity elements
 ```
 
-this is not numerology. powers of 2 mean bit shifts instead of division, aligned memory instead of padding, native SIMD lanes instead of masking. R_P = 16 partial rounds fit in 128 bytes of round constants (16 × 8 bytes). the state width t = 16 maps to one AVX-512 register or four NEON registers. r = 8 rate elements absorb in a single aligned load. every parameter falls on a hardware boundary.
+powers of 2 mean bit shifts instead of division, aligned memory instead of padding, native SIMD lanes instead of masking. the state width t = 16 maps to one AVX-512 register or four NEON registers; r = 8 rate elements absorb in a single aligned load.
+
+the round counts are not: R_F = 12 and R_P = 48 are set by a rule against the published attacks (`docs/explanation/parameters.md`), and margin fixed at genesis outranks a loop bound. earlier versions chose R_F = 8 and R_P = 16 for their shape; the 16 inverse partial rounds of 0.3 fell to a measured attack on a reduced instance (`audit/campaign.md` §3.2).
 
 the 4 KB chunk size (2¹²) aligns with page size, disk sector size, and network MTU conventions. the 56-byte input rate (7 × 8) is the one parameter that is not a power of 2 — forced by the double seven. every parameter that could be a power of 2, is.
 
@@ -150,4 +150,4 @@ the Goldilocks prime itself embodies this: p = 2⁶⁴ − 2³² + 1. reduction 
 
 Hemera absorbs all parameters into a single, unambiguous identifier. if you say "Hemera," every parameter is determined: the field, the S-box, the width, the round counts, the rate, the capacity, the padding, the encoding, the output format, the chunk size, the tree shape, the flag layout. if you change any parameter, it is no longer Hemera.
 
-the name exists because [[cyber]]'s hash function cannot afford ambiguity. "Poseidon2 with Goldilocks t=16 r=8 c=8 d=7 R_F=8 R_P=16 and a binary Merkle tree with 4 KB chunks" is a description. "Hemera" is an identity.
+the name exists because [[cyber]]'s hash function cannot afford ambiguity. "Poseidon2 with Goldilocks t=16 r=8 c=8 d=7 R_F=12 R_P=48 and a binary Merkle tree with 4 KB chunks" is a description. "Hemera" is an identity.

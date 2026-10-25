@@ -17,7 +17,7 @@ WGSL has no native 64-bit integers. Goldilocks arithmetic (p = 2^64 - 2^32 + 1) 
 fn gl_add(a: vec2<u32>, b: vec2<u32>) -> vec2<u32>
 fn gl_sub(a: vec2<u32>, b: vec2<u32>) -> vec2<u32>
 fn gl_mul(a: vec2<u32>, b: vec2<u32>) -> vec2<u32>
-fn gl_inv(a: vec2<u32>) -> vec2<u32>           // field inversion via Fermat
+fn gl_pow7(a: vec2<u32>) -> vec2<u32>          // the x⁷ S-box (every round in 0.4)
 fn gl_pow7(a: vec2<u32>) -> vec2<u32>           // x⁷ S-box
 fn gl_reduce(lo: u32, hi: u32) -> vec2<u32>     // modular reduction
 ```
@@ -110,4 +110,4 @@ let root = gpu.root_hash_with_progress(data, &|done, total| {
 - `wgsl/tests/` — 39 GPU integration tests
 - CLI: `--gpu` / `--cpu` flags
 
-see [[inversion-sbox]] for the x⁻¹ partial S-box implemented in WGSL
+the WGSL permutation follows `specs/permutation.md` (hemera 0.4: x⁷ in every round, 6 + 48 + 6 rounds); [[inversion-sbox]] records the 0.3 partial S-box it replaced

@@ -1,14 +1,14 @@
 # hemera roadmap
 
-hemera is specified: x⁻¹ partial S-box, 16 partial rounds, 32-byte output, ~736 constraints per permutation. these proposals are OPTIMIZATIONS on top of the current spec — reducing constraint count further and shifting hemera's role from "hash for everything" to "trust anchor."
+hemera 0.4 is specified: x⁷ in every round, 12 full + 48 partial rounds, Poseidon2 reference matrices, 32-byte output, ~1,440 constraints per permutation (`specs/`). these proposals are OPTIMIZATIONS on top of the current spec — reducing constraint count further and shifting hemera's role from "hash for everything" to "trust anchor." cost figures inside individual proposals were written against 0.3 (~736 constraints per permutation) and scale with the permutation.
 
 ## status: implemented = shipped in code and spec
 
-## implemented (0.3)
+## implemented
 
 | proposal | what it does |
 |----------|-------------|
-| [[inversion-sbox]] | x⁻¹ S-box in partial rounds, 16 partial rounds, 2^1046 algebraic degree |
+| [[inversion-sbox]] | superseded in 0.4 — x⁻¹ partial rounds (0.3); the degree argument is withdrawn (`audit/campaign.md` §3.2) |
 | [[compact-output]] | 32-byte output, single-permutation binary tree nodes |
 | [[verified-streaming]] | pre-order encode/decode with incremental hash verification |
 | [[async-streaming]] | O(log n) memory async FSM decoder, tokio-compatible |

@@ -6,7 +6,7 @@
 //! Round-by-round Poseidon2 sponge for STARK trace generation.
 //!
 //! `StepSponge` implements `Iterator<Item=[Goldilocks; WIDTH]>`, yielding
-//! the full post-round state for each of the 24 permutation rounds. Used
+//! the full post-round state for each of the 60 permutation rounds. Used
 //! by nox's pattern-15 trace emitter so each round becomes one trace row.
 //!
 //! ```text
@@ -24,7 +24,7 @@ use crate::permutation::permute_one_round;
 /// Round-by-round Poseidon2 permutation.
 ///
 /// Call `absorb` to initialize, then iterate (or call `step` in a loop)
-/// to advance one round at a time. After all 24 rounds, `done()` is true
+/// to advance one round at a time. After all 60 rounds, `done()` is true
 /// and `squeeze()` returns `state[0]`.
 #[derive(Debug)]
 pub struct StepSponge {
@@ -36,9 +36,10 @@ impl StepSponge {
     /// Initialize the sponge: XOR `rate` into state[0..rate.len()], apply
     /// the initial MDS, then set round = 0 ready for stepping.
     ///
-    /// `rate.len()` must be ≤ `RATE` (8 elements). Capacity elements stay zero.
+    /// `rate.len()` must be ≤ `RATE` (8 elements); panics otherwise, so a
+    /// longer slice can never spill into the capacity. Capacity elements stay zero.
     pub fn absorb(rate: &[Goldilocks]) -> Self {
-        debug_assert!(rate.len() <= RATE, "rate slice longer than RATE");
+        assert!(rate.len() <= RATE, "rate slice longer than RATE");
         let mut state = [Goldilocks::ZERO; WIDTH];
         for (i, &r) in rate.iter().enumerate() {
             state[i] = r;
@@ -50,9 +51,9 @@ impl StepSponge {
 
     /// Execute one round and return the post-round state.
     ///
-    /// Panics in debug builds if called after `done()`.
+    /// Panics if called after `done()`, in every build profile.
     pub fn step(&mut self) -> [Goldilocks; WIDTH] {
-        debug_assert!(!self.done(), "step() called after permutation complete");
+        assert!(!self.done(), "step() called after permutation complete");
         permute_one_round(&mut self.state, self.round);
         self.round += 1;
         self.state
@@ -66,9 +67,9 @@ impl StepSponge {
 
     /// Returns `state[0]` — the primary output element — after all rounds.
     ///
-    /// Panics in debug builds if called before `done()`.
+    /// Panics if called before `done()`, in every build profile.
     pub fn squeeze(&self) -> Goldilocks {
-        debug_assert!(self.done(), "squeeze() called before permutation complete");
+        assert!(self.done(), "squeeze() called before permutation complete");
         self.state[0]
     }
 }
@@ -85,11 +86,11 @@ impl Iterator for StepSponge {
 #[cfg(test)]
 mod tests {
     extern crate std;
-    use std::vec::Vec;
     use super::*;
     use crate::field::Goldilocks;
     use crate::params::{ROUNDS_TOTAL, WIDTH};
     use crate::permutation::permute;
+    use std::vec::Vec;
 
     fn zero_rate() -> Vec<Goldilocks> {
         std::vec![Goldilocks::ZERO; RATE]
@@ -113,7 +114,7 @@ mod tests {
 
     #[test]
     fn matches_atomic_permute() {
-        // StepSponge stepping all 24 rounds must produce the same final state
+        // StepSponge stepping all 60 rounds must produce the same final state
         // as a single `permute()` call on the same initial state.
         let rate: Vec<Goldilocks> = (0..RATE as u64).map(Goldilocks::new).collect();
 
@@ -180,7 +181,44 @@ mod tests {
         assert_eq!(states.len(), ROUNDS_TOTAL);
         // Consecutive round states must differ (permutation is not identity on any round).
         for i in 1..states.len() {
-            assert_ne!(states[i - 1], states[i], "rounds {} and {} produced identical states", i - 1, i);
+            assert_ne!(
+                states[i - 1],
+                states[i],
+                "rounds {} and {} produced identical states",
+                i - 1,
+                i
+            );
         }
+    }
+
+    // These three invariants used to be debug_assert!s, compiled out in
+    // release: absorb's would have let a too-long rate silently overwrite
+    // the sponge's capacity elements instead of failing (the exact
+    // rate/capacity separation a sponge's security depends on); squeeze's
+    // would have silently returned an intermediate, not-fully-permuted
+    // state[0] with no error at all, in either build profile.
+
+    #[test]
+    #[should_panic]
+    fn absorb_rejects_rate_longer_than_rate_const() {
+        let too_long = std::vec![Goldilocks::ZERO; RATE + 1];
+        StepSponge::absorb(&too_long);
+    }
+
+    #[test]
+    #[should_panic]
+    fn step_after_done_panics() {
+        let mut sponge = StepSponge::absorb(&zero_rate());
+        for _ in 0..ROUNDS_TOTAL {
+            sponge.step();
+        }
+        sponge.step();
+    }
+
+    #[test]
+    #[should_panic]
+    fn squeeze_before_done_panics() {
+        let sponge = StepSponge::absorb(&zero_rate());
+        sponge.squeeze();
     }
 }

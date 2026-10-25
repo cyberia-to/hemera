@@ -1,4 +1,9 @@
-"""CICO-1 on reduced-round hemera by univariate rational interpolation.
+"""CICO-1 on reduced-round hemera 0.3 by univariate rational interpolation.
+
+The record of results-log entry 1 (audit/campaign.md): the 0.3 profile
+(x^7 full rounds, x^-1 partial rounds, Plonky3 4x4 block), its constants
+re-derived by hemera_ref.py. The 0.4 profile has x^7 in every round; its
+one-variable degree 7^60 exceeds p, so this route does not apply to it.
 
 One free rate element X; every other input element fixed; ask for output
 limb `limb` = target. The state is carried symbolically as numerators N_i(X)

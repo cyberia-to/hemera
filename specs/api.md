@@ -38,7 +38,7 @@ pub fn verify_node_proof(node_hash: &Hash, proof: &InclusionProof, root: &Hash) 
 
 // ── Batch Proof API ──────────────────────────────────────────
 pub fn prove_batch(data: &[u8], indices: &[u64]) -> (Hash, BatchInclusionProof);
-pub fn verify_batch(chunks: &[&[u8]], proof: &BatchInclusionProof) -> bool;
+pub fn verify_batch(chunks: &[&[u8]], proof: &BatchInclusionProof, root: &Hash) -> bool;
 
 // ── Sparse Tree API ────────────────────────────────────────────
 impl SparseTree {

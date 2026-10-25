@@ -10,8 +10,8 @@ const WIDTH: u32 = 16u;
 const RATE: u32 = 8u;
 const RATE_BYTES: u32 = 56u;
 const BYTES_PER_ELEMENT: u32 = 7u;
-const ROUNDS_F: u32 = 8u;
-const ROUNDS_P: u32 = 16u;
+const ROUNDS_F: u32 = 12u;
+const ROUNDS_P: u32 = 48u;
 const STATE_U32S: u32 = 32u;
 const HASH_U32S: u32 = 8u;
 

@@ -11,7 +11,7 @@
 //!
 //! Rows:
 //! - `mul latency`: one dependent chain of Goldilocks multiplications
-//!   (each result feeds the next) — the cost that bounds the inverse chain.
+//!   (each result feeds the next) — the cost that bounds the partial-round S-box chain.
 //! - `mul throughput`: 8 independent chains interleaved.
 //! - `permute (latency)`: each permutation's output is the next input.
 //! - `permute_ct (latency)`: the constant-time kernel, chained.

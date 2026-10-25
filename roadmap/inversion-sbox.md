@@ -2,9 +2,12 @@
 tags: cyber, cip
 crystal-type: process
 crystal-domain: cyber
-status: implemented
+status: superseded
 date: 2026-03-17
+superseded: 2026-10-16
 ---
+> **superseded by hemera 0.4 (2026-10-16).** the argument below does not hold. 7⁸ × (p−2)¹⁶ ≈ 2^1046 is the unreduced composition degree, not a lower bound on any attack: carried as a rational function of one input, each inverse round only doubles the degree, so the 0.3 permutation has a one-variable CICO degree of 7⁸ · 2¹⁶ ≈ 2^38.46 < p, and a reduced instance keeping all sixteen inverse rounds was solved in 92 s (`audit/campaign.md` §3.2, `audit/campaign/cico1.py`). the "2^896 / 2^918 margin" claims are withdrawn. hemera 0.4 uses x⁷ in every round with 12 full and 48 partial rounds (`specs/permutation.md`). this page is kept for rationale.
+
 # inversion S-box — x⁻¹ partial rounds with reduced count
 
 replace x⁷ S-box in partial rounds with field inversion x⁻¹. reduce partial rounds from 64 to 16. the two changes are inseparable — x⁻¹ enables the round reduction.
