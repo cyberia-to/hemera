@@ -97,7 +97,7 @@ the root cause: fixed boundaries are absolute byte positions. any insertion anyw
 
 even with perfect deduplication restored (via CDC), if the chunk boundaries are arbitrary byte windows, addresses mean nothing. the cyber rank system needs addresses that correspond to semantic units — tensors, records, declarations. arbitrary boundaries produce arbitrary addresses.
 
-content-defined chunking (CDC) solves the offset problem. semantic structure alignment solves the meaning problem. this proposal does both.
+content-defined chunking (CDC) solves the offset problem. semantic structure alignment solves the meaning problem. this project does both.
 
 ---
 

@@ -1,12 +1,12 @@
 # hemera roadmap
 
-hemera is specified: x⁻¹ partial S-box, 16 partial rounds, 32-byte output, ~736 constraints per permutation. these proposals are OPTIMIZATIONS on top of the current spec — reducing constraint count further and shifting hemera's role from "hash for everything" to "trust anchor."
+hemera is specified: x⁻¹ partial S-box, 16 partial rounds, 32-byte output, ~736 constraints per permutation. these projects are OPTIMIZATIONS on top of the current spec — reducing constraint count further and shifting hemera's role from "hash for everything" to "trust anchor."
 
 ## status: implemented = shipped in code and spec
 
 ## implemented (0.3)
 
-| proposal | what it does |
+| project | what it does |
 |----------|-------------|
 | [[inversion-sbox]] | x⁻¹ S-box in partial rounds, 16 partial rounds, 2^1046 algebraic degree |
 | [[compact-output]] | 32-byte output, single-permutation binary tree nodes |
@@ -17,18 +17,18 @@ hemera is specified: x⁻¹ partial S-box, 16 partial rounds, 32-byte output, ~7
 | [[gpu-backend]] | wgpu compute shaders, u64 emulation in WGSL, batch dispatch |
 | [[zero-alloc]] | no_std core, fixed-size buffers, rs-edition compliant |
 
-## optimization proposals
+## optimization projects
 
-| proposal | in reference? | breaks hash? | target |
+| project | in reference? | breaks hash? | target |
 |----------|--------------|:------------:|--------|
 | [[partial-round-collapse]] | no | no | precompute linear evolution: 4× prover wall-clock |
 | [[constraint-free-mds]] | no | no | absorb MDS into CCS wiring: 26% fewer constraints (~544) |
 
 batched-proving, folded-sponge and algebraic challenge derivation were removed with the retired zheng design; the per-execution hemera call count belongs to [[soft3/projects/proof-system-repair|the proof-system repair]].
 
-## scope expansion proposals
+## scope expansion projects
 
-| proposal | in reference? | breaks hash? | target |
+| project | in reference? | breaks hash? | target |
 |----------|--------------|:------------:|--------|
 | [[erasure-coding]] | no | no | Reed-Solomon erasure coding over Goldilocks: same field, same NTT, data availability codec |
 | [[capacity-typing]] | no | no | type tags in reserved capacity slot state[14]: type-integrated hashing, type confusion prevention |
@@ -55,11 +55,11 @@ always hemera:     H(particle) identity, H(cyberlink), Fiat-Shamir challenges
 
 ## cross-repo dependencies
 
-| zheng proposal | hemera interaction |
+| zheng project | hemera interaction |
 |------------------|--------------------|
 | [[soft3/projects/proof-system-repair\|proof-system repair]] | hemera is the one hash: Merkle trees, Fiat-Shamir, program digests |
 
-| bbg proposal | hemera interaction |
+| bbg project | hemera interaction |
 |--------------|-------------------|
 | [[signal-first]] | signals content-addressed via hemera; hemera identity IS signal identity |
 
