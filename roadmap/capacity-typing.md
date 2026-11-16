@@ -22,7 +22,7 @@ every particle in the cybergraph has a type. currently type is external metadata
 
 integrating type into capacity makes type intrinsic to identity. same content, different type → different hash. type becomes part of what the content IS, not a label attached after.
 
-## proposal
+## project
 
 use `state[14]` for a type tag:
 

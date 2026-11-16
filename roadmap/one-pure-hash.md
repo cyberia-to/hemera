@@ -8,7 +8,7 @@ crystal-domain: crypto
 # one pure hash — capacity for invariants only, no mode variance
 
 hemera is the cyber stack's identity function: `hash(data) → particle`.
-this proposal removes the two pieces of inherited variance — content-type
+this project removes the two pieces of inherited variance — content-type
 in capacity, and BLAKE3-style hash modes — leaving one pure hash.
 supersedes [[capacity-typing]] (kept for rationale, not implemented).
 
