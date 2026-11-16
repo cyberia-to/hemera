@@ -7,7 +7,7 @@ date: 2026-10-16
 ---
 # hemera cryptanalysis campaign
 
-gate G3 of `soft3/proposals/privacy-frozen.md` §5: hemera is the one
+gate G3 of `soft3/projects/privacy-frozen.md` §5: hemera is the one
 material consensus rests on — proof of work, block and transaction Merkle
 trees, particles, commitments, nullifiers and every zheng transcript. the
 privacy pool switches on only after a public cryptanalysis campaign has run
@@ -550,7 +550,7 @@ log row with its script in `audit/campaign/`.
 | day 0 | public announcement (eprint-style note, ethresear.ch, the zkHack and Poseidon-initiative channels); paid-review invitations sent |
 | day 0–30 | in-house runs: every A instance attacked with `cico1.py` and a Gröbner run (msolve / magma F4) to calibrate the table |
 | day 45 | paid reviewers' interim notes; instance table may be extended, never weakened |
-| day 90 | earliest pass date; reviewers' final reports; G3 decision recorded in `soft3/proposals/privacy-frozen.md` |
+| day 90 | earliest pass date; reviewers' final reports; G3 decision recorded in `soft3/projects/privacy-frozen.md` |
 | after day 90 | the bounty stays open for as long as hemera is consensus material; any later D result triggers the hash-break response of `cyber/whitepaper.md` §4.5 |
 
 ## 6. pass criterion and results log
@@ -606,7 +606,7 @@ it, and restarts the clock.
 - ZKM, "Why Ethereum walked away from Poseidon" (August 2026) — secondhand source for the 2^126 / 2^123 figures and the Ethereum decision.
 - Brassard, Høyer, Tapp. Quantum cryptanalysis of hash and claw-free functions. LATIN 1998.
 
-internal: `soft3/proposals/privacy-frozen.md` §5–6; `soft3/specs/chain.md`
+internal: `soft3/projects/privacy-frozen.md` §5–6; `soft3/specs/chain.md`
 §1; `zheng/specs/soundness.md` (`release/0.4`); `cyber/audit/cryptography-2026-10-08.md`;
 `cyber/whitepaper.md` §4; hemera#2 (`research/permutation-decision.md`,
 `research/full-round-status.md`, `research/inverse-sbox-assessment.md`,

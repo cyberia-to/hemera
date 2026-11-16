@@ -24,7 +24,7 @@ hemera is specified: x⁻¹ partial S-box, 16 partial rounds, 32-byte output, ~7
 | [[partial-round-collapse]] | no | no | precompute linear evolution: 4× prover wall-clock |
 | [[constraint-free-mds]] | no | no | absorb MDS into CCS wiring: 26% fewer constraints (~544) |
 
-batched-proving, folded-sponge and algebraic challenge derivation were removed with the retired zheng design; the per-execution hemera call count belongs to [[soft3/proposals/proof-system-repair|the proof-system repair]].
+batched-proving, folded-sponge and algebraic challenge derivation were removed with the retired zheng design; the per-execution hemera call count belongs to [[soft3/projects/proof-system-repair|the proof-system repair]].
 
 ## scope expansion proposals
 
@@ -44,7 +44,7 @@ FS calls (20-round):    20 × 736 = 14,720    —
 
 ## endgame role
 
-hemera becomes the identity layer: content identity (hash), content typing (capacity), content availability (erasure). polynomial commitments handle the high-volume proof work; their openings authenticate through hemera Merkle paths, see [[soft3/proposals/proof-system-repair|the proof-system repair]].
+hemera becomes the identity layer: content identity (hash), content typing (capacity), content availability (erasure). polynomial commitments handle the high-volume proof work; their openings authenticate through hemera Merkle paths, see [[soft3/projects/proof-system-repair|the proof-system repair]].
 
 ```
 always hemera:     H(particle) identity, H(cyberlink), Fiat-Shamir challenges
@@ -57,7 +57,7 @@ always hemera:     H(particle) identity, H(cyberlink), Fiat-Shamir challenges
 
 | zheng proposal | hemera interaction |
 |------------------|--------------------|
-| [[soft3/proposals/proof-system-repair\|proof-system repair]] | hemera is the one hash: Merkle trees, Fiat-Shamir, program digests |
+| [[soft3/projects/proof-system-repair\|proof-system repair]] | hemera is the one hash: Merkle trees, Fiat-Shamir, program digests |
 
 | bbg proposal | hemera interaction |
 |--------------|-------------------|
