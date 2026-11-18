@@ -12,14 +12,16 @@ replace the experimental inverse-16 profile with a single Poseidon2 instance who
 
 companion analysis: `cyber/audit/cryptography-2026-10-08.md` §5. research models referenced below live in PR #2 (`research/`).
 
+state, 2026-11-18. the rounds half of this proposal was decided on 2026-10-16 and shipped as hemera 0.4 on the `release/0.4` branch: x⁷ in every round, R_F = 12 (6 + 6), R_P = 48, the Poseidon2 reference external block and reference internal diagonal, constants re-bootstrapped with the parameter checks. the digest was not widened — 0.4 keeps 4 limbs (32 bytes). `main` is still the 0.3 profile and stays there until the owner promotes `release/0.4`. so what this page still asks is the digest question (32 against 48 against 64 bytes) and the width that goes with it; the rest is a record of why 0.4 is what it is. decision and receipt: `CHANGELOG.md` [0.4.0] on `release/0.4`, `audit/campaign.md` §0 and §3.2 on `main` — neither file is on this branch, which was cut before them.
+
 ## why the inverse profile goes
 
-the inverse profile was adopted on one argument: degree p−2 per partial round gives 2^1046 algebraic degree, so sixteen partial rounds suffice ([[inversion-sbox]]). that argument is withdrawn (`specs/README.md`, `research/permutation-decision.md`: "the original justification … fails"). the reason is simple: an attacker never meets degree p−2. the inverse is modelled as x·y = 1, one quadratic equation — the same algebraic cost as the cheapest S-box — and polynomial-system solving is the one attack line that is advancing (Ethereum's 2026 estimates on Poseidon2 fell from 2¹⁶⁴ to 2¹²⁶ on exactly that line). against it the inverse profile has:
+the inverse profile was adopted on one argument: degree p−2 per partial round gives 2^1046 algebraic degree, so sixteen partial rounds suffice ([[inversion-sbox]]). that argument is withdrawn (`research/permutation-decision.md`, in PR #2: "the original justification … fails"). `specs/README.md` in this tree still carries it unqualified — correcting it is part of what this proposal changes (see below). the reason is simple: an attacker never meets degree p−2. the inverse is modelled as x·y = 1, one quadratic equation — the same algebraic cost as the cheapest S-box — and polynomial-system solving is the one attack line that is advancing (Ethereum's 2026 estimates on Poseidon2 fell from 2¹⁶⁴ to 2¹²⁶ on exactly that line). against it the inverse profile has:
 
 - fewer equations of the same kind — 16 partial rounds against the reference 22;
 - extra structure — the 0→0 branch adds `x(z−1)=0, y(z−1)=0` to every partial round (`research/full-round-status.md`);
 - an open subspace restriction — 15 of 16 partial rounds admit an affine line on which every active S-box is the identity (`research/partial_subspace.py`); eprint 2026/1692 uses exactly this ("algebraic cancellation of non-linear inverse S-boxes") to reach 28 of 31 rounds on Poseidon-KoalaBear;
-- non-MDS linear layers (`specs/matrices.md`), the component eprint 2026/306 attacks;
+- a linear layer no published analysis covers: the external 4×4 block is Plonky3's `circ(2, 3, 1, 1)` rather than the Horizen Labs block the Goldilocks reference instances are built on, and nothing beyond invertibility and the 4×4 block's MDS property is checked — no subspace-trail or invariant-subspace condition on the internal layer (`specs/matrices.md` § verification), which is the component eprint 2026/306 attacks. the 16×16 layers are not MDS, but no Poseidon2 layer is at t ≥ 8 by construction, so that is not the defect;
 - no published analysis, no bounty exposure: custom S-box and constants mean none of Poseidon2's bounds transfer;
 - and no efficiency case: 6.67% fewer constraints than the reference at 2.85× the native multiplications (`research/permutation-decision.md`).
 
@@ -32,7 +34,7 @@ parameters are chosen by a rule so they can be re-derived when the attacks move.
 - S-box: x⁷ in every round. the Poseidon2 reference S-box over Goldilocks; every published bound and every bounty instance is about it.
 - full rounds: the best published attack strips 2 of 4 initial full rounds. keep at least 3× that intact on each side → R_F = 12 (6 + 6).
 - partial rounds: the best published attack reaches ~14 of 23 partial rounds (CICO-1, eprint 2026/1692, KoalaBear t=24). rule: best known reach ≤ ½ of the budget, with a ×1.5–2 factor for AI-assisted progress → R_P in 44–56; point estimate R_P = 48.
-- matrices: the Poseidon2 reference construction — external M_E from circulant 4×4 MDS blocks, internal M_I = I + diag(μ) with the published invertibility and eigenvalue conditions. both current matrices fail MDS.
+- matrices: the Poseidon2 reference construction — external M_E from circulant 4×4 MDS blocks, internal M_I = I + diag(μ) with the published invertibility and eigenvalue conditions, each one checked against the implementation and recorded. what the move buys is the analysed instance and its checks, not a branch number: the 16×16 layers are non-MDS in the reference construction exactly as they are in the current one.
 - constants: keep the self-bootstrap (Hemera₀ sponge over the seed `cyber`), then run the Poseidon parameter checks on the result — invariant-subspace trails through the partial layer and matrix conditions. constants that fail are regenerated with a counter.
 - width and sponge: t = 16, rate 8, capacity 8 (512 bits) unchanged.
 - digest: 6 elements (48 bytes). see below.
@@ -94,6 +96,6 @@ native throughput is unchanged (~53 MB/s today, ~51 MB/s proposed; t=24 variant 
 - R_P = 44, 48 or 56 — the AI factor is a judgement.
 - t=16 · 48 B against t=24 · 64 B — identity size against tree throughput.
 - whether to adopt the Poseidon2 reference constants outright (inherits the published instance exactly, loses the `cyber` seed) or keep the self-bootstrap with the parameter checks (keeps the seed, inherits the family's analysis, not the instance's).
-- timing: this is a genesis decision. after 2026-11-05 it is a fork.
+- timing: this is a genesis decision and the window closes when the genesis pipeline runs, not on a calendar date. the 2026-11-05 date this page first carried has passed; the rounds were answered by 0.4 on 2026-10-16, the digest was not (see the state note above).
 
 see [[inversion-sbox]] · [[compact-output]] · [[one-pure-hash]] · [[constraint-free-mds]] · `cyber/audit/cryptography-2026-10-08.md`

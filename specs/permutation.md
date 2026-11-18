@@ -201,7 +201,7 @@ function permute(state: [GoldilocksField; 16]):
 | property | value | derivation |
 |---|---|---|
 | algebraic degree | 7⁸ × (p-2)¹⁶ ≈ 2¹⁰⁴⁶ | 8 full rounds (x⁷) + 16 partial rounds (x⁻¹) |
-| diffusion | full after 2 rounds | MDS matrices guarantee maximum branch number |
+| diffusion | full after 1 external round | no entry of M_E or M_I is zero, so one linear layer makes every output depend on every input (`specs/matrices.md` § verification); the 16×16 layers are not MDS |
 | S-box differential uniformity | ≤ 6/p ≈ 0 | power map x⁷ over prime field |
 | invertibility | guaranteed | gcd(7, p−1) = 1 |
 

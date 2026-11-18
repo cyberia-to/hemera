@@ -84,4 +84,13 @@ all values are canonical Goldilocks elements (< p = 0xFFFFFFFF00000001). follows
 
 ## verification
 
-both matrices are verified for MDS property: every square sub-matrix has non-zero determinant over the Goldilocks field. this guarantees maximum branch number and optimal diffusion.
+what is checked over the Goldilocks field, and what holds:
+
+- M4, the 4×4 block, is MDS: all 69 square sub-matrices have non-zero determinant.
+- M_E and M_I are invertible.
+- neither 16×16 matrix is MDS. in M_E rows 0 and 4 restricted to columns 8 and 9 are both `(2, 3)`; in M_I any 2×2 minor taken from off-diagonal entries is all-ones. both minors are singular.
+- both layers diffuse fully in one application: no entry of M_E or M_I is zero, so every output element depends on every input element.
+
+the non-MDS result is the Poseidon2 construction working as designed — no Poseidon2 external or internal layer is MDS at t ≥ 8 — so branch-number arguments of the MDS kind do not apply to the 16×16 layers. the conditions that matter for M_I are the subspace-trail and invariant-subspace conditions of ePrint 2020/500; no such check is recorded for this diagonal.
+
+earlier revisions of this page stated that both 16×16 matrices are MDS with maximum branch number. that claim was wrong and is withdrawn (hemera#2; `audit/campaign.md` §1.3, merged to `main` after this branch was cut).
