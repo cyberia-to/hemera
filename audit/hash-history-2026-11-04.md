@@ -43,7 +43,7 @@ authorship: every hemera commit carries the owner's git identity. agent work sho
 | C | `hemera(Lens.commit(data) ‖ PARTICLE)` | cyber `particle.md`; bbg `docs/explanation/architecture-overview.md:69`; hemera `specs/tree.md` | no code (`launch.md` decisions log) |
 | D | CDC `tree::root_hash` = `section_cdc_tree(bytes, 1, true)` | `rs/src/tree.rs:205`, `rs/src/cdc.rs`; `roadmap/semantic-hashing.md` | hemera library; soft3 conformance `hemera::tree::root_hash@v1` beside `hash@v1` and `fixed_chunk_root@v1` (`conformance/rs/src/surfaces/hemera.rs:54-62`); no particle uses it |
 
-they disagree: `hemera::hash("hello")` = `85cbee6d…`, the tree vector for "hello" = `a384f241…` (`vectors/hemera.json`; a single-chunk root is a flagged leaf). A = B only up to 4 KB; D = hemera's 4 KB tree only below ~2 KB (`root_hash` doc); C equals none. inside hemera `root_hash` names two things: `tree::root_hash` is D, while `root_hash_with_progress` (CLI) and the GPU `root_hash` compute the 4 KB tree (`rs/src/tree.rs:228`, `cli/src/main.rs:109-115`, `wgsl/tests/gpu.rs`). unchecked: `wgsl/src/lib.rs:733` may call the CDC `root_hash` where a fixed-chunk subtree is meant.
+they disagree: `hemera::hash("hello")` = `85cbee6d…`, the tree vector for "hello" = `a384f241…` (`vectors/hemera.json` on `origin/release/0.4` 8559b52; the same two on `origin/main` fd55f99 are `e1b19b82…` and `626fa46e…`, since 0.4 changes every output; a single-chunk root is a flagged leaf). A = B only up to 4 KB; D = hemera's 4 KB tree only below ~2 KB (`root_hash` doc); C equals none. inside hemera `root_hash` names two things: `tree::root_hash` is D, while `root_hash_with_progress` (CLI) and the GPU `root_hash` compute the 4 KB tree (`rs/src/tree.rs:228`, `cli/src/main.rs:109-115`, `wgsl/tests/gpu.rs`). unchecked: `wgsl/src/lib.rs:733` may call the CDC `root_hash` where a fixed-chunk subtree is meant.
 
 ## 3. where a hashing choice made serialization a requirement
 
@@ -55,12 +55,12 @@ they disagree: `hemera::hash("hello")` = `85cbee6d…`, the tree vector for "hel
 | CDC in `root_hash` | identity depends on the gear table (`hemera::hash` of each byte, regenerated in 0.4), W and boundary rules | `cdc.rs` header; CHANGELOG 0.4.0 |
 | structural commitments | `hemera-struct-v1\0` + tag, u64 LE, kinds `cyb.section.v1` / `cyb.entry.v1` / `cyb.container.v1`; "framing is injective"; "settle TOML multiline values, duplicate names, trailing data and delimiter reconstruction"; "freeze primitive, encoding and cross-language vectors together"; an opening does not prove the producer "chose canonical CDC boundaries" | PR #2, `specs/structural-commitments.md` |
 | type out of capacity | nominal type as `pair(domain, value)`: the type enters the hashed bytes | `roadmap/one-pure-hash.md` §1 |
-| domain separation at input | prefixes 0x01 edge … 0x04 node; "domain separation lives in the hash input (different serialization, different capacity flags)" | `cybergraph/specs/particle.md`; `docs/explanation/particle-ids.md:40` |
+| domain separation at input | prefixes 0x01…0x04, one per kind of graph element (0x04 node); "domain separation lives in the hash input (different serialization, different capacity flags)" | `cybergraph/specs/particle.md`; `docs/explanation/particle-ids.md:40` |
 | cyberlink identity | "the sponge hash of its canonical encoding" | `specs/sponge.md:38` |
 | chain identities | `hemera("soft3/chain/leaf/v1\0" ‖ tx)`, txid, statement; 168-byte header; genesis is a tade stream "in the canonical order below, nothing else", its particle is the chain id | cybernode `specs/chain.md` §1, §3.1, §4.1 |
 | coordinate particles | "the hemera hash of the canonical bytes `"locus:" ‖ E ‖ r ‖ θ`" | `cybergraph/specs/address.md:20` |
 | lens construction C | identity depends on `Lens.commit`; "the choice also fixes the layer of lens" | cyber `particle.md`; `launch.md` decisions log |
-| review doctrine | "serialization is canonical — single valid encoding per value" | hemera `AGENTS.md:219` |
+| review doctrine | "serialization is canonical — single valid encoding per value" | hemera `CLAUDE.md:217` |
 
 the texts where the hash takes bytes as they are: "identity is never on the wire as a primitive; a particle is computed from the bytes at either end" (`tade/README.md:13`); "on the wire a file is a tade frame … particle = hemera(data)" (cyber `file.md`); "no version prefix, no mode byte" (`specs/encoding.md:54`); "same bytes → same hash … (distinct from CIDv0/UnixFS)" (cybics `crypto/features.md:95`).
 
