@@ -33,4 +33,4 @@ Novel:
 - Goldilocks + t=16 combination. No production system uses Goldilocks at width 16. Plonky3 and Miden use t=12. The systems that use t=16 (SP1, RISC Zero, Stwo) use 31-bit fields.
 - R_P=64. The highest partial round count in any deployed Poseidon2. The next highest is Aztec/Noir at R_P=56 (on BN254, a very different field). On small fields, the maximum deployed is R_P=22.
 
-Actual risk: a subtle error in the specific M_E or M_I matrix constructed for Goldilocks at t=16. The permutation structure, S-box, and round counts are conservative. The MDS matrices are the only component that must be validated specifically for this field-width combination.
+Actual risk: a subtle error in the specific M_E or M_I matrix constructed for Goldilocks at t=16. The permutation structure, S-box, and round counts are conservative. The M_E and M_I linear layers are the only component that must be validated specifically for this field-width combination.

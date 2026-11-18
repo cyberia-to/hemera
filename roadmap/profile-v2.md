@@ -33,7 +33,7 @@ parameters are chosen by a rule so they can be re-derived when the attacks move.
 
 - S-box: x⁷ in every round. the Poseidon2 reference S-box over Goldilocks; every published bound and every bounty instance is about it.
 - full rounds: the best published attack strips 2 of 4 initial full rounds. keep at least 3× that intact on each side → R_F = 12 (6 + 6).
-- partial rounds: the best published attack reaches ~14 of 23 partial rounds (CICO-1, eprint 2026/1692, KoalaBear t=24). rule: best known reach ≤ ½ of the budget, with a ×1.5–2 factor for AI-assisted progress → R_P in 44–56; point estimate R_P = 48.
+- partial rounds: the best published attack reaches ~14 of 23 partial rounds (CICO-1, eprint 2026/1692, KoalaBear t=24). rule: best known reach ≤ ½ of the budget, with a ×1.5–2 factor for AI-assisted progress → R_P in 42–56 (2 × 14 × 1.5 to 2 × 14 × 2); point estimate R_P = 48.
 - matrices: the Poseidon2 reference construction — external M_E from circulant 4×4 MDS blocks, internal M_I = I + diag(μ) with the published invertibility and eigenvalue conditions, each one checked against the implementation and recorded. what the move buys is the analysed instance and its checks, not a branch number: the 16×16 layers are non-MDS in the reference construction exactly as they are in the current one.
 - constants: keep the self-bootstrap (Hemera₀ sponge over the seed `cyber`), then run the Poseidon parameter checks on the result — invariant-subspace trails through the partial layer and matrix conditions. constants that fail are regenerated with a counter.
 - width and sponge: t = 16, rate 8, capacity 8 (512 bits) unchanged.

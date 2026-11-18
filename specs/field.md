@@ -25,5 +25,5 @@ the field provides native u64 arithmetic, two-adicity of 32 for NTT, and the min
 
 - **S-box exponent:** d = 7 (minimum invertible for this field). see [[permutation]].
 - **encoding:** 7 bytes per field element, little-endian. see [[encoding]].
-- **MDS matrices:** M_E and M_I are defined over this field. see [[matrices]].
+- **linear layers:** M_E (external, a circulant of MDS 4×4 blocks) and M_I (internal, diagonal) are defined over this field. see [[matrices]].
 - **round constants:** 192 elements of this field. see [[constants]].

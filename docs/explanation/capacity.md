@@ -71,7 +71,7 @@ the permutation mixes rate and capacity together — that is its job. but the mi
 
 this is stronger than prefix-based domain separation (prepending a tag byte to the input). a prefix lives in the rate — it occupies the same space as input data. an attacker who controls the input controls the prefix too. capacity lives outside the input space. the attacker cannot reach it regardless of what input they craft.
 
-collision resistance is bounded by capacity size: 2^(c×32) for c capacity elements of 64 bits each. with c = 8 elements = 512 bits of capacity, collision resistance is 2^256 (birthday bound). this is the theoretical maximum for a 512-bit output — Hemera achieves it because the full capacity is unreachable by the attacker.
+collision resistance is bounded from above by capacity size: 2^(c×32) for c capacity elements of 64 bits each. with c = 8 elements = 512 bits of capacity, that bound is 2^256. it is a ceiling, not the realized figure: sponge collision resistance is the smaller of the capacity bound and the digest bound, and Hemera's 32-byte digest binds at 2^128 classical (~2^85 quantum, BHT). what the full capacity buys is that the ceiling never becomes the limit — see [[profile-v2]] for the open decision on widening the digest.
 
 ## what it costs
 
@@ -79,13 +79,13 @@ collision resistance is bounded by capacity size: 2^(c×32) for c capacity eleme
 
 **half the throughput.** this is the real cost. with t = 16 elements total and c = 8 capacity, only r = 8 elements absorb input (56 bytes per block). if the entire state were rate (c = 0), throughput would double to 112 bytes per block. but c = 0 means zero collision resistance — the sponge security proof requires capacity > 0.
 
-| capacity | rate | throughput | collision resistance |
+| capacity | rate | throughput | capacity-side collision bound |
 |---|---|---|---|
 | c = 0 | r = 16 | 112 B/block | 0 bits (broken) |
 | c = 4 | r = 12 | 84 B/block | 128 bits |
 | c = 8 | r = 8 | 56 B/block | 256 bits |
 
-Hemera uses c = 8 because particle addresses are permanent. 128-bit collision resistance (c = 4) is standard for ephemeral proofs — adequate when commitments live for seconds. permanent addresses require the full 256-bit level. the throughput cost (56 vs 84 bytes per block, ~33% reduction) is the price of permanence.
+Hemera uses c = 8 because particle addresses are permanent. a 128-bit capacity bound (c = 4) is standard for ephemeral proofs — adequate when commitments live for seconds. permanent addresses keep the capacity ceiling above the digest, so the digest alone sets the security level. the throughput cost (56 vs 84 bytes per block, ~33% reduction) is the price of permanence.
 
 in practice, the throughput cost is smaller than it appears. a 4 KB chunk requires ⌈4096/56⌉ = 74 absorptions with c = 8 vs ⌈4096/84⌉ = 49 absorptions with c = 4. that is 74 vs 49 permutations — a 51% increase. but leaf hashing adds one binding permutation, so the total is 75 vs 50 — still 50% more. for Merkle internal nodes, the cost is 2 permutations regardless of capacity (two 32-byte child hashes fit in the rate at either capacity level). tree overhead is capacity-independent.
 

@@ -1,6 +1,6 @@
 # hemera roadmap
 
-hemera is specified: x⁻¹ partial S-box, 16 partial rounds, 32-byte output, ~736 constraints per permutation. these proposals are OPTIMIZATIONS on top of the current spec — reducing constraint count further and shifting hemera's role from "hash for everything" to "trust anchor."
+hemera is specified: x⁻¹ partial S-box, 16 partial rounds, 32-byte output, ~736 constraints per permutation. the proposals below are of two kinds: SECURITY proposals, which change the permutation itself and break the hash, and OPTIMIZATIONS on top of the current spec — reducing constraint count further and shifting hemera's role from "hash for everything" to "trust anchor."
 
 ## status: implemented = shipped in code and spec
 

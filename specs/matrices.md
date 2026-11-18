@@ -2,7 +2,7 @@
 tags: cyber, cip
 crystal-type: entity
 crystal-domain: cyber
-alias: Hemera matrices, MDS matrices
+alias: Hemera matrices, Hemera linear layers
 ---
 
 # matrix construction
